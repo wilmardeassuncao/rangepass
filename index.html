@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RangePass - CRUD Material Design 3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --md-sys-color-background: #121212;
+            --md-sys-color-surface: #1e1e1e;
+            --md-sys-color-primary: #e65100; 
+            --md-sys-color-error: #b00020;
+            --md-sys-color-on-primary: #ffffff;
+            --md-sys-color-outline: #79747e;
+            --md-sys-color-on-surface: #e3e3e3;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #222;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .phone-container {
+            width: 360px;
+            height: 740px;
+            background-color: var(--md-sys-color-background);
+            border: 8px solid #000;
+            border-radius: 36px;
+            box-shadow: 0px 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .screen {
+            padding: 24px;
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        h1 {
+            color: var(--md-sys-color-on-surface);
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 32px;
+            font-weight: 700;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 16px;
+            background: transparent;
+            border: 1px solid var(--md-sys-color-outline);
+            border-radius: 8px;
+            color: var(--md-sys-color-on-surface);
+            font-size: 16px;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        .input-group label {
+            position: absolute;
+            left: 16px;
+            top: 16px;
+            color: var(--md-sys-color-outline);
+            transition: 0.2s ease all;
+            pointer-events: none;
+            background-color: var(--md-sys-color-background);
+            padding: 0 4px;
+        }
+
+        .input-group input:focus ~ label,
+        .input-group input:not(:placeholder-shown) ~ label {
+            top: -8px;
+            left: 12px;
+            font-size: 12px;
+            color: var(--md-sys-color-primary);
+        }
+
+        .input-group input:focus {
+            border-color: var(--md-sys-color-primary);
+        }
+
+        .btn-pill {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            padding: 14px;
+            border-radius: 100px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-bottom: 10px;
+            text-align: center;
+            text-decoration: none;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
+            transition: 0.2s;
+        }
+
+        .btn-error {
+            background-color: var(--md-sys-color-error);
+        }
+
+        .card-preview {
+            background-color: var(--md-sys-color-surface);
+            padding: 20px;
+            border-radius: 16px;
+            color: var(--md-sys-color-on-surface);
+            margin-bottom: 20px;
+            border: 1px solid #333;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="phone-container">
+        
+        <div id="screen-home" class="screen active">
+            <h1>RangePass</h1>
+            <div class="card-preview" style="text-align: center;">
+                <p>Seja bem vindo (a) ao nosso app</p>
+                <p>Realize seu agendamento</p>
+            </div>
+            <button class="btn-pill" style="margin-top: auto;" onclick="navigate('screen-form')">Novo Agendamento</button>
+        </div>
+
+        <div id="screen-form" class="screen">
+            <h1 id="form-title">RangePass</h1>
+            <form id="appointmentForm" onsubmit="submitData(event)">
+                <div class="input-group">
+                    <input type="text" id="usuario" placeholder=" " required>
+                    <label>Escolha o usuário</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="armamento" placeholder=" " required>
+                    <label>Escolha o armamento</label>
+                </div>
+                <div class="input-group">
+                    <input type="number" id="municao" placeholder=" " required>
+                    <label>Quantidade de Munição</label>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="instrutor" placeholder=" " required>
+                    <label>Instrutor</label>
+                </div>
+                <button type="submit" class="btn-pill" style="margin-top: auto;">Salvar agendamento</button>
+            </form>
+        </div>
+
+        <div id="screen-details" class="screen">
+            <h1>RangePass</h1>
+            <div class="card-preview">
+                <h3>Resumo das informações:</h3>
+                <p><strong>Usuário:</strong> <span id="view-usuario"></span></p>
+                <p><strong>Armamento:</strong> <span id="view-armamento"></span></p>
+                <p><strong>Munição:</strong> <span id="view-municao"></span></p>
+                <p><strong>Instrutor:</strong> <span id="view-instrutor"></span></p>
+            </div>
+            <div style="display: flex; flex-direction: column; margin-top: auto;">
+                <button class="btn-pill" onclick="editData()">Editar</button>
+                <button class="btn-pill btn-error" onclick="deleteData()">Excluir</button>
+                <button class="btn-pill" style="background-color: #4caf50;" onclick="navigate('screen-success')">Finalizar</button>
+            </div>
+        </div>
+
+        <div id="screen-success" class="screen">
+            <h1>RangePass</h1>
+            <div class="card-preview" style="margin-top: 100px; text-align: center;">
+                <p style="font-size: 24px; color: #4caf50;">✓</p>
+                <p>Agendamento realizado com sucesso</p>
+            </div>
+            <button class="btn-pill" style="margin-top: auto;" onclick="resetApp()">Fechar App</button>
+        </div>
+
+    </div>
+
+    <script>
+        const webhookUrl = "https://hook.us2.make.com/s8tgskh4nt0vkymn7vxwm4vvrpz6ciyy";
+        
+        let currentData = {}; 
+
+        function navigate(screenId) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        async function submitData(event) {
+            event.preventDefault();
+            
+            currentData = {
+                usuario: document.getElementById('usuario').value,
+                armamento: document.getElementById('armamento').value,
+                municao_qtd: document.getElementById('municao').value,
+                instrutor: document.getElementById('instrutor').value
+            };
+
+            document.getElementById('view-usuario').innerText = currentData.usuario;
+            document.getElementById('view-armamento').innerText = currentData.armamento;
+            document.getElementById('view-municao').innerText = currentData.municao_qtd;
+            document.getElementById('view-instrutor').innerText = currentData.instrutor;
+
+            try {
+                await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentData)
+                });
+            } catch (error) {
+                console.log('Comunicação externa offline, mantendo simulação local.');
+            }
+
+            navigate('screen-details');
+        }
+
+        function editData() {
+            document.getElementById('form-title').innerText = "Editar Agendamento";
+            document.getElementById('usuario').value = currentData.usuario;
+            document.getElementById('armamento').value = currentData.armamento;
+            document.getElementById('municao').value = currentData.municao_qtd;
+            document.getElementById('instrutor').value = currentData.instrutor;
+            navigate('screen-form');
+        }
+
+        function deleteData() {
+            if(confirm("Tem certeza de que deseja eliminar este agendamento?")) {
+                alert("Agendamento eliminado com sucesso!");
+                resetApp();
+            }
+        }
+
+        function resetApp() {
+            document.getElementById('appointmentForm').reset();
+            document.getElementById('form-title').innerText = "RangePass";
+            currentData = {};
+            navigate('screen-home');
+        }
+    </script>
+</body>
+</html>
