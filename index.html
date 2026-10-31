@@ -45,6 +45,7 @@
             flex-direction: column;
             height: 100%;
             box-sizing: border-box;
+            overflow-y: auto;
         }
 
         .screen.active {
@@ -64,7 +65,8 @@
             margin-bottom: 20px;
         }
 
-        .input-group input {
+        .input-group input,
+        .input-group select {
             width: 100%;
             padding: 16px;
             background: transparent;
@@ -88,15 +90,39 @@
         }
 
         .input-group input:focus ~ label,
-        .input-group input:not(:placeholder-shown) ~ label {
+        .input-group input:not(:placeholder-shown) ~ label,
+        .input-group.campo-fixo label {
             top: -8px;
             left: 12px;
             font-size: 12px;
             color: var(--md-sys-color-primary);
         }
 
-        .input-group input:focus {
+        .input-group input:focus,
+        .input-group select:focus {
             border-color: var(--md-sys-color-primary);
+        }
+
+        .input-group select option {
+            background-color: var(--md-sys-color-surface);
+        }
+
+        .input-group input[type="date"] {
+            color-scheme: dark;
+        }
+
+        .input-group select:disabled {
+            opacity: 0.5;
+        }
+
+        .erro-campo {
+            color: #ffb4ab;
+            font-size: 13px;
+            margin: 4px 0 0;
+        }
+
+        .erro-campo:empty {
+            display: none;
         }
 
         .btn-pill {
@@ -161,24 +187,43 @@
 
         <div id="screen-form" class="screen">
             <h1 id="form-title">RangePass</h1>
-            <form id="appointmentForm" onsubmit="submitData(event)">
+            <form id="appointmentForm" novalidate onsubmit="submitData(event)">
                 <div class="input-group">
                     <input type="text" id="usuario" placeholder=" " required>
-                    <label>Escolha o usuário</label>
+                    <label for="usuario">Nome do atirador</label>
+                    <p class="erro-campo" id="erro-usuario"></p>
+                </div>
+                <div class="input-group campo-fixo">
+                    <input type="date" id="data" required>
+                    <label for="data">Data</label>
+                    <p class="erro-campo" id="erro-data"></p>
+                </div>
+                <div class="input-group campo-fixo">
+                    <select id="hora_inicio" required onchange="atualizarDuracoes()"></select>
+                    <label for="hora_inicio">Horário de início</label>
+                    <p class="erro-campo" id="erro-hora_inicio"></p>
+                </div>
+                <div class="input-group campo-fixo">
+                    <select id="duracao_horas" required onchange="document.getElementById('erro-duracao_horas').textContent = ''"></select>
+                    <label for="duracao_horas">Duração</label>
+                    <p class="erro-campo" id="erro-duracao_horas"></p>
+                </div>
+                <div class="input-group campo-fixo">
+                    <select id="instrutor" required></select>
+                    <label for="instrutor">Instrutor</label>
+                    <p class="erro-campo" id="erro-instrutor"></p>
+                </div>
+                <div class="input-group campo-fixo">
+                    <select id="armamento" required></select>
+                    <label for="armamento">Armamento</label>
+                    <p class="erro-campo" id="erro-armamento"></p>
                 </div>
                 <div class="input-group">
-                    <input type="text" id="armamento" placeholder=" " required>
-                    <label>Escolha o armamento</label>
+                    <input type="number" id="municao" placeholder=" " min="50" step="1" required>
+                    <label for="municao">Quantidade de munição (mínimo 50)</label>
+                    <p class="erro-campo" id="erro-municao_qtd"></p>
                 </div>
-                <div class="input-group">
-                    <input type="number" id="municao" placeholder=" " required>
-                    <label>Quantidade de Munição</label>
-                </div>
-                <div class="input-group">
-                    <input type="text" id="instrutor" placeholder=" " required>
-                    <label>Instrutor</label>
-                </div>
-                <button type="submit" class="btn-pill" style="margin-top: auto;">Salvar agendamento</button>
+                <button type="submit" class="btn-pill" style="width: 100%;">Salvar agendamento</button>
             </form>
         </div>
 
@@ -186,10 +231,12 @@
             <h1>RangePass</h1>
             <div class="card-preview">
                 <h3>Resumo das informações:</h3>
-                <p><strong>Usuário:</strong> <span id="view-usuario"></span></p>
+                <p><strong>Atirador:</strong> <span id="view-usuario"></span></p>
+                <p><strong>Data:</strong> <span id="view-data"></span></p>
+                <p><strong>Horário:</strong> <span id="view-horario"></span></p>
+                <p><strong>Instrutor:</strong> <span id="view-instrutor"></span></p>
                 <p><strong>Armamento:</strong> <span id="view-armamento"></span></p>
                 <p><strong>Munição:</strong> <span id="view-municao"></span></p>
-                <p><strong>Instrutor:</strong> <span id="view-instrutor"></span></p>
             </div>
             <div id="aviso-envio" class="aviso-erro" role="alert" hidden></div>
             <div style="display: flex; flex-direction: column; margin-top: auto;">
@@ -215,8 +262,81 @@
         const webhookUrl = "https://hook.us2.make.com/s8tgskh4nt0vkymn7vxwm4vvrpz6ciyy";
         const TEMPO_LIMITE_ENVIO_MS = 60000;
         const MENSAGEM_FALHA_ENVIO = "Não foi possível confirmar seu agendamento. Seus dados foram mantidos. Verifique sua conexão e tente novamente.";
+        const MENSAGEM_POSSIVEL_GRAVACAO = "Se você já tentou enviar antes, o agendamento pode ter sido gravado. Confirme com o estande antes de alterar.";
+        const CAMPOS = {
+            usuario: 'usuario',
+            data: 'data',
+            hora_inicio: 'hora_inicio',
+            duracao_horas: 'duracao_horas',
+            instrutor: 'instrutor',
+            armamento: 'armamento',
+            municao_qtd: 'municao'
+        };
 
         let currentData = {};
+
+        let houveFalhaDeEnvio = false;
+
+        function textoDuracao(horas) {
+            return horas === 1 ? '1 hora' : `${horas} horas`;
+        }
+
+        function preencherLista(id, opcoes) {
+            const lista = document.getElementById(id);
+            lista.replaceChildren(new Option('Selecione', ''));
+            opcoes.forEach(opcao => lista.add(new Option(opcao.texto, opcao.valor)));
+        }
+
+        function montarFormulario() {
+            const paraOpcao = valor => ({ texto: valor, valor });
+            preencherLista('instrutor', INSTRUTORES.map(paraOpcao));
+            preencherLista('armamento', ARMAMENTOS.map(paraOpcao));
+            preencherLista('hora_inicio', HORAS_INICIO.map(hora => ({ texto: `${hora}h`, valor: hora })));
+            document.getElementById('data').min = dataMinima(new Date());
+            atualizarDuracoes();
+        }
+
+        function atualizarDuracoes() {
+            const lista = document.getElementById('duracao_horas');
+            const erro = document.getElementById('erro-duracao_horas');
+            const horaEscolhida = document.getElementById('hora_inicio').value;
+            const duracaoAnterior = lista.value;
+            const duracoes = horaEscolhida ? duracoesPermitidas(Number(horaEscolhida)) : [];
+
+            preencherLista('duracao_horas', duracoes.map(horas => ({
+                texto: `${textoDuracao(horas)} (até ${Number(horaEscolhida) + horas}h)`,
+                valor: horas
+            })));
+            lista.disabled = !horaEscolhida;
+            lista.value = duracoes.includes(Number(duracaoAnterior)) ? duracaoAnterior : '';
+            erro.textContent = duracaoAnterior && !lista.value
+                ? `A sessão deve terminar até as ${HORA_FECHAMENTO}h. Selecione outra duração.`
+                : '';
+        }
+
+        function lerFormulario() {
+            const dados = {};
+            Object.entries(CAMPOS).forEach(([campo, id]) => {
+                dados[campo] = document.getElementById(id).value;
+            });
+            return dados;
+        }
+
+        function limparErros() {
+            Object.keys(CAMPOS).forEach(campo => {
+                document.getElementById(`erro-${campo}`).textContent = '';
+            });
+        }
+
+        function mostrarErros(erros) {
+            limparErros();
+            Object.entries(erros).forEach(([campo, mensagem]) => {
+                document.getElementById(`erro-${campo}`).textContent = mensagem;
+            });
+
+            const primeiroInvalido = Object.keys(CAMPOS).find(campo => erros[campo]);
+            if (primeiroInvalido) document.getElementById(CAMPOS[primeiroInvalido]).focus();
+        }
 
         function navigate(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -247,23 +367,32 @@
             event.preventDefault();
             limparAviso();
 
-            currentData = {
-                usuario: document.getElementById('usuario').value,
-                armamento: document.getElementById('armamento').value,
-                municao_qtd: document.getElementById('municao').value,
-                instrutor: document.getElementById('instrutor').value
-            };
+            const dados = lerFormulario();
+            const erros = validarAgendamento(dados, new Date());
+            mostrarErros(erros);
+            if (Object.keys(erros).length > 0) return;
+
+            currentData = montarEnvio(dados);
 
             document.getElementById('view-usuario').innerText = currentData.usuario;
+            document.getElementById('view-data').innerText = formatarData(currentData.data);
+            document.getElementById('view-horario').innerText = `${currentData.hora_inicio}h às ${currentData.hora_fim}h (${textoDuracao(currentData.duracao_horas)})`;
+            document.getElementById('view-instrutor').innerText = currentData.instrutor;
             document.getElementById('view-armamento').innerText = currentData.armamento;
             document.getElementById('view-municao').innerText = currentData.municao_qtd;
-            document.getElementById('view-instrutor').innerText = currentData.instrutor;
 
             navigate('screen-details');
         }
 
         async function finalizar() {
             limparAviso();
+
+            const erros = validarAgendamento(lerFormulario(), new Date());
+            if (Object.keys(erros).length > 0) {
+                mostrarAviso(`${Object.values(erros)[0]} Use Editar para corrigir.`);
+                return;
+            }
+
             definirEnvioEmAndamento(true);
 
             const controle = new AbortController();
@@ -290,17 +419,29 @@
                 return;
             }
 
+            if (resultado === 'conflito') {
+                const conflito = `${currentData.instrutor} já está ocupado nesse horário. Altere o horário ou o instrutor em Editar.`;
+                mostrarAviso(houveFalhaDeEnvio ? `${conflito} ${MENSAGEM_POSSIVEL_GRAVACAO}` : conflito);
+                return;
+            }
+
+            houveFalhaDeEnvio = true;
             mostrarAviso(MENSAGEM_FALHA_ENVIO);
             document.getElementById('btn-finalizar').textContent = 'Tentar novamente';
         }
 
         function editData() {
             limparAviso();
+            limparErros();
             document.getElementById('form-title').innerText = "Editar Agendamento";
             document.getElementById('usuario').value = currentData.usuario;
+            document.getElementById('data').value = currentData.data;
+            document.getElementById('hora_inicio').value = currentData.hora_inicio;
+            atualizarDuracoes();
+            document.getElementById('duracao_horas').value = currentData.duracao_horas;
+            document.getElementById('instrutor').value = currentData.instrutor;
             document.getElementById('armamento').value = currentData.armamento;
             document.getElementById('municao').value = currentData.municao_qtd;
-            document.getElementById('instrutor').value = currentData.instrutor;
             navigate('screen-form');
         }
 
@@ -313,11 +454,16 @@
 
         function resetApp() {
             limparAviso();
+            limparErros();
             document.getElementById('appointmentForm').reset();
+            atualizarDuracoes();
             document.getElementById('form-title').innerText = "RangePass";
             currentData = {};
+            houveFalhaDeEnvio = false;
             navigate('screen-home');
         }
+
+        montarFormulario();
     </script>
 </body>
 </html>
