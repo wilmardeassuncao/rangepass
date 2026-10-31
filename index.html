@@ -119,6 +119,22 @@
             background-color: var(--md-sys-color-error);
         }
 
+        .btn-pill:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .aviso-erro {
+            background-color: #3a1212;
+            border: 1px solid #ffb4ab;
+            border-radius: 12px;
+            color: #ffb4ab;
+            font-size: 14px;
+            line-height: 1.4;
+            margin-bottom: 16px;
+            padding: 12px;
+        }
+
         .card-preview {
             background-color: var(--md-sys-color-surface);
             padding: 20px;
@@ -175,10 +191,11 @@
                 <p><strong>Munição:</strong> <span id="view-municao"></span></p>
                 <p><strong>Instrutor:</strong> <span id="view-instrutor"></span></p>
             </div>
+            <div id="aviso-envio" class="aviso-erro" role="alert" hidden></div>
             <div style="display: flex; flex-direction: column; margin-top: auto;">
-                <button class="btn-pill" onclick="editData()">Editar</button>
-                <button class="btn-pill btn-error" onclick="deleteData()">Excluir</button>
-                <button class="btn-pill" style="background-color: #4caf50;" onclick="navigate('screen-success')">Finalizar</button>
+                <button id="btn-editar" class="btn-pill" onclick="editData()">Editar</button>
+                <button id="btn-excluir" class="btn-pill btn-error" onclick="deleteData()">Excluir</button>
+                <button id="btn-finalizar" class="btn-pill" style="background-color: #4caf50;" onclick="finalizar()">Finalizar</button>
             </div>
         </div>
 
@@ -193,19 +210,43 @@
 
     </div>
 
+    <script src="regras.js"></script>
     <script>
         const webhookUrl = "https://hook.us2.make.com/s8tgskh4nt0vkymn7vxwm4vvrpz6ciyy";
-        
-        let currentData = {}; 
+        const TEMPO_LIMITE_ENVIO_MS = 60000;
+        const MENSAGEM_FALHA_ENVIO = "Não foi possível confirmar seu agendamento. Seus dados foram mantidos. Verifique sua conexão e tente novamente.";
+
+        let currentData = {};
 
         function navigate(screenId) {
             document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
         }
 
-        async function submitData(event) {
+        function mostrarAviso(mensagem) {
+            const aviso = document.getElementById('aviso-envio');
+            aviso.textContent = mensagem;
+            aviso.hidden = false;
+        }
+
+        function limparAviso() {
+            const aviso = document.getElementById('aviso-envio');
+            aviso.textContent = '';
+            aviso.hidden = true;
+            document.getElementById('btn-finalizar').textContent = 'Finalizar';
+        }
+
+        function definirEnvioEmAndamento(ativo) {
+            document.getElementById('btn-finalizar').disabled = ativo;
+            document.getElementById('btn-editar').disabled = ativo;
+            document.getElementById('btn-excluir').disabled = ativo;
+            document.getElementById('btn-finalizar').textContent = ativo ? 'Enviando...' : 'Finalizar';
+        }
+
+        function submitData(event) {
             event.preventDefault();
-            
+            limparAviso();
+
             currentData = {
                 usuario: document.getElementById('usuario').value,
                 armamento: document.getElementById('armamento').value,
@@ -218,20 +259,43 @@
             document.getElementById('view-municao').innerText = currentData.municao_qtd;
             document.getElementById('view-instrutor').innerText = currentData.instrutor;
 
-            try {
-                await fetch(webhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(currentData)
-                });
-            } catch (error) {
-                console.log('Comunicação externa offline, mantendo simulação local.');
-            }
-
             navigate('screen-details');
         }
 
+        async function finalizar() {
+            limparAviso();
+            definirEnvioEmAndamento(true);
+
+            const controle = new AbortController();
+            const limite = setTimeout(() => controle.abort(), TEMPO_LIMITE_ENVIO_MS);
+            let resultado = 'falha';
+
+            try {
+                const resposta = await fetch(webhookUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentData),
+                    signal: controle.signal
+                });
+                resultado = interpretarResposta(resposta.ok, await resposta.text());
+            } catch (error) {
+                console.error('Falha ao enviar o agendamento:', error);
+            } finally {
+                clearTimeout(limite);
+                definirEnvioEmAndamento(false);
+            }
+
+            if (resultado === 'sucesso') {
+                navigate('screen-success');
+                return;
+            }
+
+            mostrarAviso(MENSAGEM_FALHA_ENVIO);
+            document.getElementById('btn-finalizar').textContent = 'Tentar novamente';
+        }
+
         function editData() {
+            limparAviso();
             document.getElementById('form-title').innerText = "Editar Agendamento";
             document.getElementById('usuario').value = currentData.usuario;
             document.getElementById('armamento').value = currentData.armamento;
@@ -248,6 +312,7 @@
         }
 
         function resetApp() {
+            limparAviso();
             document.getElementById('appointmentForm').reset();
             document.getElementById('form-title').innerText = "RangePass";
             currentData = {};
