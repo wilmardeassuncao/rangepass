@@ -223,7 +223,7 @@
                     <label for="municao">Quantidade de munição (mínimo 50)</label>
                     <p class="erro-campo" id="erro-municao_qtd"></p>
                 </div>
-                <button type="submit" class="btn-pill" style="width: 100%;">Salvar agendamento</button>
+                <button type="submit" class="btn-pill" style="width: 100%;">Revisar agendamento</button>
             </form>
         </div>
 
@@ -251,6 +251,7 @@
             <div class="card-preview" style="margin-top: 100px; text-align: center;">
                 <p style="font-size: 24px; color: #4caf50;">✓</p>
                 <p>Agendamento realizado com sucesso</p>
+                <p>Para alterar ou cancelar, fale com o estande.</p>
             </div>
             <button class="btn-pill" style="margin-top: auto;" onclick="resetApp()">Fechar App</button>
         </div>
@@ -433,7 +434,7 @@
         function editData() {
             limparAviso();
             limparErros();
-            document.getElementById('form-title').innerText = "Editar Agendamento";
+            document.getElementById('form-title').innerText = "Editar agendamento";
             document.getElementById('usuario').value = currentData.usuario;
             document.getElementById('data').value = currentData.data;
             document.getElementById('hora_inicio').value = currentData.hora_inicio;
@@ -446,8 +447,8 @@
         }
 
         function deleteData() {
-            if(confirm("Tem certeza de que deseja eliminar este agendamento?")) {
-                alert("Agendamento eliminado com sucesso!");
+            if(confirm("Tem certeza de que deseja excluir este agendamento?")) {
+                alert("Agendamento excluído.");
                 resetApp();
             }
         }
