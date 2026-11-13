@@ -115,3 +115,24 @@ export async function ultimoIdHistorico() {
     const r = await rest('historico_alteracoes?select=id&order=id.desc&limit=1');
     return r.dados[0]?.id ?? 0;
 }
+
+const registrosCriados = [];
+
+// Insere um registro de teste e anota para apagar depois. Devolve a linha criada.
+export async function criar(tabela, corpo) {
+    const r = await rest(tabela, { metodo: 'POST', corpo });
+    if (r.status !== 201) throw new Error(`Falha ao criar em ${tabela}: ${r.status} ${JSON.stringify(r.dados)}`);
+    const linha = r.dados[0];
+    registrosCriados.push({ tabela, id: linha.id });
+    return linha;
+}
+
+// Apaga, do mais novo para o mais antigo, tudo o que criar() inseriu, junto com o histórico gerado. Usar em after().
+export async function apagarCriados() {
+    while (registrosCriados.length) {
+        const { tabela, id } = registrosCriados.pop();
+        const r = await rest(`${tabela}?id=eq.${id}`, { metodo: 'DELETE' });
+        if (r.status >= 300) throw new Error(`Falha ao apagar ${tabela} ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
+        await rest(`historico_alteracoes?tabela=eq.${tabela}&registro_id=eq.${id}`, { metodo: 'DELETE' });
+    }
+}
