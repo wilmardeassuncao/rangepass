@@ -49,7 +49,7 @@ export function marcador() {
     return `teste-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function cpfAleatorio() {
+export function cpfAleatorio() {
     let cpf = '';
     for (let i = 0; i < 11; i++) cpf += Math.floor(Math.random() * 10);
     return cpf;
@@ -118,13 +118,18 @@ export async function ultimoIdHistorico() {
 
 const registrosCriados = [];
 
+// Tenta inserir um registro de teste; se o banco aceitar, anota para apagar depois. Devolve a resposta.
+export async function tentarCriar(tabela, corpo) {
+    const r = await rest(tabela, { metodo: 'POST', corpo });
+    if (r.status === 201) registrosCriados.push({ tabela, id: r.dados[0].id });
+    return r;
+}
+
 // Insere um registro de teste e anota para apagar depois. Devolve a linha criada.
 export async function criar(tabela, corpo) {
-    const r = await rest(tabela, { metodo: 'POST', corpo });
+    const r = await tentarCriar(tabela, corpo);
     if (r.status !== 201) throw new Error(`Falha ao criar em ${tabela}: ${r.status} ${JSON.stringify(r.dados)}`);
-    const linha = r.dados[0];
-    registrosCriados.push({ tabela, id: linha.id });
-    return linha;
+    return r.dados[0];
 }
 
 // Apaga, do mais novo para o mais antigo, tudo o que criar() inseriu, junto com o histórico gerado. Usar em after().
