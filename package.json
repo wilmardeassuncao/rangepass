@@ -1,0 +1,8 @@
+{
+  "name": "rangepass",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/regras.test.js \"tests/unidade/**/*.test.mjs\"",
+    "test:integracao": "node --env-file=.env.teste --test --test-concurrency=1 \"tests/integracao/**/*.test.mjs\""
+  }
+}
