@@ -66,3 +66,15 @@ Os e-mails do login (confirmação de cadastro e nova senha) saem por um serviç
 ```
 
 > Um remetente `@gmail.com` enviado pelo Brevo pode cair no spam. Isso se resolve com um domínio próprio, no deploy (etapa 7). Quando o site for para a Vercel, troque a Site URL e as Redirect URLs pelo endereço novo.
+
+### Abrir a página da conta no computador
+
+A página `conta.html` (entrar, criar conta, esqueci a senha e meu perfil) precisa ser aberta por um servidor local, e não com dois cliques no arquivo. No PowerShell, na pasta do projeto:
+
+```powershell
+npx.cmd --yes http-server@14.1.1 -p 5500 -c-1
+```
+
+Depois abra `http://localhost:5500/conta.html` no navegador. Para ver como fica no celular, aperte F12 e clique no ícone de celular. Para parar o servidor, volte ao PowerShell e aperte Ctrl+C.
+
+O arquivo `config.js` tem o endereço do projeto e a chave **pública** (`sb_publishable_...`). Ela pode ir para o Git, porque não dá acesso a nenhuma tabela. A chave secreta nunca entra nesse arquivo.

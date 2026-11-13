@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minha conta · RangePass</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="conta.css">
+</head>
+<body>
+    <main class="pagina">
+        <p class="marca">RANGE<span>PASS</span></p>
+        <p id="aviso" class="aviso" role="status" hidden></p>
+
+        <section id="tela-carregando" class="tela ativa">
+            <p class="subtitulo">Carregando…</p>
+        </section>
+
+        <section id="tela-entrar" class="tela">
+            <header class="cabecalho">
+                <h1>Entrar</h1>
+                <p class="subtitulo">Use o e-mail e a senha da sua conta.</p>
+            </header>
+            <form id="form-entrar" class="bloco" novalidate>
+                <label class="campo">E-mail
+                    <input name="email" type="email" autocomplete="email" required>
+                </label>
+                <label class="campo">Senha
+                    <input name="senha" type="password" autocomplete="current-password" required>
+                </label>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="submit" class="botao">Entrar</button>
+            </form>
+            <nav class="links">
+                <button type="button" class="link" data-ir="tela-criar">Criar conta</button>
+                <button type="button" class="link" data-ir="tela-esqueci">Esqueci a senha</button>
+            </nav>
+        </section>
+
+        <section id="tela-criar" class="tela">
+            <header class="cabecalho">
+                <h1>Criar conta</h1>
+                <p class="subtitulo">Preencha os seus dados. Os campos com * são obrigatórios.</p>
+            </header>
+            <form id="form-criar" class="bloco" novalidate>
+                <label class="campo">Nome completo *
+                    <input name="nome_completo" autocomplete="name">
+                    <span class="erro" data-erro-para="nome_completo"></span>
+                </label>
+                <label class="campo">CPF *
+                    <input name="cpf" inputmode="numeric" placeholder="000.000.000-00">
+                    <span class="erro" data-erro-para="cpf"></span>
+                </label>
+                <label class="campo">Telefone com DDD *
+                    <input name="telefone" type="tel" autocomplete="tel" placeholder="(11) 98765-4321">
+                    <span class="erro" data-erro-para="telefone"></span>
+                </label>
+                <label class="campo">Data de nascimento *
+                    <input name="data_nascimento" type="date">
+                    <span class="erro" data-erro-para="data_nascimento"></span>
+                </label>
+                <label class="campo">CR (opcional)
+                    <input name="cr">
+                    <span class="erro" data-erro-para="cr"></span>
+                </label>
+                <label class="campo">Órgão expedidor (opcional)
+                    <input name="orgao_expedidor">
+                    <span class="erro" data-erro-para="orgao_expedidor"></span>
+                </label>
+                <label class="campo">E-mail *
+                    <input name="email" type="email" autocomplete="email">
+                    <span class="erro" data-erro-para="email"></span>
+                </label>
+                <label class="campo">Senha * <small>(pelo menos 8 caracteres)</small>
+                    <input name="senha" type="password" autocomplete="new-password">
+                    <span class="erro" data-erro-para="senha"></span>
+                </label>
+                <details class="politica">
+                    <summary>Ler a política de privacidade</summary>
+                    <div id="texto-politica" class="texto-politica"></div>
+                </details>
+                <label class="caixa">
+                    <input name="aceite" type="checkbox">
+                    Li e aceito a política de privacidade.
+                </label>
+                <span class="erro" data-erro-para="aceite_politica_versao"></span>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="submit" class="botao">Criar conta</button>
+            </form>
+            <nav class="links">
+                <button type="button" class="link" data-ir="tela-entrar">Já tenho conta</button>
+            </nav>
+        </section>
+
+        <section id="tela-enviado" class="tela">
+            <header class="cabecalho">
+                <h1>Confira o seu e-mail</h1>
+                <p id="mensagem-enviado" class="subtitulo"></p>
+            </header>
+            <p class="subtitulo">Não chegou? Olhe a pasta de spam.</p>
+            <nav class="links">
+                <button type="button" class="link" data-ir="tela-entrar">Voltar para entrar</button>
+            </nav>
+        </section>
+
+        <section id="tela-esqueci" class="tela">
+            <header class="cabecalho">
+                <h1>Esqueci a senha</h1>
+                <p class="subtitulo">Vamos enviar um link para você criar uma nova senha.</p>
+            </header>
+            <form id="form-esqueci" class="bloco" novalidate>
+                <label class="campo">E-mail
+                    <input name="email" type="email" autocomplete="email">
+                </label>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="submit" class="botao">Enviar link</button>
+            </form>
+            <nav class="links">
+                <button type="button" class="link" data-ir="tela-entrar">Voltar para entrar</button>
+            </nav>
+        </section>
+
+        <section id="tela-nova-senha" class="tela">
+            <header class="cabecalho">
+                <h1>Nova senha</h1>
+                <p class="subtitulo">Escolha uma senha com pelo menos 8 caracteres.</p>
+            </header>
+            <form id="form-nova-senha" class="bloco" novalidate>
+                <label class="campo">Nova senha
+                    <input name="senha" type="password" autocomplete="new-password">
+                </label>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="submit" class="botao">Salvar a nova senha</button>
+            </form>
+        </section>
+
+        <section id="tela-perfil" class="tela">
+            <header class="cabecalho">
+                <h1>Meu perfil</h1>
+                <p id="perfil-email" class="subtitulo"></p>
+            </header>
+            <dl class="bloco dados">
+                <div><dt>CPF</dt><dd id="perfil-cpf"></dd></div>
+                <div><dt>Nascimento</dt><dd id="perfil-nascimento"></dd></div>
+                <div><dt>Telefone</dt><dd id="perfil-telefone"></dd></div>
+            </dl>
+            <p class="subtitulo">Para mudar o CPF ou a data de nascimento, procure o atendimento do estande.</p>
+            <form id="form-perfil" class="bloco" novalidate>
+                <p class="bloco-titulo">Editar dados</p>
+                <label class="campo">Nome completo
+                    <input name="nome_completo" autocomplete="name">
+                    <span class="erro" data-erro-para="nome_completo"></span>
+                </label>
+                <label class="campo">Telefone com DDD
+                    <input name="telefone" type="tel" autocomplete="tel">
+                    <span class="erro" data-erro-para="telefone"></span>
+                </label>
+                <label class="campo">CR
+                    <input name="cr">
+                    <span class="erro" data-erro-para="cr"></span>
+                </label>
+                <label class="campo">Órgão expedidor
+                    <input name="orgao_expedidor">
+                    <span class="erro" data-erro-para="orgao_expedidor"></span>
+                </label>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="submit" class="botao">Salvar</button>
+            </form>
+            <button type="button" id="botao-sair" class="botao secundario">Sair</button>
+        </section>
+    </main>
+    <script type="module" src="conta.js"></script>
+</body>
+</html>

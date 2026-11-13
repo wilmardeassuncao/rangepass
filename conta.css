@@ -1,0 +1,156 @@
+/* Visual da página da conta: as mesmas cores do index.html (escuro com laranja), pensado para o celular. */
+:root {
+    color-scheme: dark;
+    --cor-fundo-externo: #09090a;
+    --cor-fundo: #101012;
+    --cor-superficie: #1a1a1d;
+    --cor-campo: #232327;
+    --cor-borda: #34343a;
+    --cor-texto: #f4f4f5;
+    --cor-texto-secundario: #a9a9b0;
+    --cor-marca: #e65100;
+    --cor-marca-clara: #ff9a5c;
+    --cor-sobre-marca: #ffffff;
+    --cor-erro: #ffb4ab;
+    --cor-erro-fundo: #3a1614;
+    --cor-sucesso: #6fcf97;
+    --raio-pequeno: 12px;
+    --raio-medio: 18px;
+    --espaco-tela: 20px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    background-color: var(--cor-fundo-externo);
+    color: var(--cor-texto);
+    font-family: 'Roboto', Arial, sans-serif;
+    margin: 0;
+}
+
+h1, p, dl, dd { margin: 0; }
+
+.pagina {
+    background-color: var(--cor-fundo);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0 auto;
+    max-width: 480px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 24px var(--espaco-tela);
+}
+
+.marca { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+.marca span { color: var(--cor-marca-clara); }
+
+.tela { display: none; flex-direction: column; gap: 14px; }
+.tela.ativa { display: flex; }
+
+.cabecalho h1 { font-size: 24px; font-weight: 700; line-height: 1.2; }
+
+.subtitulo {
+    color: var(--cor-texto-secundario);
+    font-size: 14px;
+    line-height: 1.4;
+    margin-top: 4px;
+}
+
+.bloco {
+    background-color: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-medio);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+}
+
+.bloco-titulo { color: var(--cor-marca-clara); font-size: 13px; font-weight: 500; }
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    font-weight: 500;
+    gap: 6px;
+}
+
+.campo small { color: var(--cor-texto-secundario); font-weight: 400; }
+
+input:not([type="checkbox"]) {
+    background-color: var(--cor-campo);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-texto);
+    font: inherit;
+    font-weight: 400;
+    min-height: 48px;
+    padding: 12px 14px;
+    width: 100%;
+}
+
+input:focus { border-color: var(--cor-marca-clara); outline: none; }
+input[aria-invalid="true"] { border-color: var(--cor-erro); }
+
+.caixa { align-items: center; display: flex; font-size: 14px; gap: 10px; }
+.caixa input { accent-color: var(--cor-marca); height: 20px; width: 20px; }
+
+.politica summary { color: var(--cor-marca-clara); cursor: pointer; font-size: 14px; }
+
+.texto-politica {
+    color: var(--cor-texto-secundario);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    white-space: pre-line;
+}
+
+.erro { color: var(--cor-erro); font-size: 13px; font-weight: 400; }
+.erro:empty { display: none; }
+
+.aviso {
+    background-color: var(--cor-erro-fundo);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-erro);
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 12px 14px;
+}
+
+.aviso.sucesso { background-color: var(--cor-superficie); color: var(--cor-sucesso); }
+
+.botao {
+    background-color: var(--cor-marca);
+    border: 0;
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-sobre-marca);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    min-height: 48px;
+    padding: 12px;
+    width: 100%;
+}
+
+.botao:disabled { cursor: wait; opacity: 0.6; }
+.botao.secundario { background-color: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto); }
+
+.links { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; }
+
+.link {
+    background: none;
+    border: 0;
+    color: var(--cor-marca-clara);
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 0;
+}
+
+.dados div { display: flex; justify-content: space-between; gap: 12px; }
+.dados dt { color: var(--cor-texto-secundario); font-size: 14px; }
+.dados dd { font-size: 14px; text-align: right; }
