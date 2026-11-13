@@ -306,3 +306,10 @@ s3_region = "env(S3_REGION)"
 s3_access_key = "env(S3_ACCESS_KEY)"
 # Configures AWS_SECRET_ACCESS_KEY for S3 bucket
 s3_secret_key = "env(S3_SECRET_KEY)"
+
+# Edge Functions em JavaScript puro: o ponto de entrada é index.js, não index.ts.
+# verify_jwt = false: a própria função confere o login (obterContexto) e responde em português;
+# a checagem automática do Supabase responderia "Invalid JWT", em inglês.
+[functions.minha-conta]
+entrypoint = "./functions/minha-conta/index.js"
+verify_jwt = false
