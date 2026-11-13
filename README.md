@@ -36,3 +36,33 @@ Cada função nova precisa de uma entrada em `supabase/config.toml` com `entrypo
 2. Abra o **SQL Editor** e cole o conteúdo de `supabase/scripts/promover-superadmin.sql`.
 3. Troque `SEU-EMAIL@exemplo.com` pelo e-mail do passo 1 (ele aparece duas vezes) e clique em **Run**.
 4. O resultado deve mostrar uma linha com o e-mail e o papel `superadmin`. Essa conta já pode alterar as Configurações.
+
+## Login e e-mails
+
+Os e-mails do login (confirmação de cadastro e nova senha) saem por um serviço de e-mail próprio, o **Brevo** (plano gratuito, 300 e-mails por dia). O envio que já vem no Supabase tem um limite muito baixo. Nenhuma senha ou chave fica escrita aqui: elas ficam só no painel do Supabase.
+
+**No Brevo** ([brevo.com](https://www.brevo.com)):
+1. Em *Senders, Domains & Dedicated IPs → Senders*, cadastre e confirme o e-mail remetente.
+2. Em *SMTP & API → SMTP*, gere uma chave SMTP e anote o login SMTP mostrado na mesma tela.
+
+**No Supabase** (projeto de desenvolvimento):
+
+| Onde | O que configurar |
+|---|---|
+| *Authentication → Emails → SMTP Settings* | Ligar o SMTP próprio. Host `smtp-relay.brevo.com`, porta `587`, usuário = login SMTP do Brevo, senha = chave SMTP, remetente = e-mail confirmado no Brevo, nome = `RangePass` |
+| *Authentication → Rate Limits* | E-mails por hora: `30` |
+| *Authentication → Sign In / Providers → Email* | "Confirm email" ligado; tamanho mínimo da senha: `8` |
+| *Authentication → URL Configuration* | Site URL: `http://localhost:5500/conta.html`; Redirect URLs: `http://localhost:5500/**` |
+| *Authentication → Emails → Templates* | "Confirm signup" e "Reset password" em português (textos abaixo) |
+
+**Confirm signup.** Assunto: `Confirme o seu e-mail no RangePass`. Corpo:
+```html
+<p>Olá! Para ativar a sua conta no RangePass, clique no link abaixo.</p><p><a href="{{ .ConfirmationURL }}">Confirmar meu e-mail</a></p><p>Se você não criou esta conta, ignore este e-mail.</p>
+```
+
+**Reset password.** Assunto: `Crie uma nova senha no RangePass`. Corpo:
+```html
+<p>Recebemos um pedido para criar uma nova senha.</p><p><a href="{{ .ConfirmationURL }}">Criar nova senha</a></p><p>Se não foi você, ignore este e-mail: a senha atual continua valendo.</p>
+```
+
+> Um remetente `@gmail.com` enviado pelo Brevo pode cair no spam. Isso se resolve com um domínio próprio, no deploy (etapa 7). Quando o site for para a Vercel, troque a Site URL e as Redirect URLs pelo endereço novo.
