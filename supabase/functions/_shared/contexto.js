@@ -11,6 +11,12 @@ export const admin = createClient(
 );
 
 const SESSAO_EXPIRADA = 'Sua sessão expirou. Entre de novo.';
+const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do estande.';
+
+// Desativar uma conta = bloquear o login dela no Supabase Auth ("banir"). Vale com ou sem cadastro.
+function contaBloqueada(usuario) {
+    return Boolean(usuario.banned_until) && new Date(usuario.banned_until) > new Date();
+}
 
 export async function obterContexto(req) {
     const cabecalho = req.headers.get('Authorization') ?? '';
@@ -18,8 +24,10 @@ export async function obterContexto(req) {
     if (!token) throw new ErroHttp(401, SESSAO_EXPIRADA);
 
     const { data, error } = await admin.auth.getUser(token);
+    if (error?.code === 'user_banned') throw new ErroHttp(403, CONTA_DESATIVADA);
     if (error || !data?.user) throw new ErroHttp(401, SESSAO_EXPIRADA);
     const usuario = data.user;
+    if (contaBloqueada(usuario)) throw new ErroHttp(403, CONTA_DESATIVADA);
 
     const [papeis, perfil] = await Promise.all([
         admin.from('papeis_usuario').select('papel').eq('usuario_id', usuario.id),
@@ -29,7 +37,7 @@ export async function obterContexto(req) {
     if (perfil.error) throw perfil.error;
 
     if (perfil.data && perfil.data.ativo === false) {
-        throw new ErroHttp(403, 'Sua conta está desativada. Procure o atendimento do estande.');
+        throw new ErroHttp(403, CONTA_DESATIVADA);
     }
 
     return {

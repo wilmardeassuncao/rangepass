@@ -3,14 +3,11 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert';
 import {
     rest, CHAVE_ANON, marcador, cpfAleatorio,
-    criarUsuario, apagarUsuariosCriados, criar, tentarCriar, apagarCriados,
+    criarUsuario, criar, tentarCriar, apagarTudoCriado,
 } from './apoio.mjs';
 
 // Os testes apagam tudo o que criam: primeiro agendamentos e catálogo, depois os usuários.
-after(async () => {
-    await apagarCriados();
-    await apagarUsuariosCriados();
-});
+after(apagarTudoCriado);
 
 let cliente, instrutorA, instrutorB, modelo;
 
@@ -24,7 +21,7 @@ before(async () => {
 });
 
 function novaPista() {
-    return criar('pistas', { numero: 900000 + Math.floor(Math.random() * 99999) });
+    return criar('pistas', { numero: 100000000 + Math.floor(Math.random() * 1000000000) });
 }
 
 function novaUnidade(situacao = 'disponivel') {
@@ -150,4 +147,48 @@ test('arma própria sem aceite do termo é recusada', async () => {
 test('anon não lê agendamentos', async () => {
     const r = await rest('agendamentos?select=id', { chave: CHAVE_ANON });
     assert.ok([401, 403].includes(r.status), `status ${r.status}`);
+});
+
+// Correções da revisão final: mudar só a situação não reconfere a pista; mudar horário ou reativar, sim.
+test('interdição criada depois não trava a mudança de situação do agendamento', async () => {
+    const pista = await novaPista();
+    const a = await novoAgendamento({ inicio: '2030-07-10T10:00:00-03:00', horas: 2, pista });
+    assert.strictEqual(a.statusPista, 201);
+    await criar('interdicoes', { pista_id: pista.id, periodo: '[2030-07-10 11:00-03,2030-07-10 11:30-03)', motivo: 'alvo quebrado' });
+    for (const situacao of ['pago', 'check_in', 'concluido']) {
+        const r = await rest(`agendamentos?id=eq.${a.id}`, { metodo: 'PATCH', corpo: { situacao } });
+        assert.strictEqual(r.status, 200, `${situacao}: ${JSON.stringify(r.dados)}`);
+    }
+});
+
+test('pista desativada depois não trava a mudança de situação do agendamento', async () => {
+    const pista = await novaPista();
+    const a = await novoAgendamento({ inicio: '2030-07-11T10:00:00-03:00', horas: 1, pista });
+    assert.strictEqual(a.statusPista, 201);
+    const desativa = await rest(`pistas?id=eq.${pista.id}`, { metodo: 'PATCH', corpo: { ativa: false } });
+    assert.strictEqual(desativa.status, 200, JSON.stringify(desativa.dados));
+    const r = await rest(`agendamentos?id=eq.${a.id}`, { metodo: 'PATCH', corpo: { situacao: 'pago' } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+});
+
+test('mudar o horário para dentro de uma interdição é recusado', async () => {
+    const pista = await novaPista();
+    const a = await novoAgendamento({ inicio: '2030-07-12T08:00:00-03:00', horas: 1, pista });
+    assert.strictEqual(a.statusPista, 201);
+    await criar('interdicoes', { pista_id: pista.id, periodo: '[2030-07-12 10:00-03,2030-07-12 12:00-03)', motivo: 'manutenção' });
+    const r = await rest(`agendamentos?id=eq.${a.id}`, { metodo: 'PATCH', corpo: { inicio: '2030-07-12T10:00:00-03:00' } });
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+    assert.match(r.dados.message, /interditada/);
+});
+
+test('reativar agendamento cancelado em horário interditado é recusado', async () => {
+    const pista = await novaPista();
+    const a = await novoAgendamento({ inicio: '2030-07-13T10:00:00-03:00', horas: 1, pista });
+    assert.strictEqual(a.statusPista, 201);
+    const cancela = await rest(`agendamentos?id=eq.${a.id}`, { metodo: 'PATCH', corpo: { situacao: 'cancelado' } });
+    assert.strictEqual(cancela.status, 200, JSON.stringify(cancela.dados));
+    await criar('interdicoes', { pista_id: pista.id, periodo: '[2030-07-13 10:00-03,2030-07-13 11:00-03)', motivo: 'manutenção' });
+    const r = await rest(`agendamentos?id=eq.${a.id}`, { metodo: 'PATCH', corpo: { situacao: 'pago' } });
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+    assert.match(r.dados.message, /interditada/);
 });

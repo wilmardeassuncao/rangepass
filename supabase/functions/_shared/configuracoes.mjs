@@ -16,6 +16,11 @@ const CAMPOS_NUMERICOS = {
 };
 const ACEITAM_ZERO = ['antecedencia_minima_horas', 'tolerancia_nao_comparecimento_min'];
 
+// Teto do banco: agendamentos.horas tem "check (horas between 1 and 6)".
+const DURACAO_MAXIMA_BANCO = 6;
+// CDC art. 49: o direito de arrependimento é de no mínimo 7 dias.
+const ARREPENDIMENTO_MINIMO_DIAS = 7;
+
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -47,6 +52,9 @@ function validarAgenda(valor, erros) {
     if (!erros.duracao_maxima_individual && !erros.duracao_maxima_grupo
         && valor.duracao_maxima_individual > valor.duracao_maxima_grupo) {
         erros.duracao_maxima_individual = 'A duração máxima de quem vai sozinho não pode passar a duração máxima de grupo.';
+    }
+    if (!erros.duracao_maxima_grupo && valor.duracao_maxima_grupo > DURACAO_MAXIMA_BANCO) {
+        erros.duracao_maxima_grupo = `A sessão pode ter no máximo ${DURACAO_MAXIMA_BANCO} horas.`;
     }
 
     const faixas = valor.faixas_instrutores;
@@ -93,9 +101,35 @@ function validarFuncionamento(valor, erros) {
     }
 }
 
+function fusoValido(fuso) {
+    if (typeof fuso !== 'string' || fuso.trim() === '') return false;
+    try {
+        new Intl.DateTimeFormat('en', { timeZone: fuso });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 function validarEstande(valor, erros) {
     if (typeof valor.nome !== 'string' || valor.nome.trim() === '') {
         erros.nome = 'Informe o nome do estande.';
+    }
+    if (!fusoValido(valor.fuso)) {
+        erros.fuso = 'Escolha um fuso horário válido, por exemplo America/Sao_Paulo.';
+    }
+    for (const campo of ['endereco', 'contato']) {
+        if (typeof valor[campo] !== 'string') erros[campo] = 'Informe um texto (pode ficar em branco).';
+    }
+    if (valor.logo_url !== null && typeof valor.logo_url !== 'string') {
+        erros.logo_url = 'Informe o endereço da imagem do logo ou deixe sem logo.';
+    }
+}
+
+function validarCreditos(valor, erros) {
+    validarNumeros('creditos', valor, erros);
+    if (!erros.arrependimento_dias && valor.arrependimento_dias < ARREPENDIMENTO_MINIMO_DIAS) {
+        erros.arrependimento_dias = `Pela lei (CDC, art. 49), o prazo de arrependimento é de no mínimo ${ARREPENDIMENTO_MINIMO_DIAS} dias.`;
     }
 }
 
@@ -108,6 +142,7 @@ export function validarConfiguracao(chave, valor) {
     if (chave === 'agenda') validarAgenda(valor, erros);
     else if (chave === 'funcionamento') validarFuncionamento(valor, erros);
     else if (chave === 'estande') validarEstande(valor, erros);
+    else if (chave === 'creditos') validarCreditos(valor, erros);
     else validarNumeros(chave, valor, erros);
     return erros;
 }

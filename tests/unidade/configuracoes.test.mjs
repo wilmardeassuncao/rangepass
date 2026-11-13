@@ -53,3 +53,26 @@ test('validarConfiguracao: dia da semana faltando', () => {
 test('validarConfiguracao: domingo fechado (null) é válido', () => assert.deepStrictEqual(validarConfiguracao('funcionamento', { dias: { ...DIAS_PADRAO, 0: null }, datas_fechadas: ['2026-12-25'] }), {}));
 test('validarConfiguracao: data fechada inválida', () => assert.ok(validarConfiguracao('funcionamento', { dias: DIAS_PADRAO, datas_fechadas: ['25/12/2026'] }).datas_fechadas));
 test('validarConfiguracao: nome do estande vazio', () => assert.ok(validarConfiguracao('estande', { ...ESTANDE_PADRAO, nome: '   ' }).nome));
+
+// Correções da revisão final.
+test('validarConfiguracao: estande sem fuso é inválido', () => {
+    const { fuso: _fuso, ...semFuso } = ESTANDE_PADRAO;
+    assert.ok(validarConfiguracao('estande', semFuso).fuso);
+});
+test('validarConfiguracao: fuso que não existe é inválido', () => assert.ok(validarConfiguracao('estande', { ...ESTANDE_PADRAO, fuso: 'Marte/Base' }).fuso));
+test('validarConfiguracao: endereço, contato e logo precisam ser texto', () => {
+    const erros = validarConfiguracao('estande', { ...ESTANDE_PADRAO, endereco: 5, contato: null, logo_url: 7 });
+    assert.ok(erros.endereco);
+    assert.ok(erros.contato);
+    assert.ok(erros.logo_url);
+});
+test('validarConfiguracao: logo pode ser nulo ou endereço de imagem', () => {
+    assert.deepStrictEqual(validarConfiguracao('estande', { ...ESTANDE_PADRAO, logo_url: 'https://exemplo.com/logo.png' }), {});
+});
+test('validarConfiguracao: grupo acima de 6 horas é inválido', () => {
+    assert.ok(validarConfiguracao('agenda', { ...AGENDA_PADRAO, duracao_maxima_grupo: 7 }).duracao_maxima_grupo);
+});
+test('validarConfiguracao: arrependimento abaixo de 7 dias é inválido (CDC art. 49)', () => {
+    assert.ok(validarConfiguracao('creditos', { validade_dias: 365, arrependimento_dias: 6 }).arrependimento_dias);
+    assert.deepStrictEqual(validarConfiguracao('creditos', { validade_dias: 365, arrependimento_dias: 10 }), {});
+});

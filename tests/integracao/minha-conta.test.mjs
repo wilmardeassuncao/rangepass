@@ -1,7 +1,7 @@
 // tests/integracao/minha-conta.test.mjs
 import test, { after } from 'node:test';
 import assert from 'node:assert';
-import { rest, funcao, criarUsuario, apagarUsuariosCriados } from './apoio.mjs';
+import { rest, funcao, criarUsuario, apagarUsuariosCriados, banirUsuario } from './apoio.mjs';
 
 const SESSAO_EXPIRADA = { erro: 'Sua sessão expirou. Entre de novo.' };
 
@@ -42,6 +42,15 @@ test('usuário desativado recebe 403 mesmo com token válido', async () => {
     const u = await criarUsuario({ papeis: ['cliente'] });
     const desativa = await rest(`perfis?id=eq.${u.id}`, { metodo: 'PATCH', corpo: { ativo: false } });
     assert.strictEqual(desativa.status, 200, JSON.stringify(desativa.dados));
+    const r = await funcao('minha-conta', { token: u.token });
+    assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
+    assert.deepStrictEqual(r.dados, { erro: 'Sua conta está desativada. Procure o atendimento do estande.' });
+});
+
+// Correção da revisão final: desativar = bloquear o login no Supabase Auth, com ou sem cadastro.
+test('conta bloqueada sem cadastro recebe 403 mesmo com token válido', async () => {
+    const u = await criarUsuario({ perfil: false, papeis: ['superadmin'] });
+    await banirUsuario(u.id);
     const r = await funcao('minha-conta', { token: u.token });
     assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
     assert.deepStrictEqual(r.dados, { erro: 'Sua conta está desativada. Procure o atendimento do estande.' });

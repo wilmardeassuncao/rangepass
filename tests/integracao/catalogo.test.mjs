@@ -30,7 +30,7 @@ test('modelo repetido (mesma marca e nome) é recusado', async () => {
 });
 
 test('interdição com período vazio é recusada', async () => {
-    const pista = await criar('pistas', { numero: 900000 + Math.floor(Math.random() * 99999) });
+    const pista = await criar('pistas', { numero: 100000000 + Math.floor(Math.random() * 1000000000) });
     const r = await rest('interdicoes', {
         metodo: 'POST',
         corpo: { pista_id: pista.id, periodo: '[2030-07-01 10:00-03,2030-07-01 10:00-03)', motivo: 'teste' },

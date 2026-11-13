@@ -105,9 +105,23 @@ export async function apagarUsuario(id) {
     if (falha) throw new Error(`Falha ao apagar usuário ${id}: ${falha.status} ${JSON.stringify(falha.dados)}`);
 }
 
+// Executa cada passo de limpeza mesmo que um anterior falhe; no fim, avisa de todas as falhas juntas.
+async function executarTodos(passos) {
+    const falhas = [];
+    for (const passo of passos) {
+        try {
+            await passo();
+        } catch (erro) {
+            falhas.push(erro.message);
+        }
+    }
+    if (falhas.length) throw new Error(`A limpeza dos testes deixou resíduo:\n${falhas.join('\n')}`);
+}
+
 // Apaga todos os usuários criados por criarUsuario neste arquivo de teste. Usar em after().
 export async function apagarUsuariosCriados() {
-    while (usuariosCriados.length) await apagarUsuario(usuariosCriados.pop());
+    const ids = usuariosCriados.splice(0).reverse();
+    await executarTodos(ids.map(id => () => apagarUsuario(id)));
 }
 
 // Maior id atual do histórico, para depois apagar só as linhas que o teste gerou.
@@ -134,10 +148,22 @@ export async function criar(tabela, corpo) {
 
 // Apaga, do mais novo para o mais antigo, tudo o que criar() inseriu, junto com o histórico gerado. Usar em after().
 export async function apagarCriados() {
-    while (registrosCriados.length) {
-        const { tabela, id } = registrosCriados.pop();
+    const registros = registrosCriados.splice(0).reverse();
+    await executarTodos(registros.map(({ tabela, id }) => async () => {
         const r = await rest(`${tabela}?id=eq.${id}`, { metodo: 'DELETE' });
         if (r.status >= 300) throw new Error(`Falha ao apagar ${tabela} ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
-        await rest(`historico_alteracoes?tabela=eq.${tabela}&registro_id=eq.${id}`, { metodo: 'DELETE' });
-    }
+        const h = await rest(`historico_alteracoes?tabela=eq.${tabela}&registro_id=eq.${id}`, { metodo: 'DELETE' });
+        if (h.status >= 300) throw new Error(`Falha ao apagar o histórico de ${tabela} ${id}: ${h.status} ${JSON.stringify(h.dados)}`);
+    }));
+}
+
+// Apaga primeiro os registros e depois os usuários, mesmo que a primeira parte falhe. Usar em after().
+export async function apagarTudoCriado() {
+    await executarTodos([apagarCriados, apagarUsuariosCriados]);
+}
+
+// Bloqueia o login de um usuário no Supabase Auth (é assim que uma conta é desativada).
+export async function banirUsuario(id) {
+    const r = await chamar(`${URL}/auth/v1/admin/users/${id}`, { metodo: 'PUT', corpo: { ban_duration: '876000h' } });
+    if (r.status !== 200) throw new Error(`Falha ao banir usuário ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
 }

@@ -1,7 +1,7 @@
 // tests/integracao/configuracoes.test.mjs
 import test, { after, before } from 'node:test';
 import assert from 'node:assert';
-import { rest, funcao, criarUsuario, apagarUsuariosCriados, ultimoIdHistorico } from './apoio.mjs';
+import { rest, funcao, criarUsuario, apagarUsuariosCriados, ultimoIdHistorico, banirUsuario } from './apoio.mjs';
 
 let cliente, superadmin, linhaAgendaAnterior, ultimoId;
 
@@ -16,11 +16,14 @@ before(async () => {
 // Os testes apagam tudo o que criam: devolvem a linha agenda exatamente como estava (valor, data e autor),
 // apagam o histórico gerado aqui e depois os usuários.
 after(async () => {
-    const volta = await rest('configuracoes?chave=eq.agenda', { metodo: 'PATCH', corpo: linhaAgendaAnterior });
-    assert.strictEqual(volta.status, 200, JSON.stringify(volta.dados));
-    const limpa = await rest(`historico_alteracoes?tabela=eq.configuracoes&registro_id=eq.agenda&id=gt.${ultimoId}`, { metodo: 'DELETE' });
-    assert.strictEqual(limpa.status, 200, JSON.stringify(limpa.dados));
-    await apagarUsuariosCriados();
+    try {
+        const volta = await rest('configuracoes?chave=eq.agenda', { metodo: 'PATCH', corpo: linhaAgendaAnterior });
+        assert.strictEqual(volta.status, 200, JSON.stringify(volta.dados));
+        const limpa = await rest(`historico_alteracoes?tabela=eq.configuracoes&registro_id=eq.agenda&id=gt.${ultimoId}`, { metodo: 'DELETE' });
+        assert.strictEqual(limpa.status, 200, JSON.stringify(limpa.dados));
+    } finally {
+        await apagarUsuariosCriados();
+    }
 });
 
 test('sem login não lê as configurações', async () => {
@@ -66,4 +69,11 @@ test('superadmin com valor inválido recebe 400 e os campos', async () => {
     assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
     assert.strictEqual(r.dados.erro, 'Revise os campos destacados.');
     assert.ok(r.dados.campos.antecedencia_maxima_dias);
+});
+
+test('conta bloqueada não lê as configurações', async () => {
+    const u = await criarUsuario({ papeis: ['cliente'] });
+    await banirUsuario(u.id);
+    const r = await funcao('configuracoes', { token: u.token });
+    assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
 });
