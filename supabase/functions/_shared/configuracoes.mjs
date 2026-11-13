@@ -1,7 +1,7 @@
 // Conferência dos valores das Configurações antes de gravar.
 // Módulo puro: roda igual no Node (testes) e no Deno (Edge Functions).
 
-export const CHAVES_CONFIGURACAO = ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos'];
+export const CHAVES_CONFIGURACAO = ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade'];
 
 // Campos numéricos obrigatórios de cada chave. Todos são inteiros maiores que 0, salvo os de ACEITAM_ZERO.
 const CAMPOS_NUMERICOS = {
@@ -133,6 +133,11 @@ function validarCreditos(valor, erros) {
     }
 }
 
+function validarPrivacidade(valor, erros) {
+    if (!Number.isInteger(valor.versao) || valor.versao < 1) erros.versao = 'Informe um número inteiro maior que 0.';
+    if (typeof valor.texto !== 'string' || valor.texto.trim() === '') erros.texto = 'Escreva o texto da política.';
+}
+
 // Devolve {} quando está tudo certo; senão, um mapa campo → mensagem.
 export function validarConfiguracao(chave, valor) {
     if (!CHAVES_CONFIGURACAO.includes(chave)) return { chave: 'Esta configuração não existe.' };
@@ -143,6 +148,7 @@ export function validarConfiguracao(chave, valor) {
     else if (chave === 'funcionamento') validarFuncionamento(valor, erros);
     else if (chave === 'estande') validarEstande(valor, erros);
     else if (chave === 'creditos') validarCreditos(valor, erros);
+    else if (chave === 'privacidade') validarPrivacidade(valor, erros);
     else validarNumeros(chave, valor, erros);
     return erros;
 }

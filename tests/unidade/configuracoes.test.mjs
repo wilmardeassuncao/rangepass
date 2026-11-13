@@ -14,8 +14,8 @@ const DIA = { abre: '08:00', fecha: '23:00' };
 const DIAS_PADRAO = { 0: DIA, 1: DIA, 2: DIA, 3: DIA, 4: DIA, 5: DIA, 6: DIA };
 const ESTANDE_PADRAO = { nome: 'RangePass', logo_url: null, endereco: '', contato: '', fuso: 'America/Sao_Paulo' };
 
-test('CHAVES_CONFIGURACAO lista as seis chaves', () => {
-    assert.deepStrictEqual(CHAVES_CONFIGURACAO, ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos']);
+test('CHAVES_CONFIGURACAO lista as sete chaves', () => {
+    assert.deepStrictEqual(CHAVES_CONFIGURACAO, ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade']);
 });
 
 test('validarConfiguracao: todos os padrões iniciais são válidos', () => {
@@ -75,4 +75,16 @@ test('validarConfiguracao: grupo acima de 6 horas é inválido', () => {
 test('validarConfiguracao: arrependimento abaixo de 7 dias é inválido (CDC art. 49)', () => {
     assert.ok(validarConfiguracao('creditos', { validade_dias: 365, arrependimento_dias: 6 }).arrependimento_dias);
     assert.deepStrictEqual(validarConfiguracao('creditos', { validade_dias: 365, arrependimento_dias: 10 }), {});
+});
+
+test('validarConfiguracao: política de privacidade válida', () => {
+    assert.deepStrictEqual(validarConfiguracao('privacidade', { versao: 2, texto: 'x' }), {});
+});
+test('validarConfiguracao: versão da política precisa ser inteiro maior que 0', () => {
+    assert.ok(validarConfiguracao('privacidade', { versao: 0, texto: 'x' }).versao);
+    assert.ok(validarConfiguracao('privacidade', { texto: 'x' }).versao);
+});
+test('validarConfiguracao: texto da política não pode ficar vazio', () => {
+    assert.strictEqual(validarConfiguracao('privacidade', { versao: 1, texto: '  ' }).texto, 'Escreva o texto da política.');
+    assert.strictEqual(validarConfiguracao('privacidade', { versao: 1 }).texto, 'Escreva o texto da política.');
 });
