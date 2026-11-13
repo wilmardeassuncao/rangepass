@@ -48,3 +48,70 @@ export function funcao(nome, { metodo = 'GET', corpo, token } = {}) {
 export function marcador() {
     return `teste-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+function cpfAleatorio() {
+    let cpf = '';
+    for (let i = 0; i < 11; i++) cpf += Math.floor(Math.random() * 10);
+    return cpf;
+}
+
+const usuariosCriados = [];
+
+// Cria um usuário de teste já confirmado, com perfil e papéis opcionais, e devolve o token de login.
+export async function criarUsuario({ papeis = [], perfil = true } = {}) {
+    const email = `${marcador()}@rangepass.test`;
+    const senha = `Senha-${marcador()}`;
+
+    const criado = await chamar(`${URL}/auth/v1/admin/users`, {
+        metodo: 'POST',
+        corpo: { email, password: senha, email_confirm: true },
+    });
+    if (criado.status !== 200) throw new Error(`Falha ao criar usuário: ${criado.status} ${JSON.stringify(criado.dados)}`);
+    const id = criado.dados.id;
+    usuariosCriados.push(id);
+
+    if (perfil) {
+        const r = await rest('perfis', {
+            metodo: 'POST',
+            corpo: { id, nome_completo: `Teste ${marcador()}`, cpf: cpfAleatorio(), telefone: '11999999999', data_nascimento: '1990-01-01' },
+        });
+        if (r.status !== 201) throw new Error(`Falha ao criar perfil: ${r.status} ${JSON.stringify(r.dados)}`);
+    }
+
+    if (papeis.length) {
+        const r = await rest('papeis_usuario', { metodo: 'POST', corpo: papeis.map(papel => ({ usuario_id: id, papel })) });
+        if (r.status !== 201) throw new Error(`Falha ao gravar papéis: ${r.status} ${JSON.stringify(r.dados)}`);
+    }
+
+    const login = await chamar(`${URL}/auth/v1/token?grant_type=password`, {
+        metodo: 'POST',
+        corpo: { email, password: senha },
+        chave: CHAVE_ANON,
+    });
+    if (login.status !== 200) throw new Error(`Falha no login: ${login.status} ${JSON.stringify(login.dados)}`);
+
+    return { id, email, senha, token: login.dados.access_token };
+}
+
+// Apaga um usuário de teste e tudo o que pertence a ele: papéis, perfil, histórico do perfil e o login.
+export async function apagarUsuario(id) {
+    const passos = [
+        await rest(`papeis_usuario?usuario_id=eq.${id}`, { metodo: 'DELETE' }),
+        await rest(`perfis?id=eq.${id}`, { metodo: 'DELETE' }),
+        await rest(`historico_alteracoes?tabela=eq.perfis&registro_id=eq.${id}`, { metodo: 'DELETE' }),
+        await chamar(`${URL}/auth/v1/admin/users/${id}`, { metodo: 'DELETE' }),
+    ];
+    const falha = passos.find(r => r.status >= 300);
+    if (falha) throw new Error(`Falha ao apagar usuário ${id}: ${falha.status} ${JSON.stringify(falha.dados)}`);
+}
+
+// Apaga todos os usuários criados por criarUsuario neste arquivo de teste. Usar em after().
+export async function apagarUsuariosCriados() {
+    while (usuariosCriados.length) await apagarUsuario(usuariosCriados.pop());
+}
+
+// Maior id atual do histórico, para depois apagar só as linhas que o teste gerou.
+export async function ultimoIdHistorico() {
+    const r = await rest('historico_alteracoes?select=id&order=id.desc&limit=1');
+    return r.dados[0]?.id ?? 0;
+}
