@@ -18,3 +18,21 @@
 
 - `npm test`: testes rápidos, que não usam a internet.
 - `npm run test:integracao`: testes contra o projeto Supabase, usando as chaves do `.env.teste`.
+- Os testes de integração apagam tudo o que criam. Depois deles, o banco fica como estava.
+
+### Aplicar o banco e publicar as funções
+
+```powershell
+npx.cmd --yes supabase@2.20.12 db push
+npx.cmd --yes supabase@2.20.12 functions deploy minha-conta --use-api
+npx.cmd --yes supabase@2.20.12 functions deploy configuracoes --use-api
+```
+
+Cada função nova precisa de uma entrada em `supabase/config.toml` com `entrypoint` apontando para o `index.js` e `verify_jwt = false`. A própria função confere o login, com `obterContexto`, e responde em português.
+
+### Criar o primeiro superadmin
+
+1. No painel do Supabase, abra **Authentication → Users → Add user → Create new user**. Informe o e-mail e a senha e deixe marcada a opção **Auto Confirm User**.
+2. Abra o **SQL Editor** e cole o conteúdo de `supabase/scripts/promover-superadmin.sql`.
+3. Troque `SEU-EMAIL@exemplo.com` pelo e-mail do passo 1 (ele aparece duas vezes) e clique em **Run**.
+4. O resultado deve mostrar uma linha com o e-mail e o papel `superadmin`. Essa conta já pode alterar as Configurações.

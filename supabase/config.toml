@@ -313,3 +313,7 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 [functions.minha-conta]
 entrypoint = "./functions/minha-conta/index.js"
 verify_jwt = false
+
+[functions.configuracoes]
+entrypoint = "./functions/configuracoes/index.js"
+verify_jwt = false
