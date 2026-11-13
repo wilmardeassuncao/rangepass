@@ -49,31 +49,38 @@ export function marcador() {
     return `teste-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// CPF aleatório com os dígitos verificadores certos (passa na validação do cadastro).
 export function cpfAleatorio() {
-    let cpf = '';
-    for (let i = 0; i < 11; i++) cpf += Math.floor(Math.random() * 10);
-    return cpf;
+    const d = Array.from({ length: 9 }, () => Math.floor(Math.random() * 10));
+    for (const tamanho of [9, 10]) {
+        let soma = 0;
+        for (let i = 0; i < tamanho; i++) soma += d[i] * (tamanho + 1 - i);
+        d.push((soma * 10) % 11 % 10);
+    }
+    return d.join('');
 }
 
 const usuariosCriados = [];
 
-// Cria um usuário de teste já confirmado, com perfil e papéis opcionais, e devolve o token de login.
-export async function criarUsuario({ papeis = [], perfil = true } = {}) {
-    const email = `${marcador()}@rangepass.test`;
+// Cria um usuário de teste (confirmado, se não for dito o contrário), com perfil e papéis opcionais.
+// Devolve o token de login (null se o e-mail não estiver confirmado) e o CPF do perfil.
+export async function criarUsuario({ papeis = [], perfil = true, confirmado = true, email = `${marcador()}@rangepass.test` } = {}) {
     const senha = `Senha-${marcador()}`;
 
     const criado = await chamar(`${URL}/auth/v1/admin/users`, {
         metodo: 'POST',
-        corpo: { email, password: senha, email_confirm: true },
+        corpo: { email, password: senha, email_confirm: confirmado },
     });
     if (criado.status !== 200) throw new Error(`Falha ao criar usuário: ${criado.status} ${JSON.stringify(criado.dados)}`);
     const id = criado.dados.id;
     usuariosCriados.push(id);
 
+    let cpf = null;
     if (perfil) {
+        cpf = cpfAleatorio();
         const r = await rest('perfis', {
             metodo: 'POST',
-            corpo: { id, nome_completo: `Teste ${marcador()}`, cpf: cpfAleatorio(), telefone: '11999999999', data_nascimento: '1990-01-01' },
+            corpo: { id, nome_completo: `Teste ${marcador()}`, cpf, telefone: '11999999999', data_nascimento: '1990-01-01' },
         });
         if (r.status !== 201) throw new Error(`Falha ao criar perfil: ${r.status} ${JSON.stringify(r.dados)}`);
     }
@@ -83,14 +90,44 @@ export async function criarUsuario({ papeis = [], perfil = true } = {}) {
         if (r.status !== 201) throw new Error(`Falha ao gravar papéis: ${r.status} ${JSON.stringify(r.dados)}`);
     }
 
-    const login = await chamar(`${URL}/auth/v1/token?grant_type=password`, {
+    let token = null;
+    if (confirmado) {
+        const login = await entrar(email, senha);
+        if (login.status !== 200) throw new Error(`Falha no login: ${login.status} ${JSON.stringify(login.dados)}`);
+        token = login.dados.access_token;
+    }
+
+    return { id, email, senha, cpf, token };
+}
+
+// Login com e-mail e senha no Supabase Auth, como o navegador faz.
+export function entrar(email, senha) {
+    return chamar(`${URL}/auth/v1/token?grant_type=password`, {
         metodo: 'POST',
         corpo: { email, password: senha },
         chave: CHAVE_ANON,
     });
-    if (login.status !== 200) throw new Error(`Falha no login: ${login.status} ${JSON.stringify(login.dados)}`);
+}
 
-    return { id, email, senha, token: login.dados.access_token };
+// Anota um usuário criado por outro caminho (por exemplo, pela função cadastro) para ser apagado no fim.
+export function anotarUsuario(id) {
+    usuariosCriados.push(id);
+}
+
+// Procura o id de um usuário do Auth pelo e-mail. Devolve null se não existir.
+export async function idDoUsuarioPorEmail(email) {
+    const r = await chamar(`${URL}/auth/v1/admin/users?page=1&per_page=1000`);
+    if (r.status !== 200) throw new Error(`Falha ao listar usuários: ${r.status} ${JSON.stringify(r.dados)}`);
+    return r.dados.users.find(u => u.email === email.toLowerCase())?.id ?? null;
+}
+
+// E-mail real para os testes que enviam e-mail (EMAIL_TESTE no .env.teste): a@b.com vira a+teste-...@b.com.
+// Sem EMAIL_TESTE, devolve null e esses testes são pulados.
+export function emailTeste() {
+    const base = process.env.EMAIL_TESTE?.trim();
+    if (!base || !base.includes('@')) return null;
+    const [nome, dominio] = base.split('@');
+    return `${nome}+${marcador()}@${dominio}`;
 }
 
 // Apaga um usuário de teste e tudo o que pertence a ele: papéis, perfil, histórico do perfil e o login.

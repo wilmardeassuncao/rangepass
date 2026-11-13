@@ -1,0 +1,120 @@
+// tests/integracao/cadastro.test.mjs
+import test, { after } from 'node:test';
+import assert from 'node:assert';
+import {
+    rest, funcao, marcador, criarUsuario, apagarUsuariosCriados, anotarUsuario,
+    idDoUsuarioPorEmail, emailTeste, entrar, cpfAleatorio,
+} from './apoio.mjs';
+import { dataNoFuso } from '../../supabase/functions/_shared/cadastro.mjs';
+
+const CAMPOS_DESTACADOS = 'Revise os campos destacados.';
+
+// Os testes apagam tudo o que criam, inclusive as contas criadas pela própria função.
+after(apagarUsuariosCriados);
+
+function corpoValido(extra = {}) {
+    return {
+        email: `${marcador()}@rangepass.test`, senha: `Senha-${marcador()}`, nome_completo: 'Cliente Teste',
+        cpf: cpfAleatorio(), telefone: '11987654321', data_nascimento: '1990-01-01', aceite_politica_versao: 1, ...extra,
+    };
+}
+
+// Envia o cadastro. Se, por engano, uma conta for criada, ela entra na limpeza.
+async function cadastrar(corpo) {
+    const r = await funcao('cadastro', { metodo: 'POST', corpo });
+    const id = typeof corpo.email === 'string' ? await idDoUsuarioPorEmail(corpo.email.trim()) : null;
+    return { ...r, idCriado: id };
+}
+
+async function cpfExiste(cpf) {
+    const r = await rest(`perfis?cpf=eq.${cpf}&select=id`);
+    return r.dados.length > 0;
+}
+
+test('GET devolve a política e a idade mínima', async () => {
+    const r = await funcao('cadastro');
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.idade_minima, 18);
+    assert.strictEqual(r.dados.politica.versao, 1);
+    assert.ok(r.dados.politica.texto.length > 0);
+    assert.strictEqual(r.dados.estande.fuso, 'America/Sao_Paulo');
+});
+
+test('método não permitido recebe 405', async () => {
+    const r = await funcao('cadastro', { metodo: 'PUT', corpo: {} });
+    assert.strictEqual(r.status, 405, JSON.stringify(r.dados));
+});
+
+test('CPF inválido recebe 400 e nenhum login é criado', async () => {
+    const r = await cadastrar(corpoValido({ cpf: '111.111.111-11' }));
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.erro, CAMPOS_DESTACADOS);
+    assert.strictEqual(r.dados.campos.cpf, 'Informe um CPF válido.');
+    assert.strictEqual(r.idCriado, null);
+});
+
+test('menor de idade recebe 400', async () => {
+    const [ano, mes, dia] = dataNoFuso(new Date(), 'America/Sao_Paulo').split('-');
+    const r = await cadastrar(corpoValido({ data_nascimento: `${Number(ano) - 17}-${mes}-${dia}` }));
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.campos.data_nascimento, 'É preciso ter pelo menos 18 anos para criar uma conta.');
+    assert.strictEqual(r.idCriado, null);
+});
+
+test('sem aceite da política recebe 400', async () => {
+    const r = await cadastrar(corpoValido({ aceite_politica_versao: 0 }));
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.campos.aceite_politica_versao, 'Para criar a conta, aceite a política de privacidade.');
+    assert.strictEqual(r.idCriado, null);
+});
+
+test('dados ilegíveis recebem 400', async () => {
+    const r = await funcao('cadastro', { metodo: 'POST', corpo: 'não é um objeto' });
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+});
+
+test('CPF já cadastrado recebe 409 e nenhum login novo é criado', async () => {
+    const existente = await criarUsuario();
+    const r = await cadastrar(corpoValido({ cpf: existente.cpf }));
+    assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.campos.cpf, 'Este CPF já tem conta. Entre com o seu e-mail ou recupere a senha.');
+    assert.strictEqual(r.idCriado, null);
+});
+
+test('e-mail já confirmado recebe 409 e o CPF novo não é gravado', async () => {
+    const existente = await criarUsuario();
+    const corpo = corpoValido({ email: existente.email });
+    const r = await cadastrar(corpo);
+    assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.campos.email, 'Este e-mail já tem conta. Entre ou recupere a senha.');
+    assert.strictEqual(await cpfExiste(corpo.cpf), false);
+});
+
+test('[EMAIL_TESTE] cadastro completo cria login e perfil, e pede confirmação', { skip: !emailTeste() && 'preencha EMAIL_TESTE no .env.teste' }, async () => {
+    const corpo = corpoValido({ email: emailTeste() });
+    const r = await cadastrar(corpo);
+    if (r.idCriado) anotarUsuario(r.idCriado);
+    assert.strictEqual(r.status, 201, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.mensagem, `Conta criada. Enviamos um link de confirmação para ${corpo.email}. Abra o e-mail para ativar a conta.`);
+
+    const perfil = await rest(`perfis?cpf=eq.${corpo.cpf}&select=id,politica_versao,politica_aceita_em`);
+    assert.strictEqual(perfil.dados[0].id, r.idCriado);
+    assert.strictEqual(perfil.dados[0].politica_versao, 1);
+    assert.ok(perfil.dados[0].politica_aceita_em);
+
+    const h = await rest(`historico_alteracoes?tabela=eq.perfis&registro_id=eq.${r.idCriado}&select=feito_por`);
+    assert.deepStrictEqual(h.dados, [{ feito_por: r.idCriado }]);
+
+    const login = await entrar(corpo.email, corpo.senha);
+    assert.strictEqual(login.status, 400, JSON.stringify(login.dados));
+    assert.strictEqual(login.dados.error_code, 'email_not_confirmed');
+});
+
+test('[EMAIL_TESTE] e-mail não confirmado com cadastro recebe 409 e a conta continua', { skip: !emailTeste() && 'preencha EMAIL_TESTE no .env.teste' }, async () => {
+    const existente = await criarUsuario({ confirmado: false, email: emailTeste() });
+    const r = await cadastrar(corpoValido({ email: existente.email }));
+    assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.campos.email, 'Este e-mail já tem conta. Procure o link de confirmação no seu e-mail.');
+    assert.strictEqual(r.idCriado, existente.id);
+    assert.strictEqual(await cpfExiste(existente.cpf), true);
+});
