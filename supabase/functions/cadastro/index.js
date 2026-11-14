@@ -13,6 +13,7 @@ const publico = createClient(
 
 const CAMPOS_DESTACADOS = 'Revise os campos destacados.';
 const CPF_JA_USADO = 'Este CPF já tem conta. Entre com o seu e-mail ou recupere a senha.';
+const EMAIL_JA_USADO = 'Este e-mail já tem conta. Entre ou recupere a senha.';
 
 function conflito(campo, mensagem) {
     return respostaJson(409, { erro: CAMPOS_DESTACADOS, campos: { [campo]: mensagem } });
@@ -32,7 +33,31 @@ function mostrar(config) {
     });
 }
 
+// IP de quem chama, informado pelo Supabase no cabeçalho x-forwarded-for.
+function ipDe(req) {
+    return req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'desconhecido';
+}
+
+// Conta que nunca confirmou o e-mail e não é da equipe: é descartada (perfil, histórico e login),
+// para que ninguém "reserve" o e-mail ou o CPF de outra pessoa. Devolve true se descartou.
+async function descartarSePendente(usuarioId) {
+    const { data, error } = await admin.rpc('descartar_cadastro_pendente', { p_usuario: usuarioId });
+    if (error) throw error;
+    if (!data) return false;
+    const apagado = await admin.auth.admin.deleteUser(usuarioId);
+    if (apagado.error) throw apagado.error;
+    return true;
+}
+
 async function criarConta(req, config) {
+    const dentroDoLimite = await admin.rpc('registrar_tentativa_cadastro', {
+        p_ip: ipDe(req), p_limite: config.cadastro.tentativas_por_hora,
+    });
+    if (dentroDoLimite.error) throw dentroDoLimite.error;
+    if (!dentroDoLimite.data) {
+        throw new ErroHttp(429, 'Muitas tentativas de cadastro em pouco tempo. Tente de novo daqui a uma hora.');
+    }
+
     let corpo;
     try {
         corpo = await req.json();
@@ -47,9 +72,15 @@ async function criarConta(req, config) {
     });
     if (Object.keys(campos).length > 0) return respostaJson(400, { erro: CAMPOS_DESTACADOS, campos });
 
+    const emailUsado = await admin.rpc('usuario_por_email', { p_email: conta.email });
+    if (emailUsado.error) throw emailUsado.error;
+    if (emailUsado.data && !(await descartarSePendente(emailUsado.data))) {
+        return conflito('email', EMAIL_JA_USADO);
+    }
+
     const jaTem = await admin.from('perfis').select('id').eq('cpf', perfil.cpf).maybeSingle();
     if (jaTem.error) throw jaTem.error;
-    if (jaTem.data) return conflito('cpf', CPF_JA_USADO);
+    if (jaTem.data && !(await descartarSePendente(jaTem.data.id))) return conflito('cpf', CPF_JA_USADO);
 
     const { data, error } = await publico.auth.signUp({ email: conta.email, password: conta.senha });
     if (error?.code === 'weak_password') {
@@ -60,7 +91,7 @@ async function criarConta(req, config) {
     }
     if (error) throw error;
     // Com a confirmação de e-mail ligada, um e-mail já confirmado volta como usuário sem identidades.
-    if (!data.user.identities?.length) return conflito('email', 'Este e-mail já tem conta. Entre ou recupere a senha.');
+    if (!data.user.identities?.length) return conflito('email', EMAIL_JA_USADO);
 
     const usuarioId = data.user.id;
     const gravado = await admin.rpc('criar_perfil', {
@@ -68,10 +99,10 @@ async function criarConta(req, config) {
         p_dados: { ...perfil, politica_versao: config.privacidade.versao, politica_aceita_em: new Date().toISOString() },
     });
     if (gravado.error) {
-        // E-mail ainda não confirmado que já tem cadastro: a conta é de outra tentativa e não pode ser apagada.
+        // Dois cadastros com o mesmo e-mail ao mesmo tempo: o perfil é da outra tentativa e não pode ser apagado.
         const perfilExistente = await admin.from('perfis').select('id').eq('id', usuarioId).maybeSingle();
         if (perfilExistente.error) throw perfilExistente.error;
-        if (perfilExistente.data) return conflito('email', 'Este e-mail já tem conta. Procure o link de confirmação no seu e-mail.');
+        if (perfilExistente.data) return conflito('email', EMAIL_JA_USADO);
 
         // Login novo sem cadastro: apaga para não sobrar conta pela metade.
         const apagado = await admin.auth.admin.deleteUser(usuarioId);

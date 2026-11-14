@@ -11,7 +11,7 @@ const CAMPOS_NUMERICOS = {
         'poucas_vagas', 'tolerancia_nao_comparecimento_min',
     ],
     municao: ['minima_por_participante'],
-    cadastro: ['idade_minima'],
+    cadastro: ['idade_minima', 'tentativas_por_hora'],
     creditos: ['validade_dias', 'arrependimento_dias'],
 };
 const ACEITAM_ZERO = ['antecedencia_minima_horas', 'tolerancia_nao_comparecimento_min'];

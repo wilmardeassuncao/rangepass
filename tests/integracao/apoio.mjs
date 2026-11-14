@@ -111,7 +111,20 @@ export function entrar(email, senha) {
 
 // Anota um usuário criado por outro caminho (por exemplo, pela função cadastro) para ser apagado no fim.
 export function anotarUsuario(id) {
-    usuariosCriados.push(id);
+    if (!usuariosCriados.includes(id)) usuariosCriados.push(id);
+}
+
+// Maior id atual das tentativas de cadastro, para depois apagar só as que o teste gerou.
+export async function ultimoIdTentativa() {
+    const r = await rest('tentativas_cadastro?select=id&order=id.desc&limit=1');
+    if (r.status !== 200) throw new Error(`Falha ao ler tentativas: ${r.status} ${JSON.stringify(r.dados)}`);
+    return r.dados[0]?.id ?? 0;
+}
+
+// Apaga as tentativas de cadastro com id maior que o informado.
+export async function apagarTentativasDepoisDe(id) {
+    const r = await rest(`tentativas_cadastro?id=gt.${id}`, { metodo: 'DELETE' });
+    if (r.status >= 300) throw new Error(`Falha ao apagar tentativas: ${r.status} ${JSON.stringify(r.dados)}`);
 }
 
 // Procura o id de um usuário do Auth pelo e-mail. Devolve null se não existir.
@@ -131,6 +144,7 @@ export function emailTeste() {
 }
 
 // Apaga um usuário de teste e tudo o que pertence a ele: papéis, perfil, histórico do perfil e o login.
+// Um login que já não existe (por exemplo, descartado pela função cadastro) não é falha.
 export async function apagarUsuario(id) {
     const passos = [
         await rest(`papeis_usuario?usuario_id=eq.${id}`, { metodo: 'DELETE' }),
@@ -138,7 +152,7 @@ export async function apagarUsuario(id) {
         await rest(`historico_alteracoes?tabela=eq.perfis&registro_id=eq.${id}`, { metodo: 'DELETE' }),
         await chamar(`${URL}/auth/v1/admin/users/${id}`, { metodo: 'DELETE' }),
     ];
-    const falha = passos.find(r => r.status >= 300);
+    const falha = passos.find((r, i) => r.status >= 300 && !(i === passos.length - 1 && r.status === 404));
     if (falha) throw new Error(`Falha ao apagar usuário ${id}: ${falha.status} ${JSON.stringify(falha.dados)}`);
 }
 

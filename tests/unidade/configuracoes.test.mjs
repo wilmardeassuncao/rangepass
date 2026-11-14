@@ -23,7 +23,7 @@ test('validarConfiguracao: todos os padrões iniciais são válidos', () => {
     assert.deepStrictEqual(validarConfiguracao('funcionamento', { dias: DIAS_PADRAO, datas_fechadas: [] }), {});
     assert.deepStrictEqual(validarConfiguracao('estande', ESTANDE_PADRAO), {});
     assert.deepStrictEqual(validarConfiguracao('municao', { minima_por_participante: 50 }), {});
-    assert.deepStrictEqual(validarConfiguracao('cadastro', { idade_minima: 18 }), {});
+    assert.deepStrictEqual(validarConfiguracao('cadastro', { idade_minima: 18, tentativas_por_hora: 10 }), {});
     assert.deepStrictEqual(validarConfiguracao('creditos', { validade_dias: 365, arrependimento_dias: 7 }), {});
 });
 test('validarConfiguracao: chave desconhecida', () => assert.ok(validarConfiguracao('xyz', {}).chave));
@@ -87,4 +87,8 @@ test('validarConfiguracao: versão da política precisa ser inteiro maior que 0'
 test('validarConfiguracao: texto da política não pode ficar vazio', () => {
     assert.strictEqual(validarConfiguracao('privacidade', { versao: 1, texto: '  ' }).texto, 'Escreva o texto da política.');
     assert.strictEqual(validarConfiguracao('privacidade', { versao: 1 }).texto, 'Escreva o texto da política.');
+});
+test('validarConfiguracao: cadastro sem limite de tentativas por hora é inválido', () => {
+    assert.ok(validarConfiguracao('cadastro', { idade_minima: 18 }).tentativas_por_hora);
+    assert.ok(validarConfiguracao('cadastro', { idade_minima: 18, tentativas_por_hora: 0 }).tentativas_por_hora);
 });

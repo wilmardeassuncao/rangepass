@@ -1,16 +1,27 @@
 // tests/integracao/cadastro.test.mjs
-import test, { after } from 'node:test';
+import test, { after, before, beforeEach } from 'node:test';
 import assert from 'node:assert';
 import {
     rest, funcao, marcador, criarUsuario, apagarUsuariosCriados, anotarUsuario,
-    idDoUsuarioPorEmail, emailTeste, entrar, cpfAleatorio,
+    idDoUsuarioPorEmail, emailTeste, entrar, cpfAleatorio, ultimoIdTentativa, apagarTentativasDepoisDe,
 } from './apoio.mjs';
 import { dataNoFuso } from '../../supabase/functions/_shared/cadastro.mjs';
 
 const CAMPOS_DESTACADOS = 'Revise os campos destacados.';
+const SEM_EMAIL = !emailTeste() && 'preencha EMAIL_TESTE no .env.teste';
 
-// Os testes apagam tudo o que criam, inclusive as contas criadas pela própria função.
-after(apagarUsuariosCriados);
+// Os testes apagam tudo o que criam: as contas (inclusive as criadas pela própria função) e as tentativas de cadastro.
+// Cada teste começa sem as tentativas dos anteriores, para o limite por hora não atrapalhar.
+let marcaTentativas;
+before(async () => { marcaTentativas = await ultimoIdTentativa(); });
+beforeEach(() => apagarTentativasDepoisDe(marcaTentativas));
+after(async () => {
+    try {
+        await apagarTentativasDepoisDe(marcaTentativas);
+    } finally {
+        await apagarUsuariosCriados();
+    }
+});
 
 function corpoValido(extra = {}) {
     return {
@@ -22,7 +33,8 @@ function corpoValido(extra = {}) {
 // Envia o cadastro. Se, por engano, uma conta for criada, ela entra na limpeza.
 async function cadastrar(corpo) {
     const r = await funcao('cadastro', { metodo: 'POST', corpo });
-    const id = typeof corpo.email === 'string' ? await idDoUsuarioPorEmail(corpo.email.trim()) : null;
+    const id = typeof corpo?.email === 'string' ? await idDoUsuarioPorEmail(corpo.email.trim()) : null;
+    if (id) anotarUsuario(id);
     return { ...r, idCriado: id };
 }
 
@@ -110,11 +122,68 @@ test('[EMAIL_TESTE] cadastro completo cria login e perfil, e pede confirmação'
     assert.strictEqual(login.dados.error_code, 'email_not_confirmed');
 });
 
-test('[EMAIL_TESTE] e-mail não confirmado com cadastro recebe 409 e a conta continua', { skip: !emailTeste() && 'preencha EMAIL_TESTE no .env.teste' }, async () => {
-    const existente = await criarUsuario({ confirmado: false, email: emailTeste() });
-    const r = await cadastrar(corpoValido({ email: existente.email }));
+// Correções da revisão final do plano 2: conta pendente (nunca confirmada) não "reserva" e-mail nem CPF,
+// e há um limite de tentativas de cadastro por hora.
+
+async function historicoDoPerfil(id) {
+    return (await rest(`historico_alteracoes?tabela=eq.perfis&registro_id=eq.${id}&select=id`)).dados;
+}
+
+test('[EMAIL_TESTE] conta pendente com o mesmo e-mail é descartada e o cadastro novo vale', { skip: SEM_EMAIL }, async () => {
+    const pendente = await criarUsuario({ confirmado: false, email: emailTeste() });
+    const corpo = corpoValido({ email: pendente.email });
+    const r = await cadastrar(corpo);
+    assert.strictEqual(r.status, 201, JSON.stringify(r.dados));
+    assert.ok(r.idCriado && r.idCriado !== pendente.id, 'deveria haver um login novo');
+    assert.strictEqual(await cpfExiste(pendente.cpf), false);
+    assert.deepStrictEqual(await historicoDoPerfil(pendente.id), []);
+    const novo = await rest(`perfis?cpf=eq.${corpo.cpf}&select=id`);
+    assert.strictEqual(novo.dados[0].id, r.idCriado);
+});
+
+test('[EMAIL_TESTE] conta pendente com o mesmo CPF é descartada e o cadastro novo vale', { skip: SEM_EMAIL }, async () => {
+    const pendente = await criarUsuario({ confirmado: false });
+    const r = await cadastrar(corpoValido({ email: emailTeste(), cpf: pendente.cpf }));
+    assert.strictEqual(r.status, 201, JSON.stringify(r.dados));
+    assert.strictEqual(await idDoUsuarioPorEmail(pendente.email), null);
+    const novo = await rest(`perfis?cpf=eq.${pendente.cpf}&select=id`);
+    assert.strictEqual(novo.dados[0].id, r.idCriado);
+});
+
+test('conta pendente da equipe (com papel) não é descartada', async () => {
+    const equipe = await criarUsuario({ confirmado: false, papeis: ['instrutor'] });
+    const r = await cadastrar(corpoValido({ email: equipe.email }));
     assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
-    assert.strictEqual(r.dados.campos.email, 'Este e-mail já tem conta. Procure o link de confirmação no seu e-mail.');
-    assert.strictEqual(r.idCriado, existente.id);
-    assert.strictEqual(await cpfExiste(existente.cpf), true);
+    assert.strictEqual(r.dados.campos.email, 'Este e-mail já tem conta. Entre ou recupere a senha.');
+    assert.strictEqual(r.idCriado, equipe.id);
+    assert.strictEqual(await cpfExiste(equipe.cpf), true);
+});
+
+test('CPF de conta pendente da equipe continua recusado', async () => {
+    const equipe = await criarUsuario({ confirmado: false, papeis: ['atendente'] });
+    const r = await cadastrar(corpoValido({ cpf: equipe.cpf }));
+    assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.campos.cpf, 'Este CPF já tem conta. Entre com o seu e-mail ou recupere a senha.');
+    assert.strictEqual(await idDoUsuarioPorEmail(equipe.email), equipe.id);
+});
+
+test('mais tentativas de cadastro que o limite por hora recebem 429', async () => {
+    const config = await rest('configuracoes?chave=eq.cadastro&select=valor');
+    const limite = config.dados[0].valor.tentativas_por_hora;
+    assert.strictEqual(limite, 10);
+    for (let i = 0; i < limite; i++) {
+        const r = await funcao('cadastro', { metodo: 'POST', corpo: { cpf: '123' } });
+        assert.strictEqual(r.status, 400, `tentativa ${i + 1}: ${JSON.stringify(r.dados)}`);
+    }
+    // Dados inválidos de propósito: sem o limite, a resposta seria 400, e nenhuma conta nem e-mail é criado.
+    const bloqueada = await cadastrar({ ...corpoValido(), cpf: '123' });
+    assert.strictEqual(bloqueada.status, 429, JSON.stringify(bloqueada.dados));
+    assert.deepStrictEqual(bloqueada.dados, { erro: 'Muitas tentativas de cadastro em pouco tempo. Tente de novo daqui a uma hora.' });
+});
+
+test('o limite não atrapalha quem só abre a página (GET)', async () => {
+    for (let i = 0; i < 12; i++) {
+        const r = await funcao('cadastro');
+        assert.strictEqual(r.status, 200, `GET ${i + 1}: ${JSON.stringify(r.dados)}`);
+    }
 });
