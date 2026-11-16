@@ -261,6 +261,12 @@ export async function banirUsuario(id) {
     if (r.status !== 200) throw new Error(`Falha ao banir usuário ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
 }
 
+// Desfaz o banirUsuario: o login volta a funcionar.
+export async function desbanirUsuario(id) {
+    const r = await chamar(`${URL}/auth/v1/admin/users/${id}`, { metodo: 'PUT', corpo: { ban_duration: 'none' } });
+    if (r.status !== 200) throw new Error(`Falha ao desbanir usuário ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
+}
+
 // Primeiro dia, a partir de hoje (no fuso do estande) + dias, em que o estande abre.
 // Devolve a data (AAAA-MM-DD) e as horas de início possíveis nesse dia.
 export async function diaAbertoDeTeste(dias) {

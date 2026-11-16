@@ -188,5 +188,6 @@ test('erroDeReserva', () => {
     assert.deepEqual(erroDeReserva('RP004'), e('Não há arma livre do modelo escolhido nesse horário. Escolha outro horário ou outro modelo.'));
     assert.deepEqual(erroDeReserva('23P01'), e('Esse horário acabou de ser ocupado. Escolha outro horário.'));
     assert.deepEqual(erroDeReserva('P0001'), e('Esse horário acabou de ser ocupado. Escolha outro horário.'));
+    assert.deepEqual(erroDeReserva('RP005'), e('Este agendamento não pode mais ser alterado pelo app. Fale com o estande.'));
     assert.equal(erroDeReserva('42501'), null);
 });

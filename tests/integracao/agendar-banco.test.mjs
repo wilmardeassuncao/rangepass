@@ -7,6 +7,7 @@ import assert from 'node:assert';
 import {
     rest, rpc, marcador, cpfAleatorio,
     criarUsuario, criar, tentarCriar, apagarTudoCriado, anotarAgendamento,
+    banirUsuario, desbanirUsuario,
 } from './apoio.mjs';
 
 // Os testes apagam tudo o que criam: agendamentos (com reservas e histórico), catálogo, interdições e usuários.
@@ -370,4 +371,142 @@ test('cancelar desativa as reservas', async () => {
 
     const outro = await agendarOk(pedido({ inicio }));
     assert.strictEqual((await recursos(outro)).instrutor.instrutor_id, instrutorA.id);
+});
+
+// Quantas linhas de histórico cada registro pedido tem (só da ação informada, se houver).
+async function contarHistorico(tabela, ids, acao) {
+    const filtroAcao = acao ? `&acao=eq.${acao}` : '';
+    const r = await rest(`historico_alteracoes?tabela=eq.${tabela}&registro_id=in.(${ids.join(',')})${filtroAcao}&select=registro_id`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    const contagem = Object.fromEntries(ids.map(id => [String(id), 0]));
+    for (const l of r.dados) contagem[l.registro_id] += 1;
+    return contagem;
+}
+
+// Histórico do agendamento e das 3 reservas, por tabela e por registro.
+async function historicoDoAgendamento(id, acao) {
+    const { instrutor, pista, unidade } = await recursos(id);
+    return {
+        agendamentos: await contarHistorico('agendamentos', [id], acao),
+        agendamento_instrutores: await contarHistorico('agendamento_instrutores', [instrutor.id], acao),
+        agendamento_pistas: await contarHistorico('agendamento_pistas', [pista.id], acao),
+        agendamento_unidades: await contarHistorico('agendamento_unidades', [unidade.id], acao),
+    };
+}
+
+test('cancelar um agendamento já cancelado dá RP005 e não grava histórico', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-17T10:00:00-03:00' }));
+    const primeiro = await rpc('cancelar_agendamento', { p_agendamento: id, p_autor: cliente.id });
+    assert.strictEqual(primeiro.status, 200, JSON.stringify(primeiro.dados));
+    const antes = await historicoDoAgendamento(id);
+
+    const r = await rpc('cancelar_agendamento', { p_agendamento: id, p_autor: cliente.id });
+    assertErro(r, 'RP005');
+    assert.deepStrictEqual(await historicoDoAgendamento(id), antes);
+    assert.strictEqual((await lerAgendamento(id)).situacao, 'cancelado');
+});
+
+test('alterar um agendamento em check-in dá RP005 e não muda o período', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-18T10:00:00-03:00' }));
+    // O agendamento é apagado no fim (com o histórico desta mudança), então a situação não precisa voltar.
+    const p = await rest(`agendamentos?id=eq.${id}`, { metodo: 'PATCH', corpo: { situacao: 'check_in' } });
+    assert.strictEqual(p.status, 200, JSON.stringify(p.dados));
+    const antes = await lerAgendamento(id);
+
+    const r = await alterar(id, '2030-08-18T15:00:00-03:00');
+    assertErro(r, 'RP005');
+    const depois = await lerAgendamento(id);
+    assert.strictEqual(depois.periodo, antes.periodo);
+    assert.strictEqual(depois.situacao, 'check_in');
+    for (const reserva of Object.values(await recursos(id))) assert.strictEqual(reserva.periodo, antes.periodo);
+});
+
+test('alterar mantendo os recursos grava uma só alteração por reserva', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-19T10:00:00-03:00' }));
+    const antes = await historicoDoAgendamento(id, 'alteracao');
+
+    const r = await alterar(id, '2030-08-19T15:00:00-03:00');
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    const depois = await historicoDoAgendamento(id, 'alteracao');
+    for (const tabela of ['agendamento_instrutores', 'agendamento_pistas', 'agendamento_unidades']) {
+        for (const [registro, n] of Object.entries(depois[tabela])) {
+            assert.strictEqual(n - antes[tabela][registro], 1, `${tabela} ${registro}: ${JSON.stringify({ antes, depois })}`);
+        }
+    }
+});
+
+test('alterar sem instrutores livres no horário novo dá RP002', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-20T10:00:00-03:00', instrutor_id: null }));
+    const antes = await lerAgendamento(id);
+    await ocuparInstrutores(await todosInstrutores(), '2030-08-20T15:00:00-03:00');
+
+    const r = await alterar(id, '2030-08-20T15:00:00-03:00');
+    assertErro(r, 'RP002');
+    assert.strictEqual((await lerAgendamento(id)).periodo, antes.periodo);
+});
+
+test('alterar sem pistas livres no horário novo dá RP003', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-21T10:00:00-03:00' }));
+    const antes = await lerAgendamento(id);
+    const r0 = await rest('pistas?ativa=eq.true&select=id');
+    assert.strictEqual(r0.status, 200, JSON.stringify(r0.dados));
+    for (const { id: pistaId } of r0.dados) {
+        await criar('interdicoes', { pista_id: pistaId, periodo: '[2030-08-21 15:00-03,2030-08-21 16:00-03)', motivo: `teste ${marcador()}` });
+    }
+
+    const r = await alterar(id, '2030-08-21T15:00:00-03:00');
+    assertErro(r, 'RP003');
+    assert.strictEqual((await lerAgendamento(id)).periodo, antes.periodo);
+});
+
+test('alterar com a unidade em manutenção e nenhuma outra livre dá RP004', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-22T10:00:00-03:00' }));
+    const antes = await lerAgendamento(id);
+    const unidadeId = (await recursos(id)).unidade.unidade_id;
+    const outra = unidadesLivres.find(u => u.id !== unidadeId);
+    assert.ok(outra, String(unidadeId));
+
+    // A outra unidade livre do modelo fica ocupada no horário novo.
+    const ocupante = await agendamentoDireto('2030-08-22T15:00:00-03:00');
+    const part = await criar('participantes', {
+        agendamento_id: ocupante.id, nome_completo: 'Ocupante Teste', cpf: cpfAleatorio(), data_nascimento: '1990-01-01', modalidade: 'estande',
+    });
+    await criar('agendamento_unidades', { agendamento_id: ocupante.id, unidade_id: outra.id, participante_id: part.id });
+
+    const p = await rest(`unidades_arma?id=eq.${unidadeId}`, { metodo: 'PATCH', corpo: { situacao: 'manutencao' } });
+    assert.strictEqual(p.status, 200, JSON.stringify(p.dados));
+    try {
+        const r = await alterar(id, '2030-08-22T15:00:00-03:00');
+        assertErro(r, 'RP004');
+        assert.strictEqual((await lerAgendamento(id)).periodo, antes.periodo);
+    } finally {
+        const v = await rest(`unidades_arma?id=eq.${unidadeId}`, { metodo: 'PATCH', corpo: { situacao: 'disponivel' } });
+        assert.strictEqual(v.status, 200, JSON.stringify(v.dados));
+    }
+});
+
+test('sem preferência nunca escolhe instrutor bloqueado ou com perfil inativo', async () => {
+    const inicio = '2030-08-23T10:00:00-03:00';
+    const banido = await criarUsuario({ papeis: ['instrutor'] });
+    const inativo = await criarUsuario({ papeis: ['instrutor'] });
+    // Todos os outros instrutores ficam ocupados: só sobram os dois, que não podem ser escolhidos.
+    const outros = (await todosInstrutores()).filter(i => i !== banido.id && i !== inativo.id);
+    await ocuparInstrutores(outros, inicio);
+
+    await banirUsuario(banido.id);
+    const p = await rest(`perfis?id=eq.${inativo.id}`, { metodo: 'PATCH', corpo: { ativo: false } });
+    assert.strictEqual(p.status, 200, JSON.stringify(p.dados));
+    try {
+        const r = await agendar(pedido({ inicio, instrutor_id: null }));
+        assertErro(r, 'RP002');
+    } finally {
+        // Os dois usuários são apagados no fim; mesmo assim, tudo volta como estava.
+        await desbanirUsuario(banido.id);
+        const v = await rest(`perfis?id=eq.${inativo.id}`, { metodo: 'PATCH', corpo: { ativo: true } });
+        assert.strictEqual(v.status, 200, JSON.stringify(v.dados));
+    }
+    // De volta ao normal, um dos dois é escolhido: o RP002 veio do bloqueio, não de outra coisa.
+    const ok = await agendarOk(pedido({ inicio, instrutor_id: null }));
+    const escolhido = (await recursos(ok)).instrutor.instrutor_id;
+    assert.ok([banido.id, inativo.id].includes(escolhido), escolhido);
 });

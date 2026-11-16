@@ -352,6 +352,8 @@ function mostrarRevisao(pedido, inicio) {
     const n = instrutoresNecessarios(pedido.participantes.length, agenda.faixas_instrutores);
     document.getElementById('revisao-ocupacao').textContent =
         `${plural(n, 'instrutor', 'instrutores')} e ${plural(n, 'pista', 'pistas')}`;
+    document.getElementById('revisao-prazo').textContent =
+        `Você pode alterar ou cancelar pelo app até ${agenda.prazo_alteracao_horas} horas antes do início. Depois disso, fale com o estande.`;
 
     const lista = document.getElementById('revisao-participantes');
     lista.replaceChildren();
