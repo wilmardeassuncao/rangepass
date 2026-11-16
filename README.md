@@ -89,3 +89,21 @@ npx.cmd --yes http-server@14.1.1 -p 5500 -c-1
 Depois abra `http://localhost:5500/conta.html` no navegador. Para ver como fica no celular, aperte F12 e clique no ícone de celular. Para parar o servidor, volte ao PowerShell e aperte Ctrl+C.
 
 O arquivo `config.js` tem o endereço do projeto e a chave **pública** (`sb_publishable_...`). Ela pode ir para o Git, porque não dá acesso a nenhuma tabela. A chave secreta nunca entra nesse arquivo.
+
+## Como testar o agendamento
+
+Antes, rode uma vez os "Dados de exemplo" (acima) e publique a função de agendamentos. No PowerShell, na pasta do projeto:
+
+```powershell
+npx.cmd --yes supabase@2.20.12 functions deploy agendamentos --use-api
+```
+
+Depois:
+
+1. Ligue o servidor local (veja "Abrir a página da conta no computador") e abra `http://localhost:5500/index.html`.
+2. Se você não estiver logado, a página leva você para entrar. Entre com uma conta de cliente (não use as contas de instrutor).
+3. A primeira tela é **Meus agendamentos**, com o seu nome. Sem nenhum agendamento, aparece "Você ainda não tem agendamentos.".
+4. Toque em **Novo agendamento**, escolha um dia a pelo menos 2 dias de hoje, preencha e confirme. Em **Ver meus agendamentos**, o agendamento aparece em "Próximos", como "Aguardando pagamento".
+5. **Alterar horário:** no cartão, toque em "Alterar horário", escolha outra hora e salve. Deve aparecer "Horário alterado." e o horário novo no cartão. Só o dia, a hora e a duração mudam.
+6. **Cancelar:** no cartão, toque em "Cancelar" e confirme na janela que abrir. Deve aparecer "Agendamento cancelado." e o cartão passa para "Anteriores", como "Cancelado".
+7. Quando faltar pouco para a sessão (menos que o prazo das Configurações), os botões somem e o cartão diz para falar com o estande.

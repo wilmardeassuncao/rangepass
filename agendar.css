@@ -231,3 +231,36 @@ form { display: flex; flex-direction: column; gap: 14px; }
     margin-bottom: 8px;
     width: 64px;
 }
+
+/* ---------- Meus agendamentos ---------- */
+
+.secao { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
+.secao-titulo { font-size: 18px; font-weight: 700; margin: 0; }
+
+.lista-agendamentos { display: flex; flex-direction: column; gap: 12px; }
+
+.agendamento .cartao-topo { align-items: flex-start; }
+
+.etiqueta {
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    color: var(--cor-texto-secundario);
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    white-space: nowrap;
+}
+
+.etiqueta[data-valor="aguardando_pagamento"] { border-color: var(--cor-marca); color: var(--cor-marca-clara); }
+.etiqueta[data-valor="pago"], .etiqueta[data-valor="check_in"], .etiqueta[data-valor="concluido"] {
+    border-color: var(--cor-sucesso);
+    color: var(--cor-sucesso);
+}
+.etiqueta[data-valor="cancelado"], .etiqueta[data-valor="nao_compareceu"] { color: var(--cor-erro); }
+
+.participante { border-top: 1px solid var(--cor-borda); display: flex; flex-direction: column; padding-top: 12px; }
+
+.acoes { display: flex; gap: 10px; }
+.acoes .botao { flex: 1; }
+.botao.perigo { border-color: var(--cor-erro); color: var(--cor-erro); }

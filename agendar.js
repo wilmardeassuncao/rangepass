@@ -1,22 +1,31 @@
-// Tela de novo agendamento: monta o formulário só com o que o servidor manda (GET agendamentos?ver=opcoes),
-// confere com as mesmas regras do servidor e envia o pedido (POST agendamentos).
+// Página do cliente: "Meus agendamentos" (GET agendamentos), alterar horário e cancelar (PUT agendamentos)
+// e o novo agendamento, montado só com o que o servidor manda (GET agendamentos?ver=opcoes),
+// conferido com as mesmas regras do servidor e enviado (POST agendamentos).
 import { supabase, chamarFuncao } from './api.mjs';
-import { descreverSessao, modelosDaCategoria, municoesDoModelo, nomeDoCalibre } from './agendar-regras.mjs';
 import {
-    validarPedido, horariosDoDia, duracoesPossiveis, instrutoresNecessarios,
+    descreverSessao, modelosDaCategoria, municoesDoModelo, nomeDoCalibre,
+    TEXTO_SITUACAO, separarAgendamentos, armaDoParticipante, municaoDoParticipante,
+} from './agendar-regras.mjs';
+import {
+    validarPedido, validarNovoHorario, horariosDoDia, duracoesPossiveis, instrutoresNecessarios, partesNoFuso,
 } from './supabase/functions/_shared/agendamento.mjs';
 import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ENTRAR = 'conta.html?voltar=index.html';
+// Só este 403 quer dizer "sem acesso". O 403 de prazo ("Faltam menos de N horas…") fica na tela, como aviso.
+const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do estande.';
+const ATIVAS = ['aguardando_pagamento', 'pago'];
 
 const form = document.getElementById('form-agendar');
 const listaParticipantes = document.getElementById('participantes');
 const botaoAdicionar = document.getElementById('botao-adicionar');
 const revisao = document.getElementById('revisao');
+const formAlterar = document.getElementById('form-alterar');
 
-let opcoes = null;        // resposta do GET ?ver=opcoes
-let pedidoAtual = null;   // o que vai no POST, montado ao revisar
+let opcoes = null;          // resposta do GET ?ver=opcoes
+let pedidoAtual = null;     // o que vai no POST, montado ao revisar
+let itemAlterando = null;   // o agendamento (Item do servidor) aberto em "Alterar horário"
 
 // ---------- Ajudantes de tela ----------
 
@@ -25,42 +34,50 @@ function mostrarTela(id) {
     window.scrollTo(0, 0);
 }
 
-function avisar(texto) {
+// Aviso no alto da página: vermelho para problema, verde (sucesso) para "deu certo".
+function avisar(texto, { sucesso = false } = {}) {
     const aviso = document.getElementById('aviso');
     aviso.textContent = texto ?? '';
+    aviso.classList.toggle('sucesso', Boolean(texto) && sucesso);
     aviso.hidden = !texto;
+    if (texto) window.scrollTo(0, 0);
 }
 
+// Erro geral do lugar; se o lugar não tem espaço para ele (um cartão da lista), vai para o aviso.
 function mostrarErroGeral(lugar, mensagem) {
     const geral = lugar.querySelector('[data-erro-geral]');
+    if (!geral) {
+        if (mensagem) avisar(mensagem);
+        return;
+    }
     geral.textContent = mensagem ?? '';
     geral.hidden = !mensagem;
 }
 
-function limparErros() {
-    for (const el of form.querySelectorAll('[data-erro-para], [data-erro]')) el.textContent = '';
-    for (const el of form.querySelectorAll('[aria-invalid]')) el.removeAttribute('aria-invalid');
-    mostrarErroGeral(form, null);
+function limparErros(f = form) {
+    for (const el of f.querySelectorAll('[data-erro-para], [data-erro]')) el.textContent = '';
+    for (const el of f.querySelectorAll('[aria-invalid]')) el.removeAttribute('aria-invalid');
+    mostrarErroGeral(f, null);
 }
 
 // Cada chave de `campos` vai para o seu lugar: 'participantes.2.cpf' fica no cartão 3.
-function mostrarErros(campos) {
+function mostrarErros(campos, f = form) {
     for (const [chave, mensagem] of Object.entries(campos)) {
-        const partes = chave.match(/^participantes\.(\d+)\.(.+)$/);
+        const partes = f === form ? chave.match(/^participantes\.(\d+)\.(.+)$/) : null;
         const cartao = partes ? cartoes()[Number(partes[1])] : null;
         const lugar = partes
             ? cartao?.querySelector(`[data-erro="${partes[2]}"]`)
-            : form.querySelector(`[data-erro-para="${chave}"]`);
+            : f.querySelector(`[data-erro-para="${chave}"]`);
         if (!lugar) {
-            mostrarErroGeral(form, mensagem);
+            mostrarErroGeral(f, mensagem);
             continue;
         }
         lugar.textContent = mensagem;
-        const campo = partes ? cartao.querySelector(`[data-campo="${partes[2]}"]`) : form.elements[chave];
+        const campo = partes ? cartao.querySelector(`[data-campo="${partes[2]}"]`) : f.elements[chave];
         campo?.setAttribute('aria-invalid', 'true');
     }
-    const primeiro = form.querySelector('[aria-invalid="true"]')
-        ?? [...form.querySelectorAll('[data-erro-para], [data-erro]')].find((el) => el.textContent);
+    const primeiro = f.querySelector('[aria-invalid="true"]')
+        ?? [...f.querySelectorAll('[data-erro-para], [data-erro]')].find((el) => el.textContent);
     primeiro?.scrollIntoView?.({ block: 'center' });
     if (primeiro?.matches('input, select')) primeiro.focus();
 }
@@ -77,6 +94,11 @@ async function ocupado(lugar, acao) {
     } finally {
         botoes.forEach((b) => { b.disabled = false; });
     }
+}
+
+// 401 (sem login) ou conta desativada: sair e ir para a página de entrar.
+function precisaEntrar(r) {
+    return r.status === 401 || (r.status === 403 && r.dados?.erro === CONTA_DESATIVADA);
 }
 
 async function irParaEntrar() {
@@ -114,26 +136,41 @@ function somarDias(data, dias) {
 const doisDigitos = (n) => String(n).padStart(2, '0');
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
-// ---------- Quando ----------
+// ---------- Quando (dia, horário e duração) ----------
+// Os mesmos campos servem ao novo agendamento (form) e ao "Alterar horário" (formAlterar).
+// `maximo` é uma função que diz a duração máxima: depende de quantas pessoas vão.
 
-function atualizarHorarios() {
-    const data = form.elements.data.value;
-    const seletor = form.elements.hora;
-    const erroData = form.querySelector('[data-erro-para="data"]');
+function duracaoMaxima(quantidade) {
+    const { agenda } = opcoes;
+    return quantidade > 1 ? agenda.duracao_maxima_grupo : agenda.duracao_maxima_individual;
+}
+
+const maximoNovo = () => duracaoMaxima(cartoes().length);
+const maximoAlterar = () => duracaoMaxima(itemAlterando.participantes.length);
+
+// O dia vai de hoje (no fuso do estande) até a antecedência máxima.
+function limitarDatas(f) {
+    const hoje = dataNoFuso(new Date(), opcoes.estande.fuso);
+    f.elements.data.min = hoje;
+    f.elements.data.max = somarDias(hoje, opcoes.agenda.antecedencia_maxima_dias);
+}
+
+function atualizarHorarios(f, maximo) {
+    const data = f.elements.data.value;
+    const seletor = f.elements.hora;
+    const erroData = f.querySelector('[data-erro-para="data"]');
     const horarios = data ? horariosDoDia(data, opcoes.funcionamento) : [];
     erroData.textContent = data && horarios.length === 0 ? 'O estande não abre neste dia. Escolha outro.' : '';
     preencherSelect(seletor, horarios.map((h) => [h, `${doisDigitos(h)}:00`]), { vazio: 'Escolha o horário' });
     seletor.disabled = horarios.length === 0;
-    atualizarDuracoes();
+    atualizarDuracoes(f, maximo);
 }
 
-function atualizarDuracoes() {
-    const data = form.elements.data.value;
-    const hora = form.elements.hora.value === '' ? null : Number(form.elements.hora.value);
-    const seletor = form.elements.horas;
-    const { agenda, funcionamento } = opcoes;
-    const maximo = cartoes().length > 1 ? agenda.duracao_maxima_grupo : agenda.duracao_maxima_individual;
-    const duracoes = hora === null ? [] : duracoesPossiveis(data, hora, funcionamento, maximo);
+function atualizarDuracoes(f, maximo) {
+    const data = f.elements.data.value;
+    const hora = f.elements.hora.value === '' ? null : Number(f.elements.hora.value);
+    const seletor = f.elements.horas;
+    const duracoes = hora === null ? [] : duracoesPossiveis(data, hora, opcoes.funcionamento, maximo());
     preencherSelect(seletor, duracoes.map((k) => [k, `${plural(k, 'hora', 'horas')} (até ${doisDigitos(hora + k)}:00)`]));
     seletor.disabled = duracoes.length === 0;
 }
@@ -232,7 +269,7 @@ function atualizarGrupo() {
     document.getElementById('ocupacao').textContent = todos.length > 1
         ? `Este grupo vai ocupar ${plural(n, 'instrutor', 'instrutores')} e ${plural(n, 'pista', 'pistas')}.`
         : `Você vai ocupar ${plural(n, 'instrutor', 'instrutores')} e ${plural(n, 'pista', 'pistas')}.`;
-    atualizarDuracoes();
+    atualizarDuracoes(form, maximoNovo);
 }
 
 // ---------- Montar o pedido ----------
@@ -352,7 +389,7 @@ document.getElementById('botao-confirmar').addEventListener('click', () => {
             const ag = r.dados.agendamento;
             document.getElementById('sucesso-sessao').textContent = descreverSessao(ag.inicio, ag.horas, opcoes.estande.fuso);
             mostrarTela('tela-sucesso');
-        } else if (r.status === 401 || r.status === 403) {
+        } else if (precisaEntrar(r)) {
             await irParaEntrar();
         } else if (r.status === 400 && r.dados?.campos) {
             mostrarTela('tela-novo');
@@ -364,43 +401,181 @@ document.getElementById('botao-confirmar').addEventListener('click', () => {
     });
 });
 
-// Até existir a lista (Task 7), o botão volta para um formulário novo.
 document.getElementById('botao-ver-agendamentos').addEventListener('click', () => {
+    avisar(null);
+    ocupado(document.getElementById('tela-sucesso'), () => abrirLista());
+});
+
+botaoAdicionar.addEventListener('click', adicionarParticipante);
+form.elements.data.addEventListener('change', () => atualizarHorarios(form, maximoNovo));
+form.elements.hora.addEventListener('change', () => atualizarDuracoes(form, maximoNovo));
+
+document.getElementById('botao-novo-voltar').addEventListener('click', () => {
+    avisar(null);
+    mostrarTela('tela-lista');
+});
+
+// ---------- Meus agendamentos ----------
+
+function cartaoDoAgendamento(a, proximo) {
+    const cartao = document.getElementById('modelo-agendamento').content.firstElementChild.cloneNode(true);
+    const sessao = descreverSessao(a.inicio, a.horas, opcoes.estande.fuso);
+    cartao.dataset.id = a.id;
+    cartao.querySelector('[data-sessao]').textContent = sessao;
+    const situacao = cartao.querySelector('[data-situacao]');
+    situacao.textContent = TEXTO_SITUACAO[a.situacao] ?? a.situacao;
+    situacao.dataset.valor = a.situacao;
+    cartao.querySelector('[data-titulo-instrutores]').textContent = a.instrutores.length > 1 ? 'Instrutores' : 'Instrutor';
+    cartao.querySelector('[data-instrutores]').textContent = a.instrutores.length ? a.instrutores.join(', ') : 'A definir';
+
+    const lista = cartao.querySelector('[data-participantes]');
+    for (const p of a.participantes) {
+        const dl = document.createElement('dl');
+        dl.className = 'dados participante';
+        const titulo = document.createElement('p');
+        titulo.className = 'bloco-titulo';
+        titulo.textContent = p.nome_completo;
+        dl.append(titulo, linhaDeDado('Arma', armaDoParticipante(p)), linhaDeDado('Munição', municaoDoParticipante(p)));
+        lista.append(dl);
+    }
+
+    // Quem decide se ainda dá para mexer é o servidor (pode_alterar); a tela não recalcula o prazo.
+    if (a.pode_alterar) {
+        cartao.querySelector('[data-acoes]').hidden = false;
+        cartao.querySelector('[data-alterar]').addEventListener('click', () => abrirAlterar(a));
+        cartao.querySelector('[data-cancelar]').addEventListener('click', () => cancelar(a, sessao, cartao));
+    } else if (proximo && ATIVAS.includes(a.situacao)) {
+        const prazo = cartao.querySelector('[data-prazo]');
+        prazo.textContent = `Faltam menos de ${a.prazo_alteracao_horas} horas. Para alterar ou cancelar, fale com o estande.`;
+        prazo.hidden = false;
+    }
+    return cartao;
+}
+
+function preencherSecao(nome, itens, proximo) {
+    document.getElementById(`lista-${nome}`).replaceChildren(...itens.map((a) => cartaoDoAgendamento(a, proximo)));
+    document.getElementById(`secao-${nome}`).hidden = itens.length === 0;
+}
+
+function mostrarLista(agendamentos) {
+    const { proximos, anteriores } = separarAgendamentos(agendamentos, new Date());
+    preencherSecao('proximos', proximos, true);
+    preencherSecao('anteriores', anteriores, false);
+    document.getElementById('sem-agendamentos').hidden = agendamentos.length > 0;
+}
+
+// Busca a lista no servidor e mostra a tela; `mensagem` vira o aviso verde (ex.: 'Horário alterado.').
+async function abrirLista(mensagem) {
+    const r = await chamarFuncao('agendamentos');
+    if (precisaEntrar(r)) return irParaEntrar();
+    if (r.status !== 200) return avisar(r.dados?.erro ?? ERRO_PADRAO);
+    mostrarLista(r.dados.agendamentos);
+    mostrarTela('tela-lista');
+    avisar(mensagem ?? null, { sucesso: true });
+}
+
+document.getElementById('botao-novo').addEventListener('click', () => {
+    avisar(null);
     montarFormulario();
     mostrarTela('tela-novo');
 });
 
-botaoAdicionar.addEventListener('click', adicionarParticipante);
-form.elements.data.addEventListener('change', atualizarHorarios);
-form.elements.hora.addEventListener('change', atualizarDuracoes);
+// ---------- Alterar horário ----------
+
+function abrirAlterar(a) {
+    itemAlterando = a;
+    avisar(null);
+    formAlterar.reset();
+    limparErros(formAlterar);
+    document.getElementById('alterar-atual').textContent =
+        `Agora: ${descreverSessao(a.inicio, a.horas, opcoes.estande.fuso)}`;
+    limitarDatas(formAlterar);
+    // Começa preenchido com o horário atual, no relógio do estande.
+    const atual = partesNoFuso(new Date(a.inicio), opcoes.estande.fuso);
+    formAlterar.elements.data.value = atual.data;
+    atualizarHorarios(formAlterar, maximoAlterar);
+    formAlterar.elements.hora.value = String(atual.hora);
+    atualizarDuracoes(formAlterar, maximoAlterar);
+    formAlterar.elements.horas.value = String(a.horas);
+    mostrarTela('tela-alterar');
+}
+
+formAlterar.elements.data.addEventListener('change', () => atualizarHorarios(formAlterar, maximoAlterar));
+formAlterar.elements.hora.addEventListener('change', () => atualizarDuracoes(formAlterar, maximoAlterar));
+
+document.getElementById('botao-alterar-voltar').addEventListener('click', () => {
+    avisar(null);
+    mostrarTela('tela-lista');
+});
+
+formAlterar.addEventListener('submit', (evento) => {
+    evento.preventDefault();
+    limparErros(formAlterar);
+    avisar(null);
+    const novo = {
+        data: formAlterar.elements.data.value,
+        hora: numeroOuNulo(formAlterar.elements.hora.value),
+        horas: numeroOuNulo(formAlterar.elements.horas.value),
+    };
+    const { campos } = validarNovoHorario(novo, {
+        agora: new Date(), opcoes, quantidade: itemAlterando.participantes.length,
+    });
+    if (Object.keys(campos).length) return mostrarErros(campos, formAlterar);
+    ocupado(formAlterar, async () => {
+        const r = await chamarFuncao('agendamentos', {
+            metodo: 'PUT', corpo: { id: itemAlterando.id, acao: 'alterar_horario', ...novo },
+        });
+        if (r.status === 200) return abrirLista('Horário alterado.');
+        if (precisaEntrar(r)) return irParaEntrar();
+        if (r.status === 400 && r.dados?.campos) return mostrarErros(r.dados.campos, formAlterar);
+        avisar(r.dados?.erro ?? ERRO_PADRAO);   // 403 (prazo), 404, 409: aviso, e fica na tela
+    });
+});
+
+// ---------- Cancelar ----------
+
+function cancelar(a, sessao, cartao) {
+    if (!window.confirm(`Cancelar o agendamento de ${sessao}?`)) return;
+    avisar(null);
+    ocupado(cartao, async () => {
+        const r = await chamarFuncao('agendamentos', { metodo: 'PUT', corpo: { id: a.id, acao: 'cancelar' } });
+        if (r.status === 200) return abrirLista('Agendamento cancelado.');
+        if (precisaEntrar(r)) return irParaEntrar();
+        avisar(r.dados?.erro ?? ERRO_PADRAO);   // 403 (prazo), 404, 409: aviso, e fica na lista
+    });
+}
 
 // ---------- Início ----------
 
 function montarFormulario() {
-    const { estande, agenda, instrutores } = opcoes;
+    const { instrutores } = opcoes;
     form.reset();
     limparErros();
     pedidoAtual = null;
-    const hoje = dataNoFuso(new Date(), estande.fuso);
-    form.elements.data.min = hoje;
-    form.elements.data.max = somarDias(hoje, agenda.antecedencia_maxima_dias);
+    limitarDatas(form);
     preencherSelect(form.elements.instrutor_id, instrutores.map((i) => [i.id, i.nome]), { vazio: 'Sem preferência' });
     form.elements.instrutor_id.value = '';
     listaParticipantes.replaceChildren();
     adicionarParticipante();
-    atualizarHorarios();
+    atualizarHorarios(form, maximoNovo);
 }
 
 async function iniciar() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return location.replace(ENTRAR);
-    const r = await chamarFuncao('agendamentos', { consulta: 'ver=opcoes' });
-    if (r.status === 401 || r.status === 403) return irParaEntrar();
+    // As opções (fuso, horários, nome) e a lista vêm juntas, em paralelo.
+    const [r, lista] = await Promise.all([
+        chamarFuncao('agendamentos', { consulta: 'ver=opcoes' }),
+        chamarFuncao('agendamentos'),
+    ]);
+    if (precisaEntrar(r) || precisaEntrar(lista)) return irParaEntrar();
     if (r.status !== 200) return avisar(r.dados?.erro ?? ERRO_PADRAO);
     opcoes = r.dados;
     document.getElementById('nome-estande').textContent = opcoes.estande.nome;
-    montarFormulario();
-    mostrarTela('tela-novo');
+    document.getElementById('nome-cliente').textContent = opcoes.responsavel.nome_completo;
+    if (lista.status !== 200) return avisar(lista.dados?.erro ?? ERRO_PADRAO);
+    mostrarLista(lista.dados.agendamentos);
+    mostrarTela('tela-lista');
 }
 
 iniciar().catch((erro) => {

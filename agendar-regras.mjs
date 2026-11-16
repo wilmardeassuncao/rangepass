@@ -59,3 +59,20 @@ export function separarAgendamentos(lista, agora) {
     anteriores.sort((a, b) => inicio(b) - inicio(a));
     return { proximos, anteriores };
 }
+
+const comCalibre = (texto, calibre) => (calibre ? `${texto} (${calibre})` : texto);
+
+// Arma de um participante de um agendamento já gravado (o Item que o servidor manda).
+export function armaDoParticipante(p) {
+    if (p.modalidade === 'estande' && p.modelo) {
+        return `${comCalibre(`${p.modelo.marca} ${p.modelo.nome}`, p.modelo.calibre)}, do estande`;
+    }
+    if (p.arma_propria) return `${comCalibre(p.arma_propria.modelo, p.arma_propria.calibre)}, arma própria`;
+    return 'Arma própria';
+}
+
+// Munição de um participante de um agendamento já gravado.
+export function municaoDoParticipante(p) {
+    if (p.modalidade === 'tudo_proprio' || !p.tipo_municao) return 'Própria';
+    return `${p.municao_qtd} × ${comCalibre(p.tipo_municao.nome, p.tipo_municao.calibre)}`;
+}

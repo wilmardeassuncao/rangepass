@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agendar · RangePass</title>
+    <title>Meus agendamentos · RangePass</title>
     <meta name="theme-color" content="#101012">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
@@ -13,12 +13,57 @@
     <main class="pagina">
         <div class="topo">
             <p class="marca">RANGE<span>PASS</span></p>
-            <a href="conta.html" class="link">Minha conta</a>
+            <a href="conta.html" class="link">Meu perfil</a>
         </div>
         <p id="aviso" class="aviso" role="status" hidden></p>
 
         <section id="tela-carregando" class="tela ativa">
             <p class="subtitulo">Carregando…</p>
+        </section>
+
+        <section id="tela-lista" class="tela">
+            <header class="cabecalho">
+                <h1>Meus agendamentos</h1>
+                <p id="nome-cliente" class="subtitulo"></p>
+            </header>
+            <button type="button" id="botao-novo" class="botao">Novo agendamento</button>
+            <p id="sem-agendamentos" class="subtitulo" hidden>Você ainda não tem agendamentos.</p>
+            <section id="secao-proximos" class="secao" hidden>
+                <h2 class="secao-titulo">Próximos</h2>
+                <div id="lista-proximos" class="lista-agendamentos"></div>
+            </section>
+            <section id="secao-anteriores" class="secao" hidden>
+                <h2 class="secao-titulo">Anteriores</h2>
+                <div id="lista-anteriores" class="lista-agendamentos"></div>
+            </section>
+        </section>
+
+        <section id="tela-alterar" class="tela">
+            <header class="cabecalho">
+                <h1>Alterar horário</h1>
+                <p id="alterar-atual" class="subtitulo"></p>
+            </header>
+            <form id="form-alterar" novalidate>
+                <fieldset class="bloco">
+                    <legend class="bloco-titulo">Novo horário</legend>
+                    <label class="campo">Dia
+                        <input name="data" type="date">
+                        <span class="erro" data-erro-para="data"></span>
+                    </label>
+                    <label class="campo">Horário de início
+                        <select name="hora" disabled></select>
+                        <span class="erro" data-erro-para="hora"></span>
+                    </label>
+                    <label class="campo">Duração
+                        <select name="horas" disabled></select>
+                        <span class="erro" data-erro-para="horas"></span>
+                    </label>
+                </fieldset>
+                <p class="subtitulo">Só o dia, o horário e a duração mudam. Para mudar armas ou participantes, cancele e agende de novo.</p>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="submit" class="botao">Salvar novo horário</button>
+                <button type="button" id="botao-alterar-voltar" class="botao secundario">Voltar sem mudar</button>
+            </form>
         </section>
 
         <section id="tela-novo" class="tela">
@@ -61,6 +106,7 @@
                 <p id="ocupacao" class="subtitulo"></p>
                 <p class="erro" data-erro-geral hidden></p>
                 <button type="submit" class="botao">Revisar agendamento</button>
+                <button type="button" id="botao-novo-voltar" class="botao secundario">Voltar para meus agendamentos</button>
             </form>
         </section>
 
@@ -92,6 +138,25 @@
             <button type="button" id="botao-ver-agendamentos" class="botao">Ver meus agendamentos</button>
         </section>
     </main>
+
+    <!-- Cartão de um agendamento da lista. Os textos que vêm do servidor são preenchidos pelo agendar.js. -->
+    <template id="modelo-agendamento">
+        <article class="bloco agendamento" data-agendamento>
+            <div class="cartao-topo">
+                <p class="cartao-titulo" data-sessao></p>
+                <span class="etiqueta" data-situacao></span>
+            </div>
+            <dl class="dados">
+                <div><dt data-titulo-instrutores>Instrutor</dt><dd data-instrutores></dd></div>
+            </dl>
+            <div class="participantes" data-participantes></div>
+            <p class="subtitulo" data-prazo hidden></p>
+            <div class="acoes" data-acoes hidden>
+                <button type="button" class="botao secundario" data-alterar>Alterar horário</button>
+                <button type="button" class="botao secundario perigo" data-cancelar>Cancelar</button>
+            </div>
+        </article>
+    </template>
 
     <!-- Cartão de um participante. Os textos que vêm do servidor são preenchidos pelo agendar.js. -->
     <template id="modelo-participante">

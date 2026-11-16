@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import {
     descreverSessao, TEXTO_SITUACAO, modelosDaCategoria, municoesDoModelo, nomeDoCalibre, separarAgendamentos,
+    armaDoParticipante, municaoDoParticipante,
 } from '../../agendar-regras.mjs';
 
 test('descreverSessao mostra o dia e as horas no fuso do estande', () => {
@@ -63,4 +64,32 @@ test('separarAgendamentos separa próximos e anteriores', () => {
     const { proximos, anteriores } = separarAgendamentos([passado, futuroPago, emAndamento, futuroCancelado], agora);
     assert.deepStrictEqual(proximos.map((a) => a.id), ['em-andamento', 'futuro-pago']);
     assert.deepStrictEqual(anteriores.map((a) => a.id), ['futuro-cancelado', 'passado']);
+});
+
+test('armaDoParticipante descreve a arma do estande ou a própria', () => {
+    assert.strictEqual(
+        armaDoParticipante({ modalidade: 'estande', modelo: { marca: 'Glock', nome: 'G17', calibre: '9mm' }, arma_propria: null }),
+        'Glock G17 (9mm), do estande',
+    );
+    assert.strictEqual(
+        armaDoParticipante({ modalidade: 'estande', modelo: { marca: 'Glock', nome: 'G17', calibre: null }, arma_propria: null }),
+        'Glock G17, do estande',
+    );
+    assert.strictEqual(
+        armaDoParticipante({ modalidade: 'arma_propria', modelo: null, arma_propria: { modelo: 'Taurus TH9', calibre: '9mm' } }),
+        'Taurus TH9 (9mm), arma própria',
+    );
+    assert.strictEqual(armaDoParticipante({ modalidade: 'tudo_proprio', modelo: null, arma_propria: null }), 'Arma própria');
+});
+
+test('municaoDoParticipante mostra a quantidade e o tipo, ou "Própria"', () => {
+    assert.strictEqual(
+        municaoDoParticipante({ modalidade: 'estande', tipo_municao: { nome: 'FMJ', calibre: '9mm' }, municao_qtd: 50 }),
+        '50 × FMJ (9mm)',
+    );
+    assert.strictEqual(
+        municaoDoParticipante({ modalidade: 'arma_propria', tipo_municao: { nome: 'FMJ', calibre: null }, municao_qtd: 50 }),
+        '50 × FMJ',
+    );
+    assert.strictEqual(municaoDoParticipante({ modalidade: 'tudo_proprio', tipo_municao: null, municao_qtd: null }), 'Própria');
 });
