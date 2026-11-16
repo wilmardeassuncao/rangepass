@@ -192,6 +192,12 @@ export async function tentarCriar(tabela, corpo) {
     return r;
 }
 
+// Anota um registro criado por outro caminho (por exemplo, pela função catalogo) para ser apagado no fim,
+// junto com o histórico, como os de criar().
+export function anotarRegistro(tabela, id) {
+    if (!registrosCriados.some(r => r.tabela === tabela && r.id === id)) registrosCriados.push({ tabela, id });
+}
+
 // Insere um registro de teste e anota para apagar depois. Devolve a linha criada.
 export async function criar(tabela, corpo) {
     const r = await tentarCriar(tabela, corpo);
