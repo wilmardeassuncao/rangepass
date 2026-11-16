@@ -3,673 +3,182 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RangePass</title>
+    <title>Agendar · RangePass</title>
     <meta name="theme-color" content="#101012">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            color-scheme: dark;
-            --cor-fundo-externo: #09090a;
-            --cor-fundo: #101012;
-            --cor-superficie: #1a1a1d;
-            --cor-campo: #232327;
-            --cor-borda: #34343a;
-            --cor-texto: #f4f4f5;
-            --cor-texto-secundario: #a9a9b0;
-            --cor-marca: #e65100;
-            --cor-marca-clara: #ff9a5c;
-            --cor-sobre-marca: #ffffff;
-            --cor-erro: #ffb4ab;
-            --cor-erro-fundo: #3a1614;
-            --cor-sucesso: #6fcf97;
-            --raio-pequeno: 12px;
-            --raio-medio: 18px;
-            --espaco-tela: 20px;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            background-color: var(--cor-fundo-externo);
-            color: var(--cor-texto);
-            font-family: 'Roboto', Arial, sans-serif;
-            margin: 0;
-        }
-
-        h1, h2, p {
-            margin: 0;
-        }
-
-        .phone-container {
-            background-color: var(--cor-fundo);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            height: 100dvh;
-            overflow: hidden;
-            width: 100%;
-        }
-
-        .screen {
-            display: none;
-            flex: 1;
-            flex-direction: column;
-            gap: 14px;
-            min-height: 0;
-            overflow-x: hidden;
-            overflow-y: auto;
-            padding: 24px var(--espaco-tela);
-        }
-
-        .screen.active {
-            display: flex;
-        }
-
-        .cabecalho {
-            padding: 4px 2px 6px;
-        }
-
-        .cabecalho h1 {
-            font-size: 24px;
-            font-weight: 700;
-            line-height: 1.2;
-        }
-
-        .subtitulo {
-            color: var(--cor-texto-secundario);
-            font-size: 14px;
-            line-height: 1.4;
-            margin-top: 4px;
-        }
-
-        .marca {
-            font-size: 15px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-        }
-
-        .marca span {
-            color: var(--cor-marca-clara);
-        }
-
-        .bloco {
-            background-color: var(--cor-superficie);
-            border: 1px solid var(--cor-borda);
-            border-radius: var(--raio-medio);
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            padding: 16px;
-        }
-
-        .bloco-titulo {
-            color: var(--cor-marca-clara);
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        form {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }
-
-        .campo {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .campo label {
-            color: var(--cor-texto-secundario);
-            font-size: 13px;
-        }
-
-        .campo input,
-        .campo select {
-            appearance: none;
-            background-color: var(--cor-campo);
-            border: 1px solid var(--cor-borda);
-            border-radius: var(--raio-pequeno);
-            color: var(--cor-texto);
-            font-family: inherit;
-            font-size: 16px;
-            min-height: 48px;
-            padding: 12px 14px;
-            width: 100%;
-        }
-
-        .campo select {
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23a9a9b0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-            background-position: right 14px center;
-            background-repeat: no-repeat;
-            padding-right: 36px;
-        }
-
-        .campo input[type="date"] {
-            color-scheme: dark;
-        }
-
-        .campo select option {
-            background-color: var(--cor-superficie);
-        }
-
-        .campo select:disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        .campo:has(.erro-campo:not(:empty)) input,
-        .campo:has(.erro-campo:not(:empty)) select {
-            border-color: var(--cor-erro);
-        }
-
-        .erro-campo {
-            color: var(--cor-erro);
-            font-size: 13px;
-            line-height: 1.35;
-        }
-
-        .erro-campo:empty {
-            display: none;
-        }
-
-        .btn {
-            border: 1px solid transparent;
-            border-radius: 100px;
-            cursor: pointer;
-            font-family: inherit;
-            font-size: 16px;
-            font-weight: 700;
-            min-height: 50px;
-            padding: 12px 20px;
-            transition: filter 0.15s, background-color 0.15s;
-            width: 100%;
-        }
-
-        .btn-principal {
-            background-color: var(--cor-marca);
-            color: var(--cor-sobre-marca);
-        }
-
-        .btn-secundario {
-            background-color: transparent;
-            border-color: var(--cor-borda);
-            color: var(--cor-texto);
-        }
-
-        .btn-destrutivo {
-            background-color: transparent;
-            color: var(--cor-erro);
-        }
-
-        .btn:hover:not(:disabled) {
-            filter: brightness(1.12);
-        }
-
-        .btn-secundario:hover:not(:disabled),
-        .btn-destrutivo:hover:not(:disabled) {
-            background-color: var(--cor-superficie);
-        }
-
-        .btn:disabled {
-            cursor: not-allowed;
-            opacity: 0.55;
-        }
-
-        .btn:focus-visible,
-        .campo input:focus-visible,
-        .campo select:focus-visible {
-            outline: 2px solid var(--cor-marca-clara);
-            outline-offset: 2px;
-        }
-
-        .acoes {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: auto;
-            padding-top: 6px;
-        }
-
-        .linha {
-            align-items: baseline;
-            display: flex;
-            font-size: 15px;
-            gap: 16px;
-            justify-content: space-between;
-        }
-
-        .linha dt {
-            color: var(--cor-texto-secundario);
-            flex-shrink: 0;
-            font-size: 14px;
-        }
-
-        .linha dd {
-            margin: 0;
-            min-width: 0;
-            overflow-wrap: anywhere;
-            text-align: right;
-        }
-
-        dl {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin: 0;
-        }
-
-        .aviso-erro {
-            background-color: var(--cor-erro-fundo);
-            border: 1px solid var(--cor-erro);
-            border-radius: var(--raio-pequeno);
-            color: var(--cor-erro);
-            font-size: 14px;
-            line-height: 1.4;
-            padding: 12px 14px;
-        }
-
-        .abertura {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 28px;
-        }
-
-        .abertura h1 {
-            font-size: 28px;
-            line-height: 1.2;
-        }
-
-        .confirmacao {
-            align-items: center;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 56px;
-            text-align: center;
-        }
-
-        .confirmacao h1 {
-            font-size: 22px;
-            line-height: 1.25;
-        }
-
-        .selo-sucesso {
-            align-items: center;
-            border: 2px solid var(--cor-sucesso);
-            border-radius: 50%;
-            color: var(--cor-sucesso);
-            display: flex;
-            font-size: 28px;
-            height: 64px;
-            justify-content: center;
-            margin-bottom: 8px;
-            width: 64px;
-        }
-
-        @media (min-width: 480px) and (min-height: 640px) {
-            body {
-                align-items: center;
-                display: flex;
-                justify-content: center;
-                min-height: 100vh;
-            }
-
-            .phone-container {
-                border: 1px solid var(--cor-borda);
-                border-radius: 32px;
-                box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
-                height: min(800px, calc(100vh - 40px));
-                width: 390px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="agendar.css">
 </head>
 <body>
+    <main class="pagina">
+        <div class="topo">
+            <p class="marca">RANGE<span>PASS</span></p>
+            <a href="conta.html" class="link">Minha conta</a>
+        </div>
+        <p id="aviso" class="aviso" role="status" hidden></p>
 
-    <main class="phone-container">
-
-        <section id="screen-home" class="screen active">
-            <p class="marca">Range<span>Pass</span></p>
-            <div class="abertura">
-                <h1>Seja bem-vindo(a) ao RangePass</h1>
-                <p class="subtitulo">Agende sua sessão no estande em poucos passos.</p>
-            </div>
-            <div class="bloco">
-                <dl>
-                    <div class="linha"><dt>Funcionamento</dt><dd>Das 8h às 23h</dd></div>
-                    <div class="linha"><dt>Antecedência</dt><dd>Mínimo de 24 horas</dd></div>
-                </dl>
-            </div>
-            <div class="acoes">
-                <button class="btn btn-principal" onclick="navigate('screen-form')">Novo agendamento</button>
-            </div>
+        <section id="tela-carregando" class="tela ativa">
+            <p class="subtitulo">Carregando…</p>
         </section>
 
-        <section id="screen-form" class="screen">
+        <section id="tela-novo" class="tela">
             <header class="cabecalho">
-                <h1 id="form-title">Novo agendamento</h1>
-                <p class="subtitulo">RangePass</p>
+                <h1>Novo agendamento</h1>
+                <p id="nome-estande" class="subtitulo"></p>
             </header>
-            <div id="aviso-edicao" class="aviso-erro" role="alert" hidden></div>
-            <form id="appointmentForm" novalidate onsubmit="submitData(event)">
-                <div class="bloco">
-                    <h2 class="bloco-titulo">Atirador</h2>
-                    <div class="campo">
-                        <label for="usuario">Nome do atirador</label>
-                        <input type="text" id="usuario" autocomplete="name" required>
-                        <p class="erro-campo" id="erro-usuario"></p>
-                    </div>
-                </div>
-                <div class="bloco">
-                    <h2 class="bloco-titulo">Data e horário</h2>
-                    <div class="campo">
-                        <label for="data">Data</label>
-                        <input type="date" id="data" required>
-                        <p class="erro-campo" id="erro-data"></p>
-                    </div>
-                    <div class="campo">
-                        <label for="hora_inicio">Horário de início</label>
-                        <select id="hora_inicio" required onchange="atualizarDuracoes()"></select>
-                        <p class="erro-campo" id="erro-hora_inicio"></p>
-                    </div>
-                    <div class="campo">
-                        <label for="duracao_horas">Duração</label>
-                        <select id="duracao_horas" required onchange="document.getElementById('erro-duracao_horas').textContent = ''"></select>
-                        <p class="erro-campo" id="erro-duracao_horas"></p>
-                    </div>
-                </div>
-                <div class="bloco">
-                    <h2 class="bloco-titulo">Sessão</h2>
-                    <div class="campo">
-                        <label for="instrutor">Instrutor</label>
-                        <select id="instrutor" required></select>
-                        <p class="erro-campo" id="erro-instrutor"></p>
-                    </div>
-                    <div class="campo">
-                        <label for="armamento">Armamento</label>
-                        <select id="armamento" required></select>
-                        <p class="erro-campo" id="erro-armamento"></p>
-                    </div>
-                    <div class="campo">
-                        <label for="municao">Quantidade de munição (mínimo 50)</label>
-                        <input type="number" id="municao" inputmode="numeric" min="50" step="1" required>
-                        <p class="erro-campo" id="erro-municao_qtd"></p>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-principal">Revisar agendamento</button>
+            <form id="form-agendar" novalidate>
+                <fieldset class="bloco">
+                    <legend class="bloco-titulo">Quando</legend>
+                    <label class="campo">Dia
+                        <input name="data" type="date">
+                        <span class="erro" data-erro-para="data"></span>
+                    </label>
+                    <label class="campo">Horário de início
+                        <select name="hora" disabled></select>
+                        <span class="erro" data-erro-para="hora"></span>
+                    </label>
+                    <label class="campo">Duração
+                        <select name="horas" disabled></select>
+                        <span class="erro" data-erro-para="horas"></span>
+                    </label>
+                </fieldset>
+
+                <fieldset class="bloco">
+                    <legend class="bloco-titulo">Instrutor</legend>
+                    <label class="campo">Instrutor
+                        <select name="instrutor_id"></select>
+                        <span class="erro" data-erro-para="instrutor_id"></span>
+                    </label>
+                </fieldset>
+
+                <fieldset class="bloco">
+                    <legend class="bloco-titulo">Participantes</legend>
+                    <div id="participantes" class="participantes"></div>
+                    <span class="erro" data-erro-para="participantes"></span>
+                    <button type="button" id="botao-adicionar" class="botao secundario">Adicionar participante</button>
+                </fieldset>
+
+                <p id="ocupacao" class="subtitulo"></p>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="submit" class="botao">Revisar agendamento</button>
             </form>
         </section>
 
-        <section id="screen-details" class="screen">
+        <section id="tela-revisar" class="tela">
             <header class="cabecalho">
-                <h1>Revise seu agendamento</h1>
-                <p class="subtitulo">Confira os dados antes de finalizar.</p>
+                <h1>Revise o agendamento</h1>
+                <p class="subtitulo">Confira os dados antes de confirmar.</p>
             </header>
-            <div class="bloco">
-                <h2 class="bloco-titulo">Atirador</h2>
-                <dl>
-                    <div class="linha"><dt>Nome</dt><dd id="view-usuario"></dd></div>
+            <div id="revisao" class="revisao">
+                <dl class="bloco dados">
+                    <div><dt>Quando</dt><dd id="revisao-sessao"></dd></div>
+                    <div><dt>Instrutor</dt><dd id="revisao-instrutor"></dd></div>
+                    <div><dt>Ocupa</dt><dd id="revisao-ocupacao"></dd></div>
                 </dl>
-            </div>
-            <div class="bloco">
-                <h2 class="bloco-titulo">Data e horário</h2>
-                <dl>
-                    <div class="linha"><dt>Data</dt><dd id="view-data"></dd></div>
-                    <div class="linha"><dt>Horário</dt><dd id="view-horario"></dd></div>
-                </dl>
-            </div>
-            <div class="bloco">
-                <h2 class="bloco-titulo">Sessão</h2>
-                <dl>
-                    <div class="linha"><dt>Instrutor</dt><dd id="view-instrutor"></dd></div>
-                    <div class="linha"><dt>Armamento</dt><dd id="view-armamento"></dd></div>
-                    <div class="linha"><dt>Munição</dt><dd id="view-municao"></dd></div>
-                </dl>
-            </div>
-            <div id="aviso-envio" class="aviso-erro" role="alert" hidden></div>
-            <div class="acoes">
-                <button id="btn-finalizar" class="btn btn-principal" onclick="finalizar()">Finalizar</button>
-                <button id="btn-editar" class="btn btn-secundario" onclick="editData()">Editar</button>
-                <button id="btn-excluir" class="btn btn-destrutivo" onclick="deleteData()">Excluir</button>
+                <div id="revisao-participantes" class="participantes"></div>
+                <p class="subtitulo">Pagamento no balcão, no dia da sessão.</p>
+                <p class="erro" data-erro-geral hidden></p>
+                <button type="button" id="botao-confirmar" class="botao">Confirmar agendamento</button>
+                <button type="button" id="botao-voltar" class="botao secundario">Voltar e mudar</button>
             </div>
         </section>
 
-        <section id="screen-success" class="screen">
+        <section id="tela-sucesso" class="tela">
             <div class="confirmacao">
                 <div class="selo-sucesso" aria-hidden="true">✓</div>
-                <h1>Agendamento realizado com sucesso</h1>
-                <p class="subtitulo">Para alterar ou cancelar, fale com o estande.</p>
+                <h1>Agendamento feito!</h1>
+                <p id="sucesso-sessao" class="subtitulo"></p>
             </div>
-            <div class="acoes">
-                <button class="btn btn-principal" onclick="resetApp()">Voltar ao início</button>
-            </div>
+            <button type="button" id="botao-ver-agendamentos" class="botao">Ver meus agendamentos</button>
         </section>
-
     </main>
 
-    <script src="regras.js"></script>
-    <script>
-        const webhookUrl = "https://hook.us2.make.com/s8tgskh4nt0vkymn7vxwm4vvrpz6ciyy";
-        const TEMPO_LIMITE_ENVIO_MS = 60000;
-        const MENSAGEM_FALHA_ENVIO = "Não foi possível confirmar seu agendamento. Seus dados foram mantidos. Verifique sua conexão e tente novamente.";
-        const MENSAGEM_POSSIVEL_GRAVACAO = "Se você já tentou enviar antes, o agendamento pode ter sido gravado. Confirme com o estande antes de alterar.";
-        const CAMPOS = {
-            usuario: 'usuario',
-            data: 'data',
-            hora_inicio: 'hora_inicio',
-            duracao_horas: 'duracao_horas',
-            instrutor: 'instrutor',
-            armamento: 'armamento',
-            municao_qtd: 'municao'
-        };
+    <!-- Cartão de um participante. Os textos que vêm do servidor são preenchidos pelo agendar.js. -->
+    <template id="modelo-participante">
+        <div class="cartao" data-participante>
+            <div class="cartao-topo">
+                <p class="cartao-titulo" data-titulo></p>
+                <button type="button" class="link" data-remover>Remover</button>
+            </div>
 
-        let currentData = {};
+            <div class="grupo" data-grupo="convidado">
+                <label class="campo">Nome completo
+                    <input data-campo="nome_completo" autocomplete="off">
+                    <span class="erro" data-erro="nome_completo"></span>
+                </label>
+                <label class="campo">CPF
+                    <input data-campo="cpf" inputmode="numeric" placeholder="000.000.000-00">
+                    <span class="erro" data-erro="cpf"></span>
+                </label>
+                <label class="campo">Data de nascimento
+                    <input data-campo="data_nascimento" type="date">
+                    <span class="erro" data-erro="data_nascimento"></span>
+                </label>
+            </div>
 
-        let houveFalhaDeEnvio = false;
+            <label class="campo">Modalidade
+                <select data-campo="modalidade">
+                    <option value="estande">Arma e munição do estande</option>
+                    <option value="arma_propria">Arma própria com munição do estande</option>
+                    <option value="tudo_proprio">Arma e munição próprias</option>
+                </select>
+                <span class="erro" data-erro="modalidade"></span>
+            </label>
 
-        function textoDuracao(horas) {
-            return horas === 1 ? '1 hora' : `${horas} horas`;
-        }
+            <div class="grupo" data-grupo="estande">
+                <label class="campo">Categoria
+                    <select data-campo="categoria"></select>
+                </label>
+                <label class="campo">Modelo
+                    <select data-campo="modelo_id"></select>
+                    <span class="erro" data-erro="modelo_id"></span>
+                </label>
+                <label class="campo">Calibre
+                    <input data-campo="calibre_estande" readonly tabindex="-1">
+                </label>
+            </div>
 
-        function preencherLista(id, opcoes) {
-            const lista = document.getElementById(id);
-            lista.replaceChildren(new Option('Selecione', ''));
-            opcoes.forEach(opcao => lista.add(new Option(opcao.texto, opcao.valor)));
-        }
+            <div class="grupo" data-grupo="propria">
+                <label class="campo">Modelo da arma
+                    <input data-campo="arma_modelo" autocomplete="off">
+                </label>
+                <label class="campo">Calibre da arma
+                    <input data-campo="arma_calibre" autocomplete="off">
+                </label>
+                <label class="campo">Número de registro
+                    <input data-campo="arma_numero_registro" autocomplete="off">
+                </label>
+                <label class="campo">Responsável pela arma
+                    <input data-campo="arma_responsavel" autocomplete="off">
+                </label>
+                <span class="erro" data-erro="arma_propria"></span>
+            </div>
 
-        function montarFormulario() {
-            const paraOpcao = valor => ({ texto: valor, valor });
-            preencherLista('instrutor', INSTRUTORES.map(paraOpcao));
-            preencherLista('armamento', ARMAMENTOS.map(paraOpcao));
-            preencherLista('hora_inicio', HORAS_INICIO.map(hora => ({ texto: `${hora}h`, valor: hora })));
-            document.getElementById('data').min = dataMinima(new Date());
-            atualizarDuracoes();
-        }
+            <div class="grupo" data-grupo="municao">
+                <label class="campo">Munição
+                    <select data-campo="tipo_municao_id"></select>
+                    <span class="erro" data-erro="tipo_municao_id"></span>
+                </label>
+                <label class="campo">Quantidade de munição <small data-texto-minimo></small>
+                    <input data-campo="municao_qtd" type="number" inputmode="numeric" step="1">
+                    <span class="erro" data-erro="municao_qtd"></span>
+                </label>
+            </div>
 
-        function atualizarDuracoes() {
-            const lista = document.getElementById('duracao_horas');
-            const erro = document.getElementById('erro-duracao_horas');
-            const horaEscolhida = document.getElementById('hora_inicio').value;
-            const duracaoAnterior = lista.value;
-            const duracoes = horaEscolhida ? duracoesPermitidas(Number(horaEscolhida)) : [];
+            <div class="grupo" data-grupo="termo">
+                <details class="politica">
+                    <summary>Ler o termo de responsabilidade</summary>
+                    <div class="texto-politica" data-texto-termo></div>
+                </details>
+                <label class="caixa">
+                    <input data-campo="aceite" type="checkbox">
+                    Li e aceito o termo de responsabilidade
+                </label>
+                <span class="erro" data-erro="aceite_termo_versao"></span>
+            </div>
+        </div>
+    </template>
 
-            preencherLista('duracao_horas', duracoes.map(horas => ({
-                texto: `${textoDuracao(horas)} (até ${Number(horaEscolhida) + horas}h)`,
-                valor: horas
-            })));
-            lista.disabled = !horaEscolhida;
-            lista.value = duracoes.includes(Number(duracaoAnterior)) ? duracaoAnterior : '';
-            erro.textContent = duracaoAnterior && !lista.value
-                ? `A sessão deve terminar até as ${HORA_FECHAMENTO}h. Selecione outra duração.`
-                : '';
-        }
-
-        function lerFormulario() {
-            const dados = {};
-            Object.entries(CAMPOS).forEach(([campo, id]) => {
-                dados[campo] = document.getElementById(id).value;
-            });
-            return dados;
-        }
-
-        function limparErros() {
-            Object.keys(CAMPOS).forEach(campo => {
-                document.getElementById(`erro-${campo}`).textContent = '';
-            });
-        }
-
-        function mostrarErros(erros) {
-            limparErros();
-            Object.entries(erros).forEach(([campo, mensagem]) => {
-                document.getElementById(`erro-${campo}`).textContent = mensagem;
-            });
-
-            const primeiroInvalido = Object.keys(CAMPOS).find(campo => erros[campo]);
-            if (primeiroInvalido) document.getElementById(CAMPOS[primeiroInvalido]).focus();
-        }
-
-        function navigate(screenId) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-        }
-
-        function mostrarAviso(mensagem) {
-            const aviso = document.getElementById('aviso-envio');
-            aviso.textContent = mensagem;
-            aviso.hidden = false;
-        }
-
-        function limparAviso() {
-            const aviso = document.getElementById('aviso-envio');
-            aviso.textContent = '';
-            aviso.hidden = true;
-            document.getElementById('btn-finalizar').textContent = 'Finalizar';
-        }
-
-        function definirEnvioEmAndamento(ativo) {
-            document.getElementById('btn-finalizar').disabled = ativo;
-            document.getElementById('btn-editar').disabled = ativo;
-            document.getElementById('btn-excluir').disabled = ativo;
-            document.getElementById('btn-finalizar').textContent = ativo ? 'Enviando...' : 'Finalizar';
-        }
-
-        function submitData(event) {
-            event.preventDefault();
-            limparAviso();
-
-            const dados = lerFormulario();
-            const erros = validarAgendamento(dados, new Date());
-            mostrarErros(erros);
-            if (Object.keys(erros).length > 0) return;
-
-            currentData = montarEnvio(dados);
-
-            document.getElementById('view-usuario').innerText = currentData.usuario;
-            document.getElementById('view-data').innerText = formatarData(currentData.data);
-            document.getElementById('view-horario').innerText = `${currentData.hora_inicio}h às ${currentData.hora_fim}h (${textoDuracao(currentData.duracao_horas)})`;
-            document.getElementById('view-instrutor').innerText = currentData.instrutor;
-            document.getElementById('view-armamento').innerText = currentData.armamento;
-            document.getElementById('view-municao').innerText = currentData.municao_qtd;
-
-            navigate('screen-details');
-        }
-
-        async function finalizar() {
-            limparAviso();
-
-            const erros = validarAgendamento(lerFormulario(), new Date());
-            if (Object.keys(erros).length > 0) {
-                mostrarAviso(`${Object.values(erros)[0]} Use Editar para corrigir.`);
-                return;
-            }
-
-            definirEnvioEmAndamento(true);
-
-            const controle = new AbortController();
-            const limite = setTimeout(() => controle.abort(), TEMPO_LIMITE_ENVIO_MS);
-            let resultado = 'falha';
-
-            try {
-                const resposta = await fetch(webhookUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(currentData),
-                    signal: controle.signal
-                });
-                resultado = interpretarResposta(resposta.ok, await resposta.text());
-            } catch (error) {
-                console.error('Falha ao enviar o agendamento:', error);
-            } finally {
-                clearTimeout(limite);
-                definirEnvioEmAndamento(false);
-            }
-
-            if (resultado === 'sucesso') {
-                navigate('screen-success');
-                return;
-            }
-
-            if (resultado === 'conflito') {
-                const conflito = `${currentData.instrutor} já está ocupado nesse horário. Altere o horário ou o instrutor em Editar.`;
-                mostrarAviso(houveFalhaDeEnvio ? `${conflito} ${MENSAGEM_POSSIVEL_GRAVACAO}` : conflito);
-                return;
-            }
-
-            houveFalhaDeEnvio = true;
-            mostrarAviso(MENSAGEM_FALHA_ENVIO);
-            document.getElementById('btn-finalizar').textContent = 'Tentar novamente';
-        }
-
-        function editData() {
-            limparAviso();
-            limparErros();
-            const avisoEdicao = document.getElementById('aviso-edicao');
-            avisoEdicao.textContent = MENSAGEM_POSSIVEL_GRAVACAO;
-            avisoEdicao.hidden = !houveFalhaDeEnvio;
-            document.getElementById('form-title').innerText = "Editar agendamento";
-            document.getElementById('usuario').value = currentData.usuario;
-            document.getElementById('data').value = currentData.data;
-            document.getElementById('hora_inicio').value = currentData.hora_inicio;
-            atualizarDuracoes();
-            document.getElementById('duracao_horas').value = currentData.duracao_horas;
-            document.getElementById('instrutor').value = currentData.instrutor;
-            document.getElementById('armamento').value = currentData.armamento;
-            document.getElementById('municao').value = currentData.municao_qtd;
-            navigate('screen-form');
-        }
-
-        function deleteData() {
-            const confirmacao = houveFalhaDeEnvio
-                ? "O envio anterior pode ter sido gravado. Deseja limpar estes dados do app?"
-                : "Tem certeza de que deseja excluir este agendamento?";
-            const retorno = houveFalhaDeEnvio
-                ? "Dados removidos do app. Se o agendamento foi gravado, fale com o estande para cancelar."
-                : "Agendamento excluído.";
-
-            if(confirm(confirmacao)) {
-                alert(retorno);
-                resetApp();
-            }
-        }
-
-        function resetApp() {
-            limparAviso();
-            limparErros();
-            document.getElementById('aviso-edicao').hidden = true;
-            document.getElementById('appointmentForm').reset();
-            atualizarDuracoes();
-            document.getElementById('form-title').innerText = "Novo agendamento";
-            currentData = {};
-            houveFalhaDeEnvio = false;
-            navigate('screen-home');
-        }
-
-        montarFormulario();
-    </script>
+    <script type="module" src="agendar.js"></script>
 </body>
 </html>

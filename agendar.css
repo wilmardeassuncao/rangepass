@@ -1,0 +1,233 @@
+/* Visual da tela de agendamento: as mesmas cores da conta (escuro com laranja), pensado para o celular. */
+:root {
+    color-scheme: dark;
+    --cor-fundo-externo: #09090a;
+    --cor-fundo: #101012;
+    --cor-superficie: #1a1a1d;
+    --cor-campo: #232327;
+    --cor-borda: #34343a;
+    --cor-texto: #f4f4f5;
+    --cor-texto-secundario: #a9a9b0;
+    --cor-marca: #e65100;
+    --cor-marca-clara: #ff9a5c;
+    --cor-sobre-marca: #ffffff;
+    --cor-erro: #ffb4ab;
+    --cor-erro-fundo: #3a1614;
+    --cor-sucesso: #6fcf97;
+    --raio-pequeno: 12px;
+    --raio-medio: 18px;
+    --espaco-tela: 20px;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+body {
+    background-color: var(--cor-fundo-externo);
+    color: var(--cor-texto);
+    font-family: 'Roboto', Arial, sans-serif;
+    margin: 0;
+}
+
+h1, p, dl, dd { margin: 0; }
+
+fieldset { margin: 0; min-width: 0; }
+legend { float: left; padding: 0; width: 100%; }
+
+.pagina {
+    background-color: var(--cor-fundo);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 0 auto;
+    max-width: 480px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 24px var(--espaco-tela);
+}
+
+.marca { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+.marca span { color: var(--cor-marca-clara); }
+
+.tela { display: none; flex-direction: column; gap: 14px; }
+.tela.ativa { display: flex; }
+
+.cabecalho h1 { font-size: 24px; font-weight: 700; line-height: 1.2; }
+
+.subtitulo {
+    color: var(--cor-texto-secundario);
+    font-size: 14px;
+    line-height: 1.4;
+    margin-top: 4px;
+}
+
+.bloco {
+    background-color: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-medio);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+}
+
+.bloco-titulo { color: var(--cor-marca-clara); font-size: 13px; font-weight: 500; }
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    font-weight: 500;
+    gap: 6px;
+}
+
+.campo small { color: var(--cor-texto-secundario); font-weight: 400; }
+
+input:not([type="checkbox"]) {
+    background-color: var(--cor-campo);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-texto);
+    font: inherit;
+    font-weight: 400;
+    min-height: 48px;
+    padding: 12px 14px;
+    width: 100%;
+}
+
+select {
+    appearance: none;
+    background-color: var(--cor-campo);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23a9a9b0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-position: right 14px center;
+    background-repeat: no-repeat;
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-texto);
+    font: inherit;
+    font-weight: 400;
+    min-height: 48px;
+    padding: 12px 36px 12px 14px;
+    width: 100%;
+}
+
+select option { background-color: var(--cor-superficie); }
+select:disabled { cursor: not-allowed; opacity: 0.5; }
+input[type="date"] { color-scheme: dark; }
+input[readonly] { color: var(--cor-texto-secundario); }
+
+input:focus, select:focus { border-color: var(--cor-marca-clara); outline: none; }
+input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--cor-erro); }
+
+.caixa { align-items: center; display: flex; font-size: 14px; gap: 10px; }
+.caixa input { accent-color: var(--cor-marca); height: 20px; width: 20px; }
+
+.politica summary { color: var(--cor-marca-clara); cursor: pointer; font-size: 14px; }
+
+.texto-politica {
+    color: var(--cor-texto-secundario);
+    font-size: 13px;
+    line-height: 1.5;
+    margin-top: 10px;
+    max-height: 260px;
+    overflow-y: auto;
+    white-space: pre-line;
+}
+
+.erro { color: var(--cor-erro); font-size: 13px; font-weight: 400; }
+.erro:empty { display: none; }
+
+.aviso {
+    background-color: var(--cor-erro-fundo);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-erro);
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 12px 14px;
+}
+
+.aviso.sucesso { background-color: var(--cor-superficie); color: var(--cor-sucesso); }
+
+.botao {
+    background-color: var(--cor-marca);
+    border: 0;
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-sobre-marca);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    min-height: 48px;
+    padding: 12px;
+    width: 100%;
+}
+
+a.botao { display: block; text-align: center; text-decoration: none; }
+.botao:disabled { cursor: wait; opacity: 0.6; }
+.botao.secundario { background-color: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto); }
+
+.links { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; }
+
+.link {
+    background: none;
+    border: 0;
+    color: var(--cor-marca-clara);
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 0;
+}
+
+.dados div { display: flex; justify-content: space-between; gap: 12px; }
+.dados dt { color: var(--cor-texto-secundario); font-size: 14px; }
+.dados dd { font-size: 14px; text-align: right; }
+
+.topo { align-items: center; display: flex; justify-content: space-between; }
+.topo .link { text-decoration: none; }
+
+form { display: flex; flex-direction: column; gap: 14px; }
+
+.participantes { display: flex; flex-direction: column; gap: 12px; }
+
+.cartao {
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 14px;
+}
+
+.cartao-topo { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
+.cartao-titulo { font-size: 15px; font-weight: 700; }
+
+.grupo { display: flex; flex-direction: column; gap: 14px; }
+
+.dados { gap: 10px; }
+.dados dd { overflow-wrap: anywhere; }
+
+.revisao { display: flex; flex-direction: column; gap: 14px; }
+
+.confirmacao {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 40px;
+    text-align: center;
+}
+
+.confirmacao h1 { font-size: 22px; line-height: 1.25; }
+
+.selo-sucesso {
+    align-items: center;
+    border: 2px solid var(--cor-sucesso);
+    border-radius: 50%;
+    color: var(--cor-sucesso);
+    display: flex;
+    font-size: 28px;
+    height: 64px;
+    justify-content: center;
+    margin-bottom: 8px;
+    width: 64px;
+}

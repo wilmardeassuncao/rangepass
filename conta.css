@@ -136,6 +136,7 @@ input[aria-invalid="true"] { border-color: var(--cor-erro); }
     width: 100%;
 }
 
+a.botao { display: block; text-align: center; text-decoration: none; }
 .botao:disabled { cursor: wait; opacity: 0.6; }
 .botao.secundario { background-color: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto); }
 

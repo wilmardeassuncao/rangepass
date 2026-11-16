@@ -1,6 +1,5 @@
 // Página da conta: liga as telas ao Supabase Auth (entrar, sair, senha) e às Edge Functions (cadastro e perfil).
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
-import { SUPABASE_URL, SUPABASE_CHAVE_PUBLICA } from './config.js';
+import { supabase, chamarFuncao } from './api.mjs';
 import { mensagemDoErroDeLogin, formatarCpf, formatarTelefone } from './conta-regras.mjs';
 import { validarCadastro, validarEdicaoPerfil, dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 
@@ -8,8 +7,9 @@ import { validarCadastro, validarEdicaoPerfil, dataNoFuso } from './supabase/fun
 const parametrosDoLink = new URLSearchParams(location.hash.slice(1));
 const veioDaRecuperacao = parametrosDoLink.get('type') === 'recovery';
 const erroDoLink = parametrosDoLink.get('error_code');
+// Para onde voltar depois de entrar. Só aceita o agendamento; qualquer outro valor é ignorado.
+const voltarPara = new URLSearchParams(location.search).get('voltar') === 'index.html' ? 'index.html' : null;
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_CHAVE_PUBLICA);
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do estande.';
 
@@ -77,24 +77,10 @@ function formatarData(data) {
     return dia ? `${dia}/${mes}/${ano}` : '';
 }
 
-// ---------- Conversa com as Edge Functions ----------
-
-async function chamarFuncao(nome, { metodo = 'GET', corpo } = {}) {
-    const { data: { session } } = await supabase.auth.getSession();
-    const cabecalhos = { apikey: SUPABASE_CHAVE_PUBLICA };
-    if (session) cabecalhos.Authorization = `Bearer ${session.access_token}`;
-    if (corpo !== undefined) cabecalhos['Content-Type'] = 'application/json';
-    const resposta = await fetch(`${SUPABASE_URL}/functions/v1/${nome}`, {
-        method: metodo, headers: cabecalhos, body: corpo === undefined ? undefined : JSON.stringify(corpo),
-    });
-    let dados = null;
-    try { dados = await resposta.json(); } catch { dados = null; }
-    return { status: resposta.status, dados };
-}
-
 // ---------- Meu perfil ----------
 
-async function abrirPerfil() {
+// Com `podeVoltar`, quem chegou do agendamento (?voltar=index.html) volta para lá depois de o cadastro ser conferido.
+async function abrirPerfil({ podeVoltar = false } = {}) {
     const r = await chamarFuncao('minha-conta');
     if (r.status === 403 || r.status === 401) {
         await supabase.auth.signOut();
@@ -114,6 +100,10 @@ async function abrirPerfil() {
         return;
     }
     perfilAtual = r.dados.perfil;
+    if (podeVoltar && voltarPara) {
+        location.replace(voltarPara);
+        return;
+    }
     mostrarPerfil(r.dados.email, perfilAtual);
     mostrarTela('tela-perfil');
 }
@@ -171,7 +161,7 @@ document.getElementById('form-entrar').addEventListener('submit', (evento) => {
         const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: senha });
         if (error) return mostrarErroGeral(form, mensagemDoErroDeLogin(error));
         form.reset();
-        await abrirPerfil();
+        await abrirPerfil({ podeVoltar: true });
     });
 });
 
@@ -271,7 +261,7 @@ async function iniciar() {
     }
     const { data: { session } } = await supabase.auth.getSession();
     if (veioDaRecuperacao && session) return mostrarTela('tela-nova-senha');
-    if (session) return abrirPerfil();
+    if (session) return abrirPerfil({ podeVoltar: true });
     mostrarTela('tela-entrar');
 }
 
