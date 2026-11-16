@@ -329,3 +329,7 @@ verify_jwt = false
 [functions.catalogo]
 entrypoint = "./functions/catalogo/index.js"
 verify_jwt = false
+
+[functions.equipe]
+entrypoint = "./functions/equipe/index.js"
+verify_jwt = false

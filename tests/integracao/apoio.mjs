@@ -145,13 +145,15 @@ export function emailTeste() {
     return `${nome}+${marcador()}@${dominio}`;
 }
 
-// Apaga um usuário de teste e tudo o que pertence a ele: papéis, perfil, histórico do perfil e o login.
+// Apaga um usuário de teste e tudo o que pertence a ele: papéis, perfil, histórico (perfil, papéis e conta) e o login.
 // Um login que já não existe (por exemplo, descartado pela função cadastro) não é falha.
 export async function apagarUsuario(id) {
     const passos = [
         await rest(`papeis_usuario?usuario_id=eq.${id}`, { metodo: 'DELETE' }),
         await rest(`perfis?id=eq.${id}`, { metodo: 'DELETE' }),
         await rest(`historico_alteracoes?tabela=eq.perfis&registro_id=eq.${id}`, { metodo: 'DELETE' }),
+        await rest(`historico_alteracoes?tabela=eq.papeis_usuario&registro_id=eq.${id}`, { metodo: 'DELETE' }),
+        await rest(`historico_alteracoes?tabela=eq.contas&registro_id=eq.${id}`, { metodo: 'DELETE' }),
         await chamar(`${URL}/auth/v1/admin/users/${id}`, { metodo: 'DELETE' }),
     ];
     const falha = passos.find((r, i) => r.status >= 300 && !(i === passos.length - 1 && r.status === 404));
@@ -267,10 +269,23 @@ export async function banirUsuario(id) {
     if (r.status !== 200) throw new Error(`Falha ao banir usuário ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
 }
 
+// Usuário do Supabase Auth (com banned_until), pelo id.
+export async function usuarioDoAuth(id) {
+    const r = await chamar(`${URL}/auth/v1/admin/users/${id}`);
+    if (r.status !== 200) throw new Error(`Falha ao ler usuário ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
+    return r.dados;
+}
+
 // Desfaz o banirUsuario: o login volta a funcionar.
 export async function desbanirUsuario(id) {
     const r = await chamar(`${URL}/auth/v1/admin/users/${id}`, { metodo: 'PUT', corpo: { ban_duration: 'none' } });
     if (r.status !== 200) throw new Error(`Falha ao desbanir usuário ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
+}
+
+// Apaga os registros de acesso a dados (acessos_dados) feitos por um usuário de teste.
+export async function apagarAcessosDe(usuarioId) {
+    const r = await rest(`acessos_dados?usuario_id=eq.${usuarioId}`, { metodo: 'DELETE' });
+    if (r.status >= 300) throw new Error(`Falha ao apagar os acessos de ${usuarioId}: ${r.status} ${JSON.stringify(r.dados)}`);
 }
 
 // Primeiro dia, a partir de hoje (no fuso do estande) + dias, em que o estande abre.
