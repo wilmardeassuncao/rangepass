@@ -321,3 +321,7 @@ verify_jwt = false
 [functions.cadastro]
 entrypoint = "./functions/cadastro/index.js"
 verify_jwt = false
+
+[functions.agendamentos]
+entrypoint = "./functions/agendamentos/index.js"
+verify_jwt = false

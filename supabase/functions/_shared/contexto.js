@@ -14,7 +14,7 @@ const SESSAO_EXPIRADA = 'Sua sessão expirou. Entre de novo.';
 const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do estande.';
 
 // Desativar uma conta = bloquear o login dela no Supabase Auth ("banir"). Vale com ou sem cadastro.
-function contaBloqueada(usuario) {
+export function contaBloqueada(usuario) {
     return Boolean(usuario.banned_until) && new Date(usuario.banned_until) > new Date();
 }
 

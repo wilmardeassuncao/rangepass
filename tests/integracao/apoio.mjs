@@ -1,5 +1,7 @@
 // tests/integracao/apoio.mjs
 // Ajudantes usados pelos testes de integração para conversar com o projeto Supabase.
+import { dataNoFuso } from '../../supabase/functions/_shared/cadastro.mjs';
+import { horariosDoDia } from '../../supabase/functions/_shared/agendamento.mjs';
 
 function lerVariavel(nome) {
     const valor = process.env[nome];
@@ -257,4 +259,21 @@ export async function apagarTudoCriado() {
 export async function banirUsuario(id) {
     const r = await chamar(`${URL}/auth/v1/admin/users/${id}`, { metodo: 'PUT', corpo: { ban_duration: '876000h' } });
     if (r.status !== 200) throw new Error(`Falha ao banir usuário ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
+}
+
+// Primeiro dia, a partir de hoje (no fuso do estande) + dias, em que o estande abre.
+// Devolve a data (AAAA-MM-DD) e as horas de início possíveis nesse dia.
+export async function diaAbertoDeTeste(dias) {
+    const r = await rest('configuracoes?chave=in.(funcionamento,estande)&select=chave,valor');
+    if (r.status !== 200) throw new Error(`Falha ao ler configuracoes: ${r.status} ${JSON.stringify(r.dados)}`);
+    const config = Object.fromEntries(r.dados.map(l => [l.chave, l.valor]));
+    const hoje = dataNoFuso(new Date(), config.estande.fuso);
+    for (let i = dias; i < dias + 366; i++) {
+        const d = new Date(`${hoje}T00:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + i);
+        const data = d.toISOString().slice(0, 10);
+        const horas = horariosDoDia(data, config.funcionamento);
+        if (horas.length) return { data, horas };
+    }
+    throw new Error('O estande não abre em nenhum dia do próximo ano.');
 }
