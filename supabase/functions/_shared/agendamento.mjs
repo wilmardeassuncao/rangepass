@@ -14,6 +14,8 @@ const ERROS_DE_RESERVA = {
     RP003: 'Não há pistas livres nesse horário. Escolha outro horário.',
     RP004: 'Não há arma livre do modelo escolhido nesse horário. Escolha outro horário ou outro modelo.',
     RP005: 'Este agendamento não pode mais ser alterado pelo app. Fale com o estande.',
+    RP006: 'Uma das pessoas deste agendamento já tem outro agendamento nesse horário. Escolha outro horário.',
+    RP007: 'O instrutor escolhido não atende mais pelo app. Para mudar o horário, fale com o estande.',
     '23P01': 'Esse horário acabou de ser ocupado. Escolha outro horário.',
     P0001: 'Esse horário acabou de ser ocupado. Escolha outro horário.',
 };

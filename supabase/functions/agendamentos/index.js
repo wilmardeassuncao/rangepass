@@ -2,7 +2,7 @@
 // criar, alterar o horário e cancelar. Nunca devolve números de registro, pistas, unidades
 // nem CPFs de convidados.
 import { tratar, respostaJson, ErroHttp } from '../_shared/http.mjs';
-import { obterContexto, contaBloqueada, admin } from '../_shared/contexto.js';
+import { obterContexto, admin } from '../_shared/contexto.js';
 import { validarPedido, validarNovoHorario, podeAlterar, erroDeReserva } from '../_shared/agendamento.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -11,6 +11,7 @@ const ATIVAS = ['aguardando_pagamento', 'pago'];
 
 const SEM_CADASTRO = 'Não encontramos o seu cadastro. Procure o atendimento do estande.';
 const NAO_ENCONTRADO = 'Não encontramos este agendamento.';
+const ILEGIVEL = 'Não foi possível ler os dados enviados. Tente de novo.';
 
 async function consulta(promessa) {
     const { data, error } = await promessa;
@@ -22,32 +23,13 @@ async function lerCorpo(req) {
     try {
         return await req.json();
     } catch {
-        throw new ErroHttp(400, 'Não foi possível ler os dados enviados. Tente de novo.');
+        throw new ErroHttp(400, ILEGIVEL);
     }
 }
 
-// Instrutores que podem ser escolhidos: papel instrutor, perfil ativo e login não bloqueado.
+// Instrutores que podem ser escolhidos: papel instrutor, perfil ativo e login não bloqueado (o banco confere).
 async function instrutoresDisponiveis() {
-    const papeis = await consulta(admin.from('papeis_usuario').select('usuario_id').eq('papel', 'instrutor'));
-    const ids = papeis.map((l) => l.usuario_id);
-    if (!ids.length) return [];
-    const [perfis, liberados] = await Promise.all([
-        consulta(admin.from('perfis').select('id, nome_completo').in('id', ids).eq('ativo', true).order('nome_completo')),
-        loginsLiberados(),
-    ]);
-    return perfis.filter((p) => liberados.has(p.id)).map((p) => ({ id: p.id, nome: p.nome_completo }));
-}
-
-// Ids dos logins não bloqueados. Se o Auth falhar, o erro sobe (500) em vez de sumir com instrutores.
-async function loginsLiberados() {
-    const liberados = new Set();
-    const POR_PAGINA = 1000;
-    for (let pagina = 1; ; pagina++) {
-        const { data, error } = await admin.auth.admin.listUsers({ page: pagina, perPage: POR_PAGINA });
-        if (error) throw error;
-        for (const usuario of data.users) if (!contaBloqueada(usuario)) liberados.add(usuario.id);
-        if (data.users.length < POR_PAGINA) return liberados;
-    }
+    return consulta(admin.rpc('instrutores_ativos'));
 }
 
 // Só itens ativos; modelos só com categoria e calibre ativos e ao menos uma arma disponível.
@@ -177,14 +159,39 @@ function erroDaRpc(error) {
     throw error;
 }
 
+// O agendamento que este responsável já gravou com esta chave de envio, ou null.
+async function agendamentoDaChave(responsavelId, chave) {
+    const linha = await consulta(admin.from('agendamentos').select('id')
+        .eq('responsavel_id', responsavelId).eq('chave_envio', chave).maybeSingle());
+    return linha ? carregarItem(responsavelId, linha.id) : null;
+}
+
+// chave_envio (opcional): o mesmo pedido enviado de novo (clique duplo, rede que caiu) devolve 200
+// com o agendamento já gravado, em vez de criar outro.
 async function criar(req, contexto) {
     const corpo = await lerCorpo(req);
+    const chave = corpo && typeof corpo === 'object' ? (corpo.chave_envio ?? null) : null;
+    if (chave !== null && (typeof chave !== 'string' || !UUID.test(chave))) throw new ErroHttp(400, ILEGIVEL);
+    if (chave) {
+        const existente = await agendamentoDaChave(contexto.usuarioId, chave);
+        if (existente) return respostaJson(200, { agendamento: existente });
+    }
+
     const opcoes = await montarOpcoes(contexto);
     const { campos, pedido } = validarPedido(corpo, { agora: new Date(), opcoes });
     if (Object.keys(campos).length > 0) return respostaJson(400, { erro: 'Revise os campos destacados.', campos });
 
-    const { data, error } = await admin.rpc('criar_agendamento', { p_responsavel: contexto.usuarioId, p_pedido: pedido });
-    if (error) return erroDaRpc(error);
+    const { data, error } = await admin.rpc('criar_agendamento', {
+        p_responsavel: contexto.usuarioId, p_pedido: { ...pedido, chave_envio: chave },
+    });
+    if (error) {
+        // Dois envios da mesma chave ao mesmo tempo: o outro gravou primeiro.
+        if (error.code === '23505' && chave) {
+            const existente = await agendamentoDaChave(contexto.usuarioId, chave);
+            if (existente) return respostaJson(200, { agendamento: existente });
+        }
+        return erroDaRpc(error);
+    }
     return respostaJson(201, { agendamento: await carregarItem(contexto.usuarioId, data) });
 }
 

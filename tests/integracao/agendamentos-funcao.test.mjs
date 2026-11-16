@@ -6,7 +6,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert';
 import {
-    funcao, marcador, cpfAleatorio, criarUsuario, criar, apagarTudoCriado, anotarAgendamento, diaAbertoDeTeste,
+    rest, funcao, marcador, cpfAleatorio, criarUsuario, criar, apagarTudoCriado, anotarAgendamento, diaAbertoDeTeste,
 } from './apoio.mjs';
 import { erroDeReserva, instanteNoFuso } from '../../supabase/functions/_shared/agendamento.mjs';
 
@@ -31,7 +31,7 @@ before(async () => {
     for (let i = 0; i < 2; i++) await criar('pistas', { numero: 100000000 + Math.floor(Math.random() * 1000000000) });
 
     dia = await diaAbertoDeTeste(3);
-    assert.ok(dia.horas.length >= 6, `o dia de teste precisa de pelo menos 6 horários: ${JSON.stringify(dia)}`);
+    assert.ok(dia.horas.length >= 9, `o dia de teste precisa de pelo menos 9 horários: ${JSON.stringify(dia)}`);
     const opcoes = await funcao('agendamentos?ver=opcoes', { token: cliente.token });
     assert.strictEqual(opcoes.status, 200, JSON.stringify(opcoes.dados));
     fuso = opcoes.dados.estande.fuso;
@@ -157,7 +157,8 @@ test('instrutor ocupado recebe 409', async () => {
     const instrutor = await novoInstrutor();
     const corpo = pedido(instrutor, horaLivre());
     await agendarOk(corpo);
-    const r = await agendar(corpo);
+    // Outro cliente: o mesmo cliente no mesmo horário daria RP006 (a mesma pessoa em dois agendamentos).
+    const r = await agendar(corpo, outroCliente.token);
     assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
     assert.deepStrictEqual(r.dados, erroDeReserva('RP001').corpo);
 });
@@ -222,4 +223,48 @@ test('ação desconhecida recebe 400', async () => {
     const r = await funcao('agendamentos', { metodo: 'PUT', token: cliente.token, corpo: { id: crypto.randomUUID(), acao: 'apagar' } });
     assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
     assert.deepStrictEqual(r.dados, { erro: 'Esta ação não existe.' });
+});
+
+test('mesma chave_envio devolve o mesmo agendamento', async () => {
+    const instrutor = await novoInstrutor();
+    const hora = horaLivre();
+    const corpo = { ...pedido(instrutor, hora), chave_envio: crypto.randomUUID() };
+
+    const primeiro = await agendar(corpo);
+    assert.strictEqual(primeiro.status, 201, JSON.stringify(primeiro.dados));
+    const segundo = await agendar(corpo);
+    assert.strictEqual(segundo.status, 200, JSON.stringify(segundo.dados));
+    assert.strictEqual(segundo.dados.agendamento.id, primeiro.dados.agendamento.id);
+    soChavesDoItem(segundo.dados.agendamento);
+
+    const r = await rest(`agendamentos?responsavel_id=eq.${cliente.id}&select=id,inicio`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    const inicio = instanteNoFuso(dia.data, hora, fuso).getTime();
+    const naqueleHorario = r.dados.filter(a => Date.parse(a.inicio) === inicio);
+    assert.strictEqual(naqueleHorario.length, 1, JSON.stringify(naqueleHorario));
+});
+
+test('chave_envio inválida recebe 400', async () => {
+    for (const chave_envio of ['abc', 123, {}]) {
+        const r = await agendar({ ...pedido({ id: null }, dia.horas[0]), chave_envio });
+        assert.strictEqual(r.status, 400, `${JSON.stringify(chave_envio)}: ${JSON.stringify(r.dados)}`);
+        assert.deepStrictEqual(r.dados, { erro: 'Não foi possível ler os dados enviados. Tente de novo.' });
+    }
+});
+
+test('chave_envio de outro cliente não devolve o agendamento dele', async () => {
+    const chave_envio = crypto.randomUUID();
+    const deA = await agendarOk({ ...pedido(await novoInstrutor(), horaLivre()), chave_envio });
+    const listaAntes = await funcao('agendamentos', { token: cliente.token });
+    assert.strictEqual(listaAntes.status, 200, JSON.stringify(listaAntes.dados));
+
+    // Cada hora é usada uma vez só: o modelo de teste tem uma única arma.
+    const r = await agendar({ ...pedido(await novoInstrutor(), horaLivre()), chave_envio }, outroCliente.token);
+    assert.strictEqual(r.status, 201, JSON.stringify(r.dados));
+    assert.notStrictEqual(r.dados.agendamento.id, deA.id);
+    assert.ok(!JSON.stringify(r.dados).includes(deA.id), JSON.stringify(r.dados));
+
+    const listaDepois = await funcao('agendamentos', { token: cliente.token });
+    assert.strictEqual(listaDepois.status, 200, JSON.stringify(listaDepois.dados));
+    assert.deepStrictEqual(listaDepois.dados, listaAntes.dados);
 });

@@ -510,3 +510,114 @@ test('sem preferência nunca escolhe instrutor bloqueado ou com perfil inativo',
     const escolhido = (await recursos(ok)).instrutor.instrutor_id;
     assert.ok([banido.id, inativo.id].includes(escolhido), escolhido);
 });
+
+// --- A mesma pessoa em dois horários (RP006), instrutor que não atende mais (RP007) e instrutores_ativos ---
+
+// Chama a RPC em nome de outro responsável; se ela criar o agendamento, anota o id para apagar no fim.
+async function agendarPor(responsavel, p) {
+    const r = await rpc('criar_agendamento', { p_responsavel: responsavel.id, p_pedido: p });
+    if (r.status === 200 && typeof r.dados === 'string') anotarAgendamento(r.dados);
+    return r;
+}
+
+// Pedido de um responsável com um convidado que traz tudo próprio (não usa unidade do estande).
+function pedidoComConvidado(responsavel, cpfConvidado, extra = {}) {
+    return pedido({
+        participantes: [
+            participanteEstande({ nome_completo: 'Responsável Teste', cpf: responsavel.cpf, perfil_id: responsavel.id }),
+            participanteEstande({
+                nome_completo: 'Convidado Teste', cpf: cpfConvidado, modalidade: 'tudo_proprio', termo_versao: 1,
+                modelo_id: null, tipo_municao_id: null, municao_qtd: null, arma_propria: ARMA,
+            }),
+        ],
+        ...extra,
+    });
+}
+
+test('mesmo CPF em horários sobrepostos dá RP006', async () => {
+    const outro = await criarUsuario({ papeis: ['cliente'] });
+    const convidado = cpfAleatorio();
+    await agendarOk(pedidoComConvidado(cliente, convidado, { inicio: '2030-08-24T10:00:00-03:00', horas: 2 }));
+
+    const contar = async () => (await rest(`agendamentos?responsavel_id=eq.${outro.id}&select=id`)).dados.length;
+    const cruzado = await agendarPor(outro, pedidoComConvidado(outro, convidado, { inicio: '2030-08-24T11:00:00-03:00', instrutor_id: instrutorB.id }));
+    assertErro(cruzado, 'RP006');
+    assert.strictEqual(await contar(), 0, 'a transação deveria ter sido desfeita');
+
+    // Encostados (10–12 e 12–13) não se cruzam.
+    const encostado = await agendarPor(outro, pedidoComConvidado(outro, convidado, { inicio: '2030-08-24T12:00:00-03:00', instrutor_id: instrutorB.id }));
+    assert.strictEqual(encostado.status, 200, JSON.stringify(encostado.dados));
+});
+
+test('cancelado não conta para o RP006', async () => {
+    const outro = await criarUsuario({ papeis: ['cliente'] });
+    const convidado = cpfAleatorio();
+    const inicio = '2030-08-25T10:00:00-03:00';
+    const primeiro = await agendarOk(pedidoComConvidado(cliente, convidado, { inicio }));
+    const c = await rpc('cancelar_agendamento', { p_agendamento: primeiro, p_autor: cliente.id });
+    assert.strictEqual(c.status, 200, JSON.stringify(c.dados));
+
+    const r = await agendarPor(outro, pedidoComConvidado(outro, convidado, { inicio, instrutor_id: instrutorB.id }));
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+});
+
+test('alterar para cima de outro agendamento da mesma pessoa dá RP006', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-26T10:00:00-03:00' }));
+    await agendarOk(pedido({ inicio: '2030-08-26T15:00:00-03:00', instrutor_id: instrutorB.id }));
+    const antes = await lerAgendamento(id);
+
+    const r = await alterar(id, '2030-08-26T15:00:00-03:00');
+    assertErro(r, 'RP006');
+    assert.strictEqual((await lerAgendamento(id)).periodo, antes.periodo);
+
+    // O próprio agendamento não conta: aumentar a duração no mesmo lugar passa.
+    const maior = await alterar(id, '2030-08-26T10:00:00-03:00', 2);
+    assert.strictEqual(maior.status, 200, JSON.stringify(maior.dados));
+});
+
+test('alterar com o instrutor escolhido bloqueado dá RP007 e ocupado continua RP001', async () => {
+    const escolhido = await criarUsuario({ papeis: ['instrutor'] });
+    const id = await agendarOk(pedido({ inicio: '2030-08-27T10:00:00-03:00', instrutor_id: escolhido.id }));
+    const antes = await lerAgendamento(id);
+
+    await banirUsuario(escolhido.id);
+    try {
+        const r = await alterar(id, '2030-08-27T15:00:00-03:00');
+        assertErro(r, 'RP007');
+        assert.strictEqual((await lerAgendamento(id)).periodo, antes.periodo);
+    } finally {
+        await desbanirUsuario(escolhido.id);
+    }
+
+    await ocuparInstrutores([escolhido.id], '2030-08-27T15:00:00-03:00');
+    const r = await alterar(id, '2030-08-27T15:00:00-03:00');
+    assertErro(r, 'RP001');
+});
+
+test('instrutores_ativos não traz bloqueado nem perfil inativo', async () => {
+    const banido = await criarUsuario({ papeis: ['instrutor'] });
+    const inativo = await criarUsuario({ papeis: ['instrutor'] });
+    const ativos = async () => {
+        const r = await rpc('instrutores_ativos');
+        assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+        for (const i of r.dados) assert.deepStrictEqual(Object.keys(i).sort(), ['id', 'nome']);
+        return r.dados.map(i => i.id);
+    };
+    const todos = await ativos();
+    for (const u of [banido, inativo, instrutorA]) assert.ok(todos.includes(u.id), JSON.stringify(todos));
+    assert.ok(!todos.includes(cliente.id), 'cliente não é instrutor');
+
+    await banirUsuario(banido.id);
+    const p = await rest(`perfis?id=eq.${inativo.id}`, { metodo: 'PATCH', corpo: { ativo: false } });
+    assert.strictEqual(p.status, 200, JSON.stringify(p.dados));
+    try {
+        const depois = await ativos();
+        assert.ok(!depois.includes(banido.id), 'bloqueado não pode aparecer');
+        assert.ok(!depois.includes(inativo.id), 'perfil inativo não pode aparecer');
+        assert.ok(depois.includes(instrutorA.id), JSON.stringify(depois));
+    } finally {
+        await desbanirUsuario(banido.id);
+        const v = await rest(`perfis?id=eq.${inativo.id}`, { metodo: 'PATCH', corpo: { ativo: true } });
+        assert.strictEqual(v.status, 200, JSON.stringify(v.dados));
+    }
+});
