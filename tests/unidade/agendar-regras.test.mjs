@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import {
     descreverSessao, TEXTO_SITUACAO, modelosDaCategoria, municoesDoModelo, nomeDoCalibre, separarAgendamentos,
-    armaDoParticipante, municaoDoParticipante,
+    armaDoParticipante, municaoDoParticipante, textoSemAlteracao, somarDias, doisDigitos,
 } from '../../agendar-regras.mjs';
 
 test('descreverSessao mostra o dia e as horas no fuso do estande', () => {
@@ -92,4 +92,35 @@ test('municaoDoParticipante mostra a quantidade e o tipo, ou "Própria"', () => 
         '50 × FMJ',
     );
     assert.strictEqual(municaoDoParticipante({ modalidade: 'tudo_proprio', tipo_municao: null, municao_qtd: null }), 'Própria');
+});
+
+test('somarDias soma dias a uma data AAAA-MM-DD, virando o mês e o ano', () => {
+    assert.strictEqual(somarDias('2026-11-16', 0), '2026-11-16');
+    assert.strictEqual(somarDias('2026-11-16', 30), '2026-12-16');
+    assert.strictEqual(somarDias('2026-12-31', 1), '2027-01-01');
+    assert.strictEqual(somarDias('2028-02-28', 1), '2028-02-29');
+});
+
+test('doisDigitos completa com zero à esquerda', () => {
+    assert.strictEqual(doisDigitos(7), '07');
+    assert.strictEqual(doisDigitos(0), '00');
+    assert.strictEqual(doisDigitos(12), '12');
+});
+
+test('textoSemAlteracao explica por que não dá para mexer no agendamento', () => {
+    const agora = new Date('2026-11-16T15:00:00Z');
+    const base = { inicio: '2026-11-16T20:00:00Z', horas: 2, situacao: 'pago', pode_alterar: false, prazo_alteracao_horas: 24 };
+
+    assert.strictEqual(textoSemAlteracao({ ...base, pode_alterar: true }, agora), null);
+    assert.strictEqual(textoSemAlteracao({ ...base, situacao: 'cancelado' }, agora), null);
+    assert.strictEqual(
+        textoSemAlteracao({ ...base, inicio: '2026-11-16T14:30:00Z', situacao: 'aguardando_pagamento' }, agora),
+        'Sessão em andamento.',
+    );
+    assert.strictEqual(
+        textoSemAlteracao(base, agora),
+        'Faltam menos de 24 horas. Para alterar ou cancelar, fale com o estande.',
+    );
+    // Já terminou: nada a dizer.
+    assert.strictEqual(textoSemAlteracao({ ...base, inicio: '2026-11-16T10:00:00Z' }, agora), null);
 });

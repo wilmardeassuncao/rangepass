@@ -5,6 +5,7 @@ import { supabase, chamarFuncao } from './api.mjs';
 import {
     descreverSessao, modelosDaCategoria, municoesDoModelo, nomeDoCalibre,
     TEXTO_SITUACAO, separarAgendamentos, armaDoParticipante, municaoDoParticipante,
+    textoSemAlteracao, somarDias, doisDigitos,
 } from './agendar-regras.mjs';
 import {
     validarPedido, validarNovoHorario, horariosDoDia, duracoesPossiveis, instrutoresNecessarios, partesNoFuso,
@@ -15,7 +16,9 @@ const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instant
 const ENTRAR = 'conta.html?voltar=index.html';
 // Só este 403 quer dizer "sem acesso". O 403 de prazo ("Faltam menos de N horas…") fica na tela, como aviso.
 const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do estande.';
-const ATIVAS = ['aguardando_pagamento', 'pago'];
+const ERRO_CARREGAR = 'Não foi possível carregar agora. Verifique a internet e tente de novo.';
+// No erro do servidor, o campo do cartão que fica marcado não tem o mesmo nome da chave do erro.
+const CAMPO_DO_ERRO = { aceite_termo_versao: 'aceite', arma_propria: 'arma_modelo' };
 
 const form = document.getElementById('form-agendar');
 const listaParticipantes = document.getElementById('participantes');
@@ -25,6 +28,9 @@ const formAlterar = document.getElementById('form-alterar');
 
 let opcoes = null;          // resposta do GET ?ver=opcoes
 let pedidoAtual = null;     // o que vai no POST, montado ao revisar
+// Identifica um envio: a mesma chave em "Confirmar" repetidos faz o servidor devolver o agendamento
+// já criado em vez de criar outro. Nasce ao abrir a revisão e é trocada ao voltar para o formulário.
+let chaveEnvio = null;
 let itemAlterando = null;   // o agendamento (Item do servidor) aberto em "Alterar horário"
 
 // ---------- Ajudantes de tela ----------
@@ -73,7 +79,8 @@ function mostrarErros(campos, f = form) {
             continue;
         }
         lugar.textContent = mensagem;
-        const campo = partes ? cartao.querySelector(`[data-campo="${partes[2]}"]`) : f.elements[chave];
+        const nomeCampo = partes ? (CAMPO_DO_ERRO[partes[2]] ?? partes[2]) : null;
+        const campo = partes ? cartao.querySelector(`[data-campo="${nomeCampo}"]`) : f.elements[chave];
         campo?.setAttribute('aria-invalid', 'true');
     }
     const primeiro = f.querySelector('[aria-invalid="true"]')
@@ -127,13 +134,6 @@ function idDe(lista, valor) {
     return lista.find((item) => String(item.id) === valor)?.id ?? null;
 }
 
-function somarDias(data, dias) {
-    const d = new Date(`${data}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + dias);
-    return d.toISOString().slice(0, 10);
-}
-
-const doisDigitos = (n) => String(n).padStart(2, '0');
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
 // ---------- Quando (dia, horário e duração) ----------
@@ -240,11 +240,20 @@ function novoCartao() {
     campo(cartao, 'modelo_id').addEventListener('change', () => atualizarMunicao(cartao));
     cartao.querySelector('[data-remover]').addEventListener('click', () => {
         cartao.remove();
+        // Os números dos cartões mudam; um erro antigo ficaria no cartão errado.
+        limparErrosDosCartoes();
         atualizarGrupo();
     });
     atualizarArmaDoEstande(cartao);
     atualizarModalidade(cartao);
     return cartao;
+}
+
+function limparErrosDosCartoes() {
+    for (const cartao of cartoes()) {
+        for (const el of cartao.querySelectorAll('[data-erro]')) el.textContent = '';
+        for (const el of cartao.querySelectorAll('[aria-invalid]')) el.removeAttribute('aria-invalid');
+    }
 }
 
 function adicionarParticipante() {
@@ -378,25 +387,49 @@ form.addEventListener('submit', (evento) => {
     const { campos, pedido: conferido } = validarPedido(pedido, { agora: new Date(), opcoes });
     if (Object.keys(campos).length) return mostrarErros(campos);
     pedidoAtual = pedido;
+    chaveEnvio = crypto.randomUUID();
     mostrarRevisao(pedido, conferido.inicio);
 });
 
-document.getElementById('botao-voltar').addEventListener('click', () => mostrarTela('tela-novo'));
+document.getElementById('botao-voltar').addEventListener('click', () => {
+    chaveEnvio = null;
+    mostrarTela('tela-novo');
+});
+
+// O termo mudou com a página aberta: busca o texto e a versão novos, mostra nos cartões e
+// desmarca as caixas, para a pessoa ler e aceitar de novo. A mensagem de erro fica.
+async function atualizarTermo() {
+    const r = await chamarFuncao('agendamentos', { consulta: 'ver=opcoes' });
+    if (precisaEntrar(r)) return irParaEntrar();
+    if (r.status !== 200 || !r.dados?.termo) return;
+    opcoes.termo = r.dados.termo;
+    for (const cartao of cartoes()) {
+        cartao.querySelector('[data-texto-termo]').textContent = opcoes.termo.texto;
+        campo(cartao, 'aceite').checked = false;
+    }
+}
 
 document.getElementById('botao-confirmar').addEventListener('click', () => {
     mostrarErroGeral(revisao, null);
     ocupado(revisao, async () => {
-        const r = await chamarFuncao('agendamentos', { metodo: 'POST', corpo: pedidoAtual });
-        if (r.status === 201) {
+        const r = await chamarFuncao('agendamentos', {
+            metodo: 'POST', corpo: { ...pedidoAtual, chave_envio: chaveEnvio },
+        });
+        // 201: criado agora. 200: o mesmo envio já tinha sido criado (clique repetido, rede que caiu).
+        if (r.status === 201 || r.status === 200) {
             const ag = r.dados.agendamento;
             document.getElementById('sucesso-sessao').textContent = descreverSessao(ag.inicio, ag.horas, opcoes.estande.fuso);
             mostrarTela('tela-sucesso');
         } else if (precisaEntrar(r)) {
             await irParaEntrar();
         } else if (r.status === 400 && r.dados?.campos) {
+            chaveEnvio = null;
             mostrarTela('tela-novo');
             limparErros();
             mostrarErros(r.dados.campos);
+            if (Object.keys(r.dados.campos).some((chave) => chave.endsWith('.aceite_termo_versao'))) {
+                await atualizarTermo();
+            }
         } else {
             mostrarErroGeral(revisao, r.dados?.erro ?? ERRO_PADRAO);
         }
@@ -419,7 +452,7 @@ document.getElementById('botao-novo-voltar').addEventListener('click', () => {
 
 // ---------- Meus agendamentos ----------
 
-function cartaoDoAgendamento(a, proximo) {
+function cartaoDoAgendamento(a, agora) {
     const cartao = document.getElementById('modelo-agendamento').content.firstElementChild.cloneNode(true);
     const sessao = descreverSessao(a.inicio, a.horas, opcoes.estande.fuso);
     cartao.dataset.id = a.id;
@@ -446,23 +479,27 @@ function cartaoDoAgendamento(a, proximo) {
         cartao.querySelector('[data-acoes]').hidden = false;
         cartao.querySelector('[data-alterar]').addEventListener('click', () => abrirAlterar(a));
         cartao.querySelector('[data-cancelar]').addEventListener('click', () => cancelar(a, sessao, cartao));
-    } else if (proximo && ATIVAS.includes(a.situacao)) {
-        const prazo = cartao.querySelector('[data-prazo]');
-        prazo.textContent = `Faltam menos de ${a.prazo_alteracao_horas} horas. Para alterar ou cancelar, fale com o estande.`;
-        prazo.hidden = false;
+    } else {
+        const texto = textoSemAlteracao(a, agora);
+        if (texto) {
+            const prazo = cartao.querySelector('[data-prazo]');
+            prazo.textContent = texto;
+            prazo.hidden = false;
+        }
     }
     return cartao;
 }
 
-function preencherSecao(nome, itens, proximo) {
-    document.getElementById(`lista-${nome}`).replaceChildren(...itens.map((a) => cartaoDoAgendamento(a, proximo)));
+function preencherSecao(nome, itens, agora) {
+    document.getElementById(`lista-${nome}`).replaceChildren(...itens.map((a) => cartaoDoAgendamento(a, agora)));
     document.getElementById(`secao-${nome}`).hidden = itens.length === 0;
 }
 
 function mostrarLista(agendamentos) {
-    const { proximos, anteriores } = separarAgendamentos(agendamentos, new Date());
-    preencherSecao('proximos', proximos, true);
-    preencherSecao('anteriores', anteriores, false);
+    const agora = new Date();
+    const { proximos, anteriores } = separarAgendamentos(agendamentos, agora);
+    preencherSecao('proximos', proximos, agora);
+    preencherSecao('anteriores', anteriores, agora);
     document.getElementById('sem-agendamentos').hidden = agendamentos.length > 0;
 }
 
@@ -474,6 +511,25 @@ async function abrirLista(mensagem) {
     mostrarLista(r.dados.agendamentos);
     mostrarTela('tela-lista');
     avisar(mensagem ?? null, { sucesso: true });
+}
+
+// Depois de alterar ou cancelar (que já deu certo): se a lista nova não vier, a pessoa volta
+// para a lista antiga, sabendo que a mudança foi feita e que a lista está desatualizada.
+async function recarregarDepoisDe(sucesso) {
+    let r = null;
+    try {
+        r = await chamarFuncao('agendamentos');
+    } catch (erro) {
+        console.error(erro);
+    }
+    if (r && precisaEntrar(r)) return irParaEntrar();
+    if (r?.status === 200) {
+        mostrarLista(r.dados.agendamentos);
+        mostrarTela('tela-lista');
+        return avisar(sucesso, { sucesso: true });
+    }
+    mostrarTela('tela-lista');
+    avisar(`${sucesso} Não foi possível atualizar a lista; recarregue a página.`);
 }
 
 document.getElementById('botao-novo').addEventListener('click', () => {
@@ -527,7 +583,7 @@ formAlterar.addEventListener('submit', (evento) => {
         const r = await chamarFuncao('agendamentos', {
             metodo: 'PUT', corpo: { id: itemAlterando.id, acao: 'alterar_horario', ...novo },
         });
-        if (r.status === 200) return abrirLista('Horário alterado.');
+        if (r.status === 200) return recarregarDepoisDe('Horário alterado.');
         if (precisaEntrar(r)) return irParaEntrar();
         if (r.status === 400 && r.dados?.campos) return mostrarErros(r.dados.campos, formAlterar);
         avisar(r.dados?.erro ?? ERRO_PADRAO);   // 403 (prazo), 404, 409: aviso, e fica na tela
@@ -541,7 +597,7 @@ function cancelar(a, sessao, cartao) {
     avisar(null);
     ocupado(cartao, async () => {
         const r = await chamarFuncao('agendamentos', { metodo: 'PUT', corpo: { id: a.id, acao: 'cancelar' } });
-        if (r.status === 200) return abrirLista('Agendamento cancelado.');
+        if (r.status === 200) return recarregarDepoisDe('Agendamento cancelado.');
         if (precisaEntrar(r)) return irParaEntrar();
         avisar(r.dados?.erro ?? ERRO_PADRAO);   // 403 (prazo), 404, 409: aviso, e fica na lista
     });
@@ -554,6 +610,7 @@ function montarFormulario() {
     form.reset();
     limparErros();
     pedidoAtual = null;
+    chaveEnvio = null;
     limitarDatas(form);
     preencherSelect(form.elements.instrutor_id, instrutores.map((i) => [i.id, i.nome]), { vazio: 'Sem preferência' });
     form.elements.instrutor_id.value = '';
@@ -562,25 +619,48 @@ function montarFormulario() {
     atualizarHorarios(form, maximoNovo);
 }
 
-async function iniciar() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return location.replace(ENTRAR);
-    // As opções (fuso, horários, nome) e a lista vêm juntas, em paralelo.
+// Se as opções ou a lista não vierem, a tela de erro mostra o motivo e o botão "Tentar de novo".
+function mostrarErroCarregar(mensagem) {
+    document.getElementById('erro-carregar-mensagem').textContent = mensagem ?? ERRO_CARREGAR;
+    mostrarTela('tela-erro');
+}
+
+// A carga da página: opções (fuso, horários, nome) e lista, juntas, em paralelo.
+async function carregar() {
+    mostrarTela('tela-carregando');
     const [r, lista] = await Promise.all([
         chamarFuncao('agendamentos', { consulta: 'ver=opcoes' }),
         chamarFuncao('agendamentos'),
     ]);
     if (precisaEntrar(r) || precisaEntrar(lista)) return irParaEntrar();
-    if (r.status !== 200) return avisar(r.dados?.erro ?? ERRO_PADRAO);
+    if (r.status !== 200) return mostrarErroCarregar(r.dados?.erro);
+    if (lista.status !== 200) return mostrarErroCarregar(lista.dados?.erro);
     opcoes = r.dados;
     document.getElementById('nome-estande').textContent = opcoes.estande.nome;
     document.getElementById('nome-cliente').textContent = opcoes.responsavel.nome_completo;
-    if (lista.status !== 200) return avisar(lista.dados?.erro ?? ERRO_PADRAO);
     mostrarLista(lista.dados.agendamentos);
     mostrarTela('tela-lista');
 }
 
+// A mesma carga, com qualquer falha (rede caída, resposta estranha) indo para a tela de erro.
+function carregarComErro() {
+    return carregar().catch((erro) => {
+        console.error(erro);
+        mostrarErroCarregar(null);
+    });
+}
+
+document.getElementById('botao-tentar-de-novo').addEventListener('click', () => {
+    ocupado(document.getElementById('tela-erro'), carregarComErro);
+});
+
+async function iniciar() {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return location.replace(ENTRAR);
+    return carregarComErro();
+}
+
 iniciar().catch((erro) => {
     console.error(erro);
-    avisar(ERRO_PADRAO);
+    mostrarErroCarregar(null);
 });

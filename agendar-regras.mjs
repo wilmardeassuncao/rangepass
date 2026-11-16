@@ -15,7 +15,16 @@ export const TEXTO_SITUACAO = {
     nao_compareceu: 'Não compareceu',
 };
 
-const doisDigitos = (n) => String(n).padStart(2, '0');
+const ATIVAS = ['aguardando_pagamento', 'pago'];
+
+export const doisDigitos = (n) => String(n).padStart(2, '0');
+
+// Soma `n` dias a uma data 'AAAA-MM-DD' (conta no calendário, sem fuso).
+export function somarDias(data, n) {
+    const d = new Date(`${data}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+}
 
 // 'Quarta, 18/11 · das 10:00 às 12:00', no relógio do fuso do estande.
 export function descreverSessao(inicio, horas, fuso) {
@@ -75,4 +84,16 @@ export function armaDoParticipante(p) {
 export function municaoDoParticipante(p) {
     if (p.modalidade === 'tudo_proprio' || !p.tipo_municao) return 'Própria';
     return `${p.municao_qtd} × ${comCalibre(p.tipo_municao.nome, p.tipo_municao.calibre)}`;
+}
+
+// Por que o cartão não mostra "Alterar" e "Cancelar": null quando não há nada a explicar
+// (dá para mexer, o agendamento não está ativo ou a sessão já terminou).
+export function textoSemAlteracao(item, agora) {
+    if (item.pode_alterar || !ATIVAS.includes(item.situacao)) return null;
+    const inicio = new Date(item.inicio).getTime();
+    const fim = inicio + item.horas * HORA_MS;
+    const t = agora.getTime();
+    if (t >= fim) return null;
+    if (t >= inicio) return 'Sessão em andamento.';
+    return `Faltam menos de ${item.prazo_alteracao_horas} horas. Para alterar ou cancelar, fale com o estande.`;
 }

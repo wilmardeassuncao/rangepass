@@ -219,6 +219,20 @@ form { display: flex; flex-direction: column; gap: 14px; }
 
 .confirmacao h1 { font-size: 22px; line-height: 1.25; }
 
+.selo-erro {
+    align-items: center;
+    border: 2px solid var(--cor-erro);
+    border-radius: 50%;
+    color: var(--cor-erro);
+    display: flex;
+    font-size: 28px;
+    font-weight: 700;
+    height: 64px;
+    justify-content: center;
+    margin-bottom: 8px;
+    width: 64px;
+}
+
 .selo-sucesso {
     align-items: center;
     border: 2px solid var(--cor-sucesso);
