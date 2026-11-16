@@ -1,7 +1,7 @@
 // Conferência dos valores das Configurações antes de gravar.
 // Módulo puro: roda igual no Node (testes) e no Deno (Edge Functions).
 
-export const CHAVES_CONFIGURACAO = ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade'];
+export const CHAVES_CONFIGURACAO = ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade', 'termo'];
 
 // Campos numéricos obrigatórios de cada chave. Todos são inteiros maiores que 0, salvo os de ACEITAM_ZERO.
 const CAMPOS_NUMERICOS = {
@@ -133,9 +133,10 @@ function validarCreditos(valor, erros) {
     }
 }
 
-function validarPrivacidade(valor, erros) {
+// Texto com versão: a política de privacidade e o termo de responsabilidade de quem traz arma própria.
+function validarTextoVersionado(valor, erros, mensagemTexto) {
     if (!Number.isInteger(valor.versao) || valor.versao < 1) erros.versao = 'Informe um número inteiro maior que 0.';
-    if (typeof valor.texto !== 'string' || valor.texto.trim() === '') erros.texto = 'Escreva o texto da política.';
+    if (typeof valor.texto !== 'string' || valor.texto.trim() === '') erros.texto = mensagemTexto;
 }
 
 // Devolve {} quando está tudo certo; senão, um mapa campo → mensagem.
@@ -148,7 +149,8 @@ export function validarConfiguracao(chave, valor) {
     else if (chave === 'funcionamento') validarFuncionamento(valor, erros);
     else if (chave === 'estande') validarEstande(valor, erros);
     else if (chave === 'creditos') validarCreditos(valor, erros);
-    else if (chave === 'privacidade') validarPrivacidade(valor, erros);
+    else if (chave === 'privacidade') validarTextoVersionado(valor, erros, 'Escreva o texto da política.');
+    else if (chave === 'termo') validarTextoVersionado(valor, erros, 'Escreva o texto do termo.');
     else validarNumeros(chave, valor, erros);
     return erros;
 }

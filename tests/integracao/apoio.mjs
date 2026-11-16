@@ -208,9 +208,49 @@ export async function apagarCriados() {
     }));
 }
 
-// Apaga primeiro os registros e depois os usuários, mesmo que a primeira parte falhe. Usar em after().
+const agendamentosAnotados = [];
+
+// Anota um agendamento criado pela RPC criar_agendamento (ou pela função agendar) para ser apagado no fim.
+export function anotarAgendamento(id) {
+    if (!agendamentosAnotados.includes(id)) agendamentosAnotados.push(id);
+}
+
+// Apaga as linhas pedidas de uma tabela e o histórico de cada uma. Devolve os ids apagados.
+async function apagarLinhasComHistorico(tabela, filtro) {
+    const lidas = await rest(`${tabela}?${filtro}&select=id`);
+    if (lidas.status !== 200) throw new Error(`Falha ao ler ${tabela}: ${lidas.status} ${JSON.stringify(lidas.dados)}`);
+    const ids = lidas.dados.map(l => l.id);
+    if (!ids.length) return ids;
+    const lista = `in.(${ids.join(',')})`;
+    const r = await rest(`${tabela}?id=${lista}`, { metodo: 'DELETE' });
+    if (r.status >= 300) throw new Error(`Falha ao apagar ${tabela}: ${r.status} ${JSON.stringify(r.dados)}`);
+    const h = await rest(`historico_alteracoes?tabela=eq.${tabela}&registro_id=${lista}`, { metodo: 'DELETE' });
+    if (h.status >= 300) throw new Error(`Falha ao apagar o histórico de ${tabela}: ${h.status} ${JSON.stringify(h.dados)}`);
+    return ids;
+}
+
+// Apaga cada agendamento anotado com as reservas, os participantes, os itens e o histórico de cada linha.
+export async function apagarAgendamentosAnotados() {
+    const ids = agendamentosAnotados.splice(0).reverse();
+    await executarTodos(ids.map(id => async () => {
+        for (const tabela of ['agendamento_unidades', 'agendamento_instrutores', 'agendamento_pistas']) {
+            await apagarLinhasComHistorico(tabela, `agendamento_id=eq.${id}`);
+        }
+        const lidos = await rest(`participantes?agendamento_id=eq.${id}&select=id`);
+        if (lidos.status !== 200) throw new Error(`Falha ao ler participantes: ${lidos.status} ${JSON.stringify(lidos.dados)}`);
+        const participantes = lidos.dados.map(l => l.id);
+        if (participantes.length) {
+            await apagarLinhasComHistorico('itens_participante', `participante_id=in.(${participantes.join(',')})`);
+        }
+        await apagarLinhasComHistorico('participantes', `agendamento_id=eq.${id}`);
+        await apagarLinhasComHistorico('agendamentos', `id=eq.${id}`);
+    }));
+}
+
+// Apaga primeiro os agendamentos anotados, depois os registros e por fim os usuários,
+// mesmo que uma parte falhe. Usar em after().
 export async function apagarTudoCriado() {
-    await executarTodos([apagarCriados, apagarUsuariosCriados]);
+    await executarTodos([apagarAgendamentosAnotados, apagarCriados, apagarUsuariosCriados]);
 }
 
 // Bloqueia o login de um usuário no Supabase Auth (é assim que uma conta é desativada).

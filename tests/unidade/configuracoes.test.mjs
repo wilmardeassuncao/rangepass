@@ -14,8 +14,8 @@ const DIA = { abre: '08:00', fecha: '23:00' };
 const DIAS_PADRAO = { 0: DIA, 1: DIA, 2: DIA, 3: DIA, 4: DIA, 5: DIA, 6: DIA };
 const ESTANDE_PADRAO = { nome: 'RangePass', logo_url: null, endereco: '', contato: '', fuso: 'America/Sao_Paulo' };
 
-test('CHAVES_CONFIGURACAO lista as sete chaves', () => {
-    assert.deepStrictEqual(CHAVES_CONFIGURACAO, ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade']);
+test('CHAVES_CONFIGURACAO lista as oito chaves', () => {
+    assert.deepStrictEqual(CHAVES_CONFIGURACAO, ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade', 'termo']);
 });
 
 test('validarConfiguracao: todos os padrões iniciais são válidos', () => {
@@ -91,4 +91,17 @@ test('validarConfiguracao: texto da política não pode ficar vazio', () => {
 test('validarConfiguracao: cadastro sem limite de tentativas por hora é inválido', () => {
     assert.ok(validarConfiguracao('cadastro', { idade_minima: 18 }).tentativas_por_hora);
     assert.ok(validarConfiguracao('cadastro', { idade_minima: 18, tentativas_por_hora: 0 }).tentativas_por_hora);
+});
+
+// Plano 3: termo de responsabilidade de quem traz arma própria.
+test('validarConfiguracao: termo de responsabilidade válido', () => {
+    assert.deepStrictEqual(validarConfiguracao('termo', { versao: 1, texto: 'x' }), {});
+});
+test('validarConfiguracao: versão do termo precisa ser inteiro maior que 0', () => {
+    assert.ok(validarConfiguracao('termo', { versao: 0, texto: 'x' }).versao);
+    assert.ok(validarConfiguracao('termo', { texto: 'x' }).versao);
+});
+test('validarConfiguracao: texto do termo não pode ficar vazio', () => {
+    assert.strictEqual(validarConfiguracao('termo', { versao: 1, texto: ' ' }).texto, 'Escreva o texto do termo.');
+    assert.strictEqual(validarConfiguracao('termo', { versao: 1 }).texto, 'Escreva o texto do termo.');
 });

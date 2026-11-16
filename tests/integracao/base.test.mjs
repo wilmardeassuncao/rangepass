@@ -20,7 +20,7 @@ test('chave de serviço lê as configurações iniciais', async () => {
     const r = await rest('configuracoes?select=chave,valor');
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     const mapa = Object.fromEntries(r.dados.map(l => [l.chave, l.valor]));
-    assert.deepStrictEqual(Object.keys(mapa).sort(), ['agenda', 'cadastro', 'creditos', 'estande', 'funcionamento', 'municao', 'privacidade']);
+    assert.deepStrictEqual(Object.keys(mapa).sort(), ['agenda', 'cadastro', 'creditos', 'estande', 'funcionamento', 'municao', 'privacidade', 'termo']);
     assert.strictEqual(mapa.agenda.antecedencia_maxima_dias, 15);
     assert.strictEqual(mapa.agenda.duracao_maxima_grupo, 6);
     assert.strictEqual(mapa.municao.minima_por_participante, 50);
