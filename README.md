@@ -37,6 +37,17 @@ Cada função nova precisa de uma entrada em `supabase/config.toml` com `entrypo
 3. Troque `SEU-EMAIL@exemplo.com` pelo e-mail do passo 1 (ele aparece duas vezes) e clique em **Run**.
 4. O resultado deve mostrar uma linha com o e-mail e o papel `superadmin`. Essa conta já pode alterar as Configurações.
 
+## Dados de exemplo
+
+> ⚠️ **Só para o projeto de desenvolvimento (`rangepass-dev`).** Nunca rode este script no banco de um estande de verdade. O catálogo real é cadastrado pelo superadmin.
+
+O script `supabase/scripts/dados-de-exemplo.sql` cria armas, munições, pistas e instrutores de mentira, para você testar o agendamento à mão. Ele pode ser rodado mais de uma vez sem duplicar nada.
+
+1. **Crie duas contas de instrutor.** Com o site aberto (veja "Abrir a página da conta no computador"), crie duas contas em `conta.html`. Use o seu e-mail com `+instrutor1` e `+instrutor2` antes do `@`. Exemplo: `maria+instrutor1@gmail.com` e `maria+instrutor2@gmail.com` (os dois chegam na sua caixa de entrada). Confirme os dois e-mails pelo link que chegar. É a página da conta que cria o perfil com o nome, e sem perfil o instrutor não aparece no aplicativo.
+2. No painel do Supabase, abra o **SQL Editor** e cole o conteúdo de `supabase/scripts/dados-de-exemplo.sql`.
+3. Troque `INSTRUTOR-1@exemplo.com` e `INSTRUTOR-2@exemplo.com` pelos dois e-mails do passo 1 e clique em **Run**.
+4. A tabela do final deve mostrar: categorias 5, calibres 9, modelos 14, tipos_municao 9, unidades 28, pistas 4 e instrutores 2. Se rodar de novo, os números continuam iguais.
+
 ## Login e e-mails
 
 Os e-mails do login (confirmação de cadastro e nova senha) saem por um serviço de e-mail próprio, o **Brevo** (plano gratuito, 300 e-mails por dia). O envio que já vem no Supabase tem um limite muito baixo. Nenhuma senha ou chave fica escrita aqui: elas ficam só no painel do Supabase.
