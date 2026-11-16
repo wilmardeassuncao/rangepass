@@ -210,3 +210,164 @@ test('grupo de 6 ocupa 2 instrutores e 2 pistas', async () => {
     assert.strictEqual(itens.dados.length, 6);
     assert.strictEqual(itens.dados.filter(i => i.arma_propria).length, 5);
 });
+
+test('grupo com 2 participantes estande do mesmo modelo recebe 2 unidades diferentes', async () => {
+    const participantes = [
+        participanteEstande({ nome_completo: 'Cliente Teste', cpf: cliente.cpf, perfil_id: cliente.id }),
+        participanteEstande(),
+    ];
+    const r = await agendar(pedido({ inicio: '2030-08-08T10:00:00-03:00', participantes }));
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    const unidades = await linhas('agendamento_unidades', r.dados);
+    assert.strictEqual(unidades.length, 2);
+    assert.notStrictEqual(unidades[0].unidade_id, unidades[1].unidade_id);
+    for (const u of unidades) assert.ok(unidadesLivres.some(l => l.id === u.unidade_id), JSON.stringify(unidades));
+});
+
+// --- Alterar o horário e cancelar ---
+// Cada teste usa um dia próprio, então as 2 unidades do modelo de teste estão livres em todos.
+
+function alterar(id, inicio, horas = 1, autor = cliente.id) {
+    return rpc('alterar_horario_agendamento', { p_agendamento: id, p_inicio: inicio, p_horas: horas, p_autor: autor });
+}
+
+// Cria pela RPC e devolve o id (falha o teste se não conseguir).
+async function agendarOk(p) {
+    const r = await agendar(p);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    return r.dados;
+}
+
+// A reserva de instrutor, de pista e de unidade do agendamento (uma de cada, nestes testes).
+async function recursos(id) {
+    const instrutores = await linhas('agendamento_instrutores', id);
+    const pistasAg = await linhas('agendamento_pistas', id);
+    const unidades = await linhas('agendamento_unidades', id);
+    assert.strictEqual(instrutores.length, 1, JSON.stringify(instrutores));
+    assert.strictEqual(pistasAg.length, 1, JSON.stringify(pistasAg));
+    assert.strictEqual(unidades.length, 1, JSON.stringify(unidades));
+    return { instrutor: instrutores[0], pista: pistasAg[0], unidade: unidades[0] };
+}
+
+async function lerAgendamento(id) {
+    const r = await rest(`agendamentos?id=eq.${id}&select=periodo,inicio,horas,situacao`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    return r.dados[0];
+}
+
+test('alterar mantém os recursos livres', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-10T10:00:00-03:00' }));
+    const antes = await recursos(id);
+
+    const r = await alterar(id, '2030-08-10T15:00:00-03:00');
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.id, id);
+    assert.strictEqual(Date.parse(r.dados.inicio), Date.parse('2030-08-10T15:00:00-03:00'));
+
+    const depois = await recursos(id);
+    assert.strictEqual(depois.instrutor.instrutor_id, antes.instrutor.instrutor_id);
+    assert.strictEqual(depois.pista.pista_id, antes.pista.pista_id);
+    assert.strictEqual(depois.unidade.unidade_id, antes.unidade.unidade_id);
+    const { periodo } = await lerAgendamento(id);
+    assert.notStrictEqual(periodo, antes.pista.periodo);
+    for (const reserva of Object.values(depois)) {
+        assert.strictEqual(reserva.periodo, periodo);
+        assert.strictEqual(reserva.ativo, true);
+    }
+});
+
+test('alterar troca só a pista interditada', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-11T10:00:00-03:00' }));
+    const antes = await recursos(id);
+    await criar('interdicoes', { pista_id: antes.pista.pista_id, periodo: '[2030-08-11 15:00-03,2030-08-11 16:00-03)', motivo: `teste ${marcador()}` });
+
+    const r = await alterar(id, '2030-08-11T15:00:00-03:00');
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    const depois = await recursos(id);
+    assert.notStrictEqual(depois.pista.pista_id, antes.pista.pista_id);
+    assert.strictEqual(depois.instrutor.instrutor_id, antes.instrutor.instrutor_id);
+    assert.strictEqual(depois.unidade.unidade_id, antes.unidade.unidade_id);
+    assert.strictEqual(depois.pista.periodo, (await lerAgendamento(id)).periodo);
+});
+
+test('alterar troca a unidade em manutenção', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-12T10:00:00-03:00' }));
+    const antes = await recursos(id);
+    const unidadeId = antes.unidade.unidade_id;
+    const outra = unidadesLivres.find(u => u.id !== unidadeId);
+    assert.ok(outra, JSON.stringify(antes.unidade));
+
+    const p = await rest(`unidades_arma?id=eq.${unidadeId}`, { metodo: 'PATCH', corpo: { situacao: 'manutencao' } });
+    assert.strictEqual(p.status, 200, JSON.stringify(p.dados));
+    try {
+        const r = await alterar(id, '2030-08-12T15:00:00-03:00');
+        assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+        const depois = await recursos(id);
+        assert.strictEqual(depois.unidade.unidade_id, outra.id);
+        assert.strictEqual(depois.instrutor.instrutor_id, antes.instrutor.instrutor_id);
+        assert.strictEqual(depois.pista.pista_id, antes.pista.pista_id);
+    } finally {
+        // Restaura a unidade (o histórico dela é apagado no fim, junto com a unidade).
+        const v = await rest(`unidades_arma?id=eq.${unidadeId}`, { metodo: 'PATCH', corpo: { situacao: 'disponivel' } });
+        assert.strictEqual(v.status, 200, JSON.stringify(v.dados));
+    }
+});
+
+test('alterar com o instrutor escolhido ocupado dá RP001', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-13T10:00:00-03:00' }));
+    await ocuparInstrutores([instrutorA.id], '2030-08-13T15:00:00-03:00');
+
+    const r = await alterar(id, '2030-08-13T15:00:00-03:00');
+    assertErro(r, 'RP001');
+    const ag = await lerAgendamento(id);
+    assert.strictEqual(Date.parse(ag.inicio), Date.parse('2030-08-13T10:00:00-03:00'));
+    assert.strictEqual((await recursos(id)).instrutor.periodo, ag.periodo);
+});
+
+test('alterar troca o instrutor que não foi escolhido', async () => {
+    const inicio = '2030-08-14T10:00:00-03:00';
+    const outros = (await todosInstrutores()).filter(i => i !== instrutorA.id);
+    await ocuparInstrutores(outros, inicio);
+    const id = await agendarOk(pedido({ inicio, instrutor_id: null }));
+    const antes = await recursos(id);
+    assert.strictEqual(antes.instrutor.instrutor_id, instrutorA.id);
+    await ocuparInstrutores([instrutorA.id], '2030-08-14T15:00:00-03:00');
+
+    const r = await alterar(id, '2030-08-14T15:00:00-03:00');
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    const depois = await recursos(id);
+    assert.notStrictEqual(depois.instrutor.instrutor_id, instrutorA.id);
+    assert.strictEqual(depois.instrutor.principal, true);
+    assert.strictEqual(depois.instrutor.ativo, true);
+    assert.strictEqual(depois.pista.pista_id, antes.pista.pista_id);
+    assert.strictEqual(depois.unidade.unidade_id, antes.unidade.unidade_id);
+});
+
+test('alterar grava o autor no histórico', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-15T10:00:00-03:00' }));
+    const r = await alterar(id, '2030-08-15T15:00:00-03:00', 2, instrutorB.id);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.horas, 2);
+
+    const h = await rest(`historico_alteracoes?tabela=eq.agendamentos&registro_id=eq.${id}&select=feito_por,acao&order=id.desc&limit=1`);
+    assert.strictEqual(h.status, 200, JSON.stringify(h.dados));
+    assert.strictEqual(h.dados[0].acao, 'alteracao');
+    assert.strictEqual(h.dados[0].feito_por, instrutorB.id);
+});
+
+test('cancelar desativa as reservas', async () => {
+    const inicio = '2030-08-16T10:00:00-03:00';
+    const id = await agendarOk(pedido({ inicio }));
+
+    const r = await rpc('cancelar_agendamento', { p_agendamento: id, p_autor: cliente.id });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.situacao, 'cancelado');
+    assert.strictEqual((await lerAgendamento(id)).situacao, 'cancelado');
+    for (const reserva of Object.values(await recursos(id))) assert.strictEqual(reserva.ativo, false);
+
+    const h = await rest(`historico_alteracoes?tabela=eq.agendamentos&registro_id=eq.${id}&select=feito_por&order=id.desc&limit=1`);
+    assert.strictEqual(h.dados[0].feito_por, cliente.id);
+
+    const outro = await agendarOk(pedido({ inicio }));
+    assert.strictEqual((await recursos(outro)).instrutor.instrutor_id, instrutorA.id);
+});
