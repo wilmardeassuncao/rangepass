@@ -288,6 +288,54 @@ export async function apagarAcessosDe(usuarioId) {
     if (r.status >= 300) throw new Error(`Falha ao apagar os acessos de ${usuarioId}: ${r.status} ${JSON.stringify(r.dados)}`);
 }
 
+// Valor de teste da hora de pista, usado só quando o estande ainda não definiu o dele.
+export const HORA_PISTA_DE_TESTE = 10000;
+
+async function lerLinhaPrecos() {
+    const r = await rest('configuracoes?chave=eq.precos&select=valor,atualizado_em,atualizado_por');
+    if (r.status !== 200 || r.dados.length !== 1) throw new Error(`Falha ao ler configuracoes.precos: ${r.status} ${JSON.stringify(r.dados)}`);
+    return r.dados[0];
+}
+
+// Muda o valor de configuracoes.precos (por exemplo, para deixar a hora de pista vazia num teste).
+// Quem chama precisa ter chamado definirPrecosDeTeste antes, que restaura a linha no fim.
+export async function gravarPrecosDaConfiguracao(valor) {
+    const r = await rest('configuracoes?chave=eq.precos', { metodo: 'PATCH', corpo: { valor } });
+    if (r.status !== 200) throw new Error(`Falha ao gravar configuracoes.precos: ${r.status} ${JSON.stringify(r.dados)}`);
+}
+
+// Grava preços nos itens criados pelo teste (modelos: preço da hora; tiposMunicao: preço da unidade)
+// e, se a hora de pista do estande estiver vazia, o valor de teste. Devolve uma função que restaura a
+// linha configuracoes.precos exatamente (valor, data e autor) e apaga o histórico gerado nela.
+// Os itens do teste são apagados com o histórico pelo apagarCriados, como sempre.
+export async function definirPrecosDeTeste({ modelos = [], tiposMunicao = [] } = {}) {
+    const linhaAnterior = await lerLinhaPrecos();
+    const ultimoId = await ultimoIdHistorico();
+    const restaurar = async () => {
+        const volta = await rest('configuracoes?chave=eq.precos', { metodo: 'PATCH', corpo: linhaAnterior });
+        if (volta.status !== 200) throw new Error(`Falha ao restaurar configuracoes.precos: ${volta.status} ${JSON.stringify(volta.dados)}`);
+        const limpa = await rest(`historico_alteracoes?tabela=eq.configuracoes&registro_id=eq.precos&id=gt.${ultimoId}`, { metodo: 'DELETE' });
+        if (limpa.status >= 300) throw new Error(`Falha ao apagar o histórico de configuracoes.precos: ${limpa.status} ${JSON.stringify(limpa.dados)}`);
+    };
+    try {
+        for (const { id, preco } of modelos) {
+            const r = await rest(`modelos?id=eq.${id}`, { metodo: 'PATCH', corpo: { preco_hora_centavos: preco } });
+            if (r.status !== 200 || r.dados.length !== 1) throw new Error(`Falha ao gravar o preço do modelo ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
+        }
+        for (const { id, preco } of tiposMunicao) {
+            const r = await rest(`tipos_municao?id=eq.${id}`, { metodo: 'PATCH', corpo: { preco_unidade_centavos: preco } });
+            if (r.status !== 200 || r.dados.length !== 1) throw new Error(`Falha ao gravar o preço da munição ${id}: ${r.status} ${JSON.stringify(r.dados)}`);
+        }
+        if (!Number.isInteger(linhaAnterior.valor?.hora_pista_centavos)) {
+            await gravarPrecosDaConfiguracao({ ...linhaAnterior.valor, hora_pista_centavos: HORA_PISTA_DE_TESTE });
+        }
+    } catch (erro) {
+        await restaurar();
+        throw erro;
+    }
+    return restaurar;
+}
+
 // Primeiro dia, a partir de hoje (no fuso do estande) + dias, em que o estande abre.
 // Devolve a data (AAAA-MM-DD) e as horas de início possíveis nesse dia.
 export async function diaAbertoDeTeste(dias) {

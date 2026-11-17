@@ -72,14 +72,15 @@ function lerFiltros(params, hoje) {
 // Colunas da Linha. As reservas vêm todas (o histórico precisa dos ids); a Linha mostra só as ativas.
 // A lista pede do responsável só nome e telefone; o detalhe pede também o CPF.
 function camposDaLinha(responsavel) {
-    return `id, inicio, horas, situacao, forma_pagamento, criado_em, responsavel_id,
+    return `id, inicio, horas, situacao, forma_pagamento, criado_em, responsavel_id, preco_total_centavos,
     responsavel:perfis!agendamentos_responsavel_id_fkey(${responsavel}),
     agendamento_instrutores(id, ativo, principal, perfis(nome_completo)),
     agendamento_pistas(id, ativo, pistas(numero)),
     agendamento_unidades(id, ativo, unidades_arma(numero_registro, modelos(marca, nome)))`;
 }
 const CAMPOS_LINHA_LISTA = camposDaLinha('nome_completo, telefone');
-const CAMPOS_LINHA_DETALHE = camposDaLinha('nome_completo, cpf, telefone');
+// O detalhe leva também o preço congelado completo (o objeto Preco de _shared/precos.mjs).
+const CAMPOS_LINHA_DETALHE = `${camposDaLinha('nome_completo, cpf, telefone')}, preco_detalhe`;
 
 const CAMPOS_PARTICIPANTES = `participantes(id, nome_completo, cpf, data_nascimento, perfil_id, modalidade, termo_versao,
     itens_participante(id, arma_propria, municao_qtd, modelos(marca, nome), tipos_municao(nome)))`;
@@ -98,6 +99,8 @@ function montarLinha(linha, participantesQtd, emails = null) {
         situacao: linha.situacao,
         forma_pagamento: linha.forma_pagamento,
         criado_em: linha.criado_em,
+        // Vazio nos agendamentos feitos antes dos preços.
+        preco_total_centavos: linha.preco_total_centavos ?? null,
         responsavel: emails
             ? {
                 nome_completo: linha.responsavel?.nome_completo ?? null,
@@ -234,6 +237,7 @@ async function detalhar(id, contexto) {
     const [emails, historico] = await Promise.all([emailsDe([linha.responsavel_id]), historicoDe(linha)]);
     const agendamento = {
         ...montarLinha(linha, linha.participantes.length, emails),
+        preco_detalhe: linha.preco_detalhe ?? null,
         participantes: [...linha.participantes].sort(ordemDosParticipantes(linha.responsavel_id)).map(montarParticipante),
     };
 

@@ -27,6 +27,17 @@ after(async () => {
 
 const ARMA = { modelo: 'Glock G17', calibre: '9mm', numero_registro: `SIG-${marcador()}`, responsavel: 'Convidado Teste' };
 
+// O preço congelado do agendamento de teste (um objeto Preco de _shared/precos.mjs).
+const PRECO = {
+    itens: [
+        { descricao: 'Pista (1 pista × 2 horas)', total_centavos: 20000 },
+        { descricao: 'Aluguel de armas', total_centavos: 6000 },
+    ],
+    subtotal_centavos: 26000,
+    desconto: { tipo: 'campanha', nome: 'Campanha Teste (10%)', valor_centavos: 2600 },
+    total_centavos: 23400,
+};
+
 function somarDias(dia, n) {
     const d = new Date(`${dia}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + n);
@@ -50,6 +61,7 @@ before(async () => {
     data = somarDias(dataNoFuso(new Date(), fuso), 3);
     convidadoCpf = cpfAleatorio();
     const pedido = {
+        preco: PRECO,
         inicio: instanteNoFuso(data, 10, fuso).toISOString(), horas: 2, instrutor_id: instrutor.id, instrutores_necessarios: 1,
         participantes: [
             {
@@ -107,6 +119,8 @@ test('o administrativo vê o agendamento no período, com os dados da linha', as
     assert.strictEqual(linha.instrutores.length, 1);
     assert.strictEqual(linha.pistas.length, 1);
     assert.deepStrictEqual(linha.armas, [{ modelo: `${modelo.marca} Modelo Teste`, numero_registro: unidade.numero_registro }]);
+    assert.strictEqual(linha.preco_total_centavos, 23400);
+    assert.ok(!Object.hasOwn(linha, 'preco_detalhe'), 'o detalhe do preço fica só no detalhe');
 });
 
 test('sem datas, o período padrão (hoje + 15 dias) traz o agendamento', async () => {
@@ -180,6 +194,8 @@ test('o detalhe traz participantes com CPF, nº de registro e histórico com aut
     assert.strictEqual(convidado.arma_propria.numero_registro, ARMA.numero_registro);
     assert.ok(ag.participantes.some(p => p.cpf === cliente.cpf));
     assert.strictEqual(ag.armas[0].numero_registro, unidade.numero_registro);
+    assert.strictEqual(ag.preco_total_centavos, 23400);
+    assert.deepStrictEqual(ag.preco_detalhe, PRECO);
 
     const historico = r.dados.historico;
     const criacao = historico.find(h => h.tabela === 'agendamentos' && h.acao === 'insercao');

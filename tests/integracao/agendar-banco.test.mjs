@@ -639,18 +639,16 @@ test('alterar com 5 argumentos grava o preço novo; com p_preco nulo mantém o g
     assert.deepStrictEqual(await lerPreco(id), { preco_total_centavos: 14400, preco_detalhe: novo });
 });
 
-// A função agendamentos publicada ainda chama a versão de 4 argumentos (até a Task 4).
-test('alterar com 4 argumentos ainda funciona e mantém o preço gravado', async () => {
+// A versão antiga, de 4 argumentos, saiu (20261117001700): só existe a que recebe o preço.
+test('alterar com 4 argumentos não existe mais (404)', async () => {
     const preco = precoDeTeste(12000);
     const id = await agendarOk(pedido({ inicio: '2030-08-30T10:00:00-03:00', preco }));
     const r = await rpc('alterar_horario_agendamento', {
         p_agendamento: id, p_inicio: '2030-08-30T15:00:00-03:00', p_horas: 2, p_autor: instrutorB.id,
     });
-    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
-    assert.strictEqual(r.dados.horas, 2);
+    assert.strictEqual(r.status, 404, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.code, 'PGRST202', JSON.stringify(r.dados));
     assert.deepStrictEqual(await lerPreco(id), { preco_total_centavos: 12000, preco_detalhe: preco });
-    const h = await rest(`historico_alteracoes?tabela=eq.agendamentos&registro_id=eq.${id}&select=feito_por&order=id.desc&limit=1`);
-    assert.strictEqual(h.dados[0].feito_por, instrutorB.id);
 });
 
 test('instrutores_ativos não traz bloqueado nem perfil inativo', async () => {
