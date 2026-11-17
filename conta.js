@@ -7,8 +7,10 @@ import { validarCadastro, validarEdicaoPerfil, dataNoFuso } from './supabase/fun
 const parametrosDoLink = new URLSearchParams(location.hash.slice(1));
 const veioDaRecuperacao = parametrosDoLink.get('type') === 'recovery';
 const erroDoLink = parametrosDoLink.get('error_code');
-// Para onde voltar depois de entrar. Só aceita o agendamento; qualquer outro valor é ignorado.
-const voltarPara = new URLSearchParams(location.search).get('voltar') === 'index.html' ? 'index.html' : null;
+// Para onde voltar depois de entrar. Só aceita o agendamento e a área da equipe; qualquer outro valor é ignorado.
+const VOLTAR_ACEITOS = ['index.html', 'admin.html'];
+const pedidoVoltar = new URLSearchParams(location.search).get('voltar');
+const voltarPara = VOLTAR_ACEITOS.includes(pedidoVoltar) ? pedidoVoltar : null;
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do estande.';
@@ -79,7 +81,7 @@ function formatarData(data) {
 
 // ---------- Meu perfil ----------
 
-// Com `podeVoltar`, quem chegou do agendamento (?voltar=index.html) volta para lá depois de o cadastro ser conferido.
+// Com `podeVoltar`, quem chegou do agendamento ou da área da equipe (?voltar=...) volta para lá depois de o cadastro ser conferido.
 async function abrirPerfil({ podeVoltar = false } = {}) {
     const r = await chamarFuncao('minha-conta');
     if (r.status === 403 || r.status === 401) {
@@ -105,6 +107,8 @@ async function abrirPerfil({ podeVoltar = false } = {}) {
         return;
     }
     mostrarPerfil(r.dados.email, perfilAtual);
+    // "Área da equipe" só para quem tem algum papel além de cliente.
+    document.getElementById('botao-equipe').hidden = !(r.dados.papeis ?? []).some((papel) => papel !== 'cliente');
     mostrarTela('tela-perfil');
 }
 

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Área da equipe · RangePass</title>
+    <meta name="theme-color" content="#101012">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+    <main class="pagina">
+        <header class="topo">
+            <p class="marca">RANGE<span>PASS</span> <small>equipe</small></p>
+            <div id="topo-conta" class="topo-conta" hidden>
+                <span id="nome-equipe" class="nome-equipe"></span>
+                <a href="conta.html" class="link">Meu perfil</a>
+                <button type="button" id="botao-sair" class="link">Sair</button>
+            </div>
+        </header>
+        <p id="aviso" class="aviso" role="status" hidden></p>
+
+        <section id="tela-carregando" class="tela ativa">
+            <p class="subtitulo">Carregando…</p>
+        </section>
+
+        <section id="tela-erro" class="tela">
+            <div class="confirmacao">
+                <div class="selo-erro" aria-hidden="true">!</div>
+                <h1>Não deu para abrir</h1>
+                <p id="erro-carregar-mensagem" class="subtitulo" role="alert"></p>
+            </div>
+            <button type="button" id="botao-tentar-de-novo" class="botao">Tentar de novo</button>
+        </section>
+
+        <section id="tela-sem-acesso" class="tela">
+            <div class="confirmacao">
+                <div class="selo-erro" aria-hidden="true">!</div>
+                <h1>Esta área é só para a equipe do estande.</h1>
+            </div>
+            <a href="index.html" class="botao">Ir para os meus agendamentos</a>
+        </section>
+
+        <section id="tela-admin" class="tela">
+            <nav id="abas" class="abas" role="tablist" aria-label="Partes da área da equipe">
+                <button type="button" role="tab" id="aba-configuracoes" data-aba="configuracoes" aria-controls="painel-configuracoes" hidden>Configurações</button>
+                <button type="button" role="tab" id="aba-catalogo" data-aba="catalogo" aria-controls="painel-catalogo" hidden>Catálogo</button>
+                <button type="button" role="tab" id="aba-pistas" data-aba="pistas" aria-controls="painel-pistas" hidden>Pistas</button>
+                <button type="button" role="tab" id="aba-equipe" data-aba="equipe" aria-controls="painel-equipe" hidden>Equipe</button>
+                <button type="button" role="tab" id="aba-agendamentos" data-aba="agendamentos" aria-controls="painel-agendamentos" hidden>Agendamentos</button>
+            </nav>
+
+            <!-- ---------- Configurações ---------- -->
+            <section id="painel-configuracoes" class="painel" role="tabpanel" aria-labelledby="aba-configuracoes" hidden>
+                <header class="cabecalho">
+                    <h1>Configurações</h1>
+                    <p class="subtitulo">Cada parte é salva separadamente, no seu botão "Salvar".</p>
+                </header>
+                <p id="configuracoes-carregando" class="subtitulo">Carregando…</p>
+                <div id="configuracoes-erro" class="bloco" hidden>
+                    <p id="configuracoes-erro-mensagem" class="erro" role="alert"></p>
+                    <button type="button" id="botao-recarregar-configuracoes" class="botao secundario">Tentar de novo</button>
+                </div>
+
+                <div id="configuracoes-formularios" class="formularios" hidden>
+                    <form id="form-estande" class="bloco" data-chave="estande" novalidate>
+                        <h2 class="bloco-titulo">Estande</h2>
+                        <div class="grade">
+                            <label class="campo">Nome do estande
+                                <input name="nome" autocomplete="off">
+                                <span class="erro" data-erro-para="nome"></span>
+                            </label>
+                            <label class="campo">Fuso horário
+                                <input name="fuso" autocomplete="off" placeholder="America/Sao_Paulo">
+                                <span class="erro" data-erro-para="fuso"></span>
+                            </label>
+                            <label class="campo">Endereço
+                                <input name="endereco" autocomplete="off">
+                                <span class="erro" data-erro-para="endereco"></span>
+                            </label>
+                            <label class="campo">Contato
+                                <input name="contato" autocomplete="off">
+                                <span class="erro" data-erro-para="contato"></span>
+                            </label>
+                            <label class="campo largo">Logo <small>(endereço da imagem; opcional)</small>
+                                <input name="logo_url" type="url" autocomplete="off" placeholder="https://…">
+                                <span class="erro" data-erro-para="logo_url"></span>
+                            </label>
+                        </div>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <form id="form-funcionamento" class="bloco" data-chave="funcionamento" novalidate>
+                        <h2 class="bloco-titulo">Funcionamento</h2>
+                        <p class="subtitulo">Horário de cada dia da semana. Marque "Fechado" nos dias sem atendimento.</p>
+                        <div id="dias-semana" class="dias-semana"></div>
+                        <span class="erro" data-erro-para="dias"></span>
+                        <fieldset class="grupo">
+                            <legend class="campo-titulo">Datas fechadas <small>(feriados e outros dias sem atendimento)</small></legend>
+                            <div id="datas-fechadas" class="lista-linhas"></div>
+                            <p id="sem-datas-fechadas" class="subtitulo">Nenhuma data fechada.</p>
+                            <button type="button" id="botao-adicionar-data" class="botao secundario">Adicionar data</button>
+                            <span class="erro" data-erro-para="datas_fechadas"></span>
+                        </fieldset>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <form id="form-agenda" class="bloco" data-chave="agenda" novalidate>
+                        <h2 class="bloco-titulo">Agenda</h2>
+                        <div class="grade">
+                            <label class="campo">Antecedência mínima para agendar <small>(horas)</small>
+                                <input name="antecedencia_minima_horas" type="number" min="0" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="antecedencia_minima_horas"></span>
+                            </label>
+                            <label class="campo">Antecedência máxima para agendar <small>(dias)</small>
+                                <input name="antecedencia_maxima_dias" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="antecedencia_maxima_dias"></span>
+                            </label>
+                            <label class="campo">Prazo para alterar ou cancelar <small>(horas antes)</small>
+                                <input name="prazo_alteracao_horas" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="prazo_alteracao_horas"></span>
+                            </label>
+                            <label class="campo">Duração máxima de quem vai sozinho <small>(horas)</small>
+                                <input name="duracao_maxima_individual" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="duracao_maxima_individual"></span>
+                            </label>
+                            <label class="campo">Duração máxima de grupo <small>(horas)</small>
+                                <input name="duracao_maxima_grupo" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="duracao_maxima_grupo"></span>
+                            </label>
+                            <label class="campo">Tamanho máximo de grupo <small>(pessoas)</small>
+                                <input name="grupo_maximo" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="grupo_maximo"></span>
+                            </label>
+                            <label class="campo">Limite de "poucas vagas" <small>(vagas restantes)</small>
+                                <input name="poucas_vagas" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="poucas_vagas"></span>
+                            </label>
+                            <label class="campo">Tolerância de não comparecimento <small>(minutos)</small>
+                                <input name="tolerancia_nao_comparecimento_min" type="number" min="0" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="tolerancia_nao_comparecimento_min"></span>
+                            </label>
+                        </div>
+                        <fieldset class="grupo">
+                            <legend class="campo-titulo">Instrutores por tamanho de grupo</legend>
+                            <p class="subtitulo">A última faixa deve terminar no tamanho máximo de grupo.</p>
+                            <div id="faixas-instrutores" class="lista-linhas"></div>
+                            <button type="button" id="botao-adicionar-faixa" class="botao secundario">Adicionar faixa</button>
+                            <span class="erro" data-erro-para="faixas_instrutores"></span>
+                        </fieldset>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <form id="form-municao" class="bloco" data-chave="municao" novalidate>
+                        <h2 class="bloco-titulo">Munição</h2>
+                        <label class="campo">Munição mínima por participante <small>(unidades)</small>
+                            <input name="minima_por_participante" type="number" min="1" step="1" inputmode="numeric">
+                            <span class="erro" data-erro-para="minima_por_participante"></span>
+                        </label>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <form id="form-cadastro" class="bloco" data-chave="cadastro" novalidate>
+                        <h2 class="bloco-titulo">Cadastro</h2>
+                        <div class="grade">
+                            <label class="campo">Idade mínima <small>(anos)</small>
+                                <input name="idade_minima" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="idade_minima"></span>
+                            </label>
+                            <label class="campo">Tentativas de cadastro por hora <small>(por pessoa)</small>
+                                <input name="tentativas_por_hora" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="tentativas_por_hora"></span>
+                            </label>
+                        </div>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <form id="form-creditos" class="bloco" data-chave="creditos" novalidate>
+                        <h2 class="bloco-titulo">Créditos</h2>
+                        <div class="grade">
+                            <label class="campo">Validade do crédito <small>(dias)</small>
+                                <input name="validade_dias" type="number" min="1" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="validade_dias"></span>
+                            </label>
+                            <label class="campo">Prazo de arrependimento <small>(dias; mínimo 7)</small>
+                                <input name="arrependimento_dias" type="number" min="7" step="1" inputmode="numeric">
+                                <span class="erro" data-erro-para="arrependimento_dias"></span>
+                            </label>
+                        </div>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <form id="form-privacidade" class="bloco" data-chave="privacidade" novalidate>
+                        <h2 class="bloco-titulo">Política de privacidade</h2>
+                        <p class="subtitulo">Versão atual: <strong data-versao></strong>. Ao salvar um texto diferente, ele vira a versão seguinte.</p>
+                        <span class="erro" data-erro-para="versao"></span>
+                        <label class="campo">Texto da política
+                            <textarea name="texto" rows="14"></textarea>
+                            <span class="erro" data-erro-para="texto"></span>
+                        </label>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <form id="form-termo" class="bloco" data-chave="termo" novalidate>
+                        <h2 class="bloco-titulo">Termo de responsabilidade (arma própria)</h2>
+                        <p class="subtitulo">Versão atual: <strong data-versao></strong>. Ao salvar um texto diferente, ele vira a versão seguinte.</p>
+                        <span class="erro" data-erro-para="versao"></span>
+                        <label class="campo">Texto do termo
+                            <textarea name="texto" rows="14"></textarea>
+                            <span class="erro" data-erro-para="texto"></span>
+                        </label>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- ---------- Abas das próximas tarefas ---------- -->
+            <section id="painel-catalogo" class="painel" role="tabpanel" aria-labelledby="aba-catalogo" hidden>
+                <header class="cabecalho"><h1>Catálogo</h1></header>
+                <p class="subtitulo">Em construção.</p>
+            </section>
+            <section id="painel-pistas" class="painel" role="tabpanel" aria-labelledby="aba-pistas" hidden>
+                <header class="cabecalho"><h1>Pistas</h1></header>
+                <p class="subtitulo">Em construção.</p>
+            </section>
+            <section id="painel-equipe" class="painel" role="tabpanel" aria-labelledby="aba-equipe" hidden>
+                <header class="cabecalho"><h1>Equipe</h1></header>
+                <p class="subtitulo">Em construção.</p>
+            </section>
+            <section id="painel-agendamentos" class="painel" role="tabpanel" aria-labelledby="aba-agendamentos" hidden>
+                <header class="cabecalho"><h1>Agendamentos</h1></header>
+                <p class="subtitulo">Em construção.</p>
+            </section>
+        </section>
+    </main>
+
+    <!-- Moldes copiados pelo admin.js -->
+    <template id="molde-dia">
+        <fieldset class="dia">
+            <legend class="dia-nome" data-nome-dia></legend>
+            <label class="caixa"><input type="checkbox" data-campo="fechado"> Fechado</label>
+            <label class="campo">Abre <input type="time" data-campo="abre"></label>
+            <label class="campo">Fecha <input type="time" data-campo="fecha"></label>
+            <span class="erro dia-erro" data-erro-dia></span>
+        </fieldset>
+    </template>
+
+    <template id="molde-data">
+        <div class="linha">
+            <label class="campo">Data <input type="date" data-campo="data"></label>
+            <button type="button" class="botao secundario perigo pequeno" data-remover>Remover</button>
+        </div>
+    </template>
+
+    <template id="molde-faixa">
+        <div class="linha">
+            <label class="campo">Até <small>(pessoas)</small> <input type="number" min="1" step="1" inputmode="numeric" data-campo="ate"></label>
+            <span class="seta" aria-hidden="true">→</span>
+            <label class="campo">Instrutores <input type="number" min="1" step="1" inputmode="numeric" data-campo="instrutores"></label>
+            <button type="button" class="botao secundario perigo pequeno" data-remover>Remover</button>
+        </div>
+    </template>
+
+    <script type="module" src="admin.js"></script>
+</body>
+</html>

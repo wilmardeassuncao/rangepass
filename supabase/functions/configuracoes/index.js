@@ -1,7 +1,7 @@
 // Edge Function configuracoes: qualquer pessoa logada lê; só o superadmin altera.
 import { tratar, respostaJson, ErroHttp } from '../_shared/http.mjs';
 import { obterContexto, exigirPapel, admin } from '../_shared/contexto.js';
-import { validarConfiguracao } from '../_shared/configuracoes.mjs';
+import { validarConfiguracao, conferirVersao } from '../_shared/configuracoes.mjs';
 
 async function ler() {
     const { data, error } = await admin.from('configuracoes').select('chave, valor');
@@ -20,7 +20,12 @@ async function alterar(req, contexto) {
     }
     const { chave, valor } = corpo ?? {};
 
-    const campos = validarConfiguracao(chave, valor);
+    let campos = validarConfiguracao(chave, valor);
+    if (!campos.versao && (chave === 'privacidade' || chave === 'termo')) {
+        const { data: atual, error } = await admin.from('configuracoes').select('valor').eq('chave', chave).maybeSingle();
+        if (error) throw error;
+        campos = { ...campos, ...conferirVersao(chave, valor, atual?.valor) };
+    }
     if (Object.keys(campos).length > 0) {
         return respostaJson(400, { erro: 'Revise os campos destacados.', campos });
     }

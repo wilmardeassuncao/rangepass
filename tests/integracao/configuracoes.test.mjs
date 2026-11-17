@@ -3,24 +3,28 @@ import test, { after, before } from 'node:test';
 import assert from 'node:assert';
 import { rest, funcao, criarUsuario, apagarUsuariosCriados, ultimoIdHistorico, banirUsuario } from './apoio.mjs';
 
-let cliente, superadmin, linhaAgendaAnterior, ultimoId;
+let cliente, superadmin, linhaAgendaAnterior, linhaTermoAnterior, ultimoId;
 
 before(async () => {
     const antes = await rest('configuracoes?chave=eq.agenda&select=valor,atualizado_em,atualizado_por');
     linhaAgendaAnterior = antes.dados[0];
+    const termo = await rest('configuracoes?chave=eq.termo&select=valor,atualizado_em,atualizado_por');
+    linhaTermoAnterior = termo.dados[0];
     ultimoId = await ultimoIdHistorico();
     cliente = await criarUsuario({ papeis: ['cliente'] });
     superadmin = await criarUsuario({ papeis: ['superadmin'] });
 });
 
-// Os testes apagam tudo o que criam: devolvem a linha agenda exatamente como estava (valor, data e autor),
+// Os testes apagam tudo o que criam: devolvem as linhas agenda e termo exatamente como estavam (valor, data e autor),
 // apagam o histórico gerado aqui e depois os usuários.
 after(async () => {
     try {
-        const volta = await rest('configuracoes?chave=eq.agenda', { metodo: 'PATCH', corpo: linhaAgendaAnterior });
-        assert.strictEqual(volta.status, 200, JSON.stringify(volta.dados));
-        const limpa = await rest(`historico_alteracoes?tabela=eq.configuracoes&registro_id=eq.agenda&id=gt.${ultimoId}`, { metodo: 'DELETE' });
-        assert.strictEqual(limpa.status, 200, JSON.stringify(limpa.dados));
+        for (const [chave, linha] of [['agenda', linhaAgendaAnterior], ['termo', linhaTermoAnterior]]) {
+            const volta = await rest(`configuracoes?chave=eq.${chave}`, { metodo: 'PATCH', corpo: linha });
+            assert.strictEqual(volta.status, 200, JSON.stringify(volta.dados));
+            const limpa = await rest(`historico_alteracoes?tabela=eq.configuracoes&registro_id=eq.${chave}&id=gt.${ultimoId}`, { metodo: 'DELETE' });
+            assert.strictEqual(limpa.status, 200, JSON.stringify(limpa.dados));
+        }
     } finally {
         await apagarUsuariosCriados();
     }
@@ -76,4 +80,26 @@ test('conta bloqueada não lê as configurações', async () => {
     await banirUsuario(u.id);
     const r = await funcao('configuracoes', { token: u.token });
     assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
+});
+
+// Plano 4: mudar o texto do termo pede uma versão maior que a atual.
+test('superadmin muda o texto do termo mantendo a versão: 400 em versao e o texto continua', async () => {
+    const atual = linhaTermoAnterior.valor;
+    const r = await funcao('configuracoes', {
+        metodo: 'PUT', token: superadmin.token,
+        corpo: { chave: 'termo', valor: { versao: atual.versao, texto: `${atual.texto} (teste)` } },
+    });
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.campos.versao, `Para mudar o texto, use uma versão maior que a atual (${atual.versao}).`);
+
+    const lida = await rest('configuracoes?chave=eq.termo&select=valor');
+    assert.deepStrictEqual(lida.dados[0].valor, atual);
+});
+
+test('superadmin muda o texto do termo com a versão seguinte: 200', async () => {
+    const atual = linhaTermoAnterior.valor;
+    const novo = { versao: atual.versao + 1, texto: `${atual.texto} (teste)` };
+    const r = await funcao('configuracoes', { metodo: 'PUT', token: superadmin.token, corpo: { chave: 'termo', valor: novo } });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.deepStrictEqual(r.dados, { chave: 'termo', valor: novo });
 });

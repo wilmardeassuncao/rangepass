@@ -1,0 +1,65 @@
+// tests/unidade/admin-regras.test.mjs
+import test from 'node:test';
+import assert from 'node:assert';
+import {
+    NOMES_DIAS, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, abasVisiveis, numeroDoCampo,
+} from '../../admin-regras.mjs';
+
+const ABERTO = { fechado: false, abre: '08:00', fecha: '23:00' };
+const FECHADO = { fechado: true, abre: '', fecha: '' };
+
+test('NOMES_DIAS vai de domingo a sábado', () => {
+    assert.deepStrictEqual(NOMES_DIAS, ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']);
+});
+
+test('funcionamentoDoFormulario: dia fechado vira null e as datas ficam em ordem, sem repetição', () => {
+    const linhas = [FECHADO, ABERTO, ABERTO, ABERTO, ABERTO, ABERTO, { fechado: false, abre: '09:00', fecha: '18:00' }];
+    const datas = ['2026-12-31', '2026-12-25', '', '2026-12-31', '2026-01-01'];
+    const funcionamento = funcionamentoDoFormulario(linhas, datas);
+    assert.deepStrictEqual(funcionamento, {
+        dias: {
+            0: null,
+            1: { abre: '08:00', fecha: '23:00' }, 2: { abre: '08:00', fecha: '23:00' }, 3: { abre: '08:00', fecha: '23:00' },
+            4: { abre: '08:00', fecha: '23:00' }, 5: { abre: '08:00', fecha: '23:00' }, 6: { abre: '09:00', fecha: '18:00' },
+        },
+        datas_fechadas: ['2026-01-01', '2026-12-25', '2026-12-31'],
+    });
+
+    // E a volta: o formulário montado de novo a partir do valor salvo.
+    assert.deepStrictEqual(formularioDoFuncionamento(funcionamento), {
+        linhas,
+        datas: ['2026-01-01', '2026-12-25', '2026-12-31'],
+    });
+});
+
+test('formularioDoFuncionamento: dia que falta aparece como fechado', () => {
+    const { linhas, datas } = formularioDoFuncionamento({ dias: { 1: { abre: '10:00', fecha: '20:00' } } });
+    assert.strictEqual(linhas.length, 7);
+    assert.deepStrictEqual(linhas[0], FECHADO);
+    assert.deepStrictEqual(linhas[1], { fechado: false, abre: '10:00', fecha: '20:00' });
+    assert.deepStrictEqual(datas, []);
+});
+
+test('proximaVersao: texto igual mantém a versão; texto novo soma 1', () => {
+    assert.strictEqual(proximaVersao({ versao: 3, texto: 'a' }, 'a'), 3);
+    assert.strictEqual(proximaVersao({ versao: 3, texto: 'a' }, 'b'), 4);
+});
+
+test('abasVisiveis: o superadmin vê todas, na ordem', () => {
+    assert.deepStrictEqual(abasVisiveis(['superadmin']), ['configuracoes', 'catalogo', 'pistas', 'equipe', 'agendamentos']);
+});
+test('abasVisiveis: o administrativo vê só Agendamentos', () => {
+    assert.deepStrictEqual(abasVisiveis(['cliente', 'administrativo']), ['agendamentos']);
+});
+test('abasVisiveis: quem não é da administração não vê nenhuma', () => {
+    assert.deepStrictEqual(abasVisiveis(['cliente', 'atendente', 'instrutor']), []);
+});
+
+test('numeroDoCampo: texto do campo vira número; vazio vira null', () => {
+    assert.strictEqual(numeroDoCampo(' 15 '), 15);
+    assert.strictEqual(numeroDoCampo('0'), 0);
+    assert.strictEqual(numeroDoCampo('2.5'), 2.5);
+    assert.strictEqual(numeroDoCampo(''), null);
+    assert.strictEqual(numeroDoCampo('   '), null);
+    assert.strictEqual(numeroDoCampo('abc'), null);
+});

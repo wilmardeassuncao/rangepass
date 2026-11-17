@@ -1,7 +1,7 @@
 // tests/unidade/configuracoes.test.mjs
 import test from 'node:test';
 import assert from 'node:assert';
-import { CHAVES_CONFIGURACAO, validarConfiguracao } from '../../supabase/functions/_shared/configuracoes.mjs';
+import { CHAVES_CONFIGURACAO, validarConfiguracao, conferirVersao } from '../../supabase/functions/_shared/configuracoes.mjs';
 
 // Mesmos valores da migração 20261111000200_configuracoes_iniciais.sql.
 const AGENDA_PADRAO = {
@@ -104,4 +104,23 @@ test('validarConfiguracao: versão do termo precisa ser inteiro maior que 0', ()
 test('validarConfiguracao: texto do termo não pode ficar vazio', () => {
     assert.strictEqual(validarConfiguracao('termo', { versao: 1, texto: ' ' }).texto, 'Escreva o texto do termo.');
     assert.strictEqual(validarConfiguracao('termo', { versao: 1 }).texto, 'Escreva o texto do termo.');
+});
+
+// Plano 4: mudar o texto da política ou do termo pede uma versão maior que a atual.
+test('conferirVersao: texto igual com a mesma versão passa', () => {
+    assert.deepStrictEqual(conferirVersao('termo', { versao: 2, texto: 'a' }, { versao: 2, texto: 'a' }), {});
+});
+test('conferirVersao: texto novo com a mesma versão pede versão maior', () => {
+    assert.deepStrictEqual(conferirVersao('termo', { versao: 2, texto: 'b' }, { versao: 2, texto: 'a' }), {
+        versao: 'Para mudar o texto, use uma versão maior que a atual (2).',
+    });
+    assert.deepStrictEqual(conferirVersao('privacidade', { versao: 1, texto: 'b' }, { versao: 3, texto: 'a' }), {
+        versao: 'Para mudar o texto, use uma versão maior que a atual (3).',
+    });
+});
+test('conferirVersao: texto novo com versão maior passa', () => {
+    assert.deepStrictEqual(conferirVersao('privacidade', { versao: 3, texto: 'b' }, { versao: 2, texto: 'a' }), {});
+});
+test('conferirVersao: outras chaves não têm versão', () => {
+    assert.deepStrictEqual(conferirVersao('agenda', { versao: 1, texto: 'b' }, { versao: 2, texto: 'a' }), {});
 });

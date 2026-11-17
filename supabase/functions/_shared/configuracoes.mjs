@@ -139,6 +139,18 @@ function validarTextoVersionado(valor, erros, mensagemTexto) {
     if (typeof valor.texto !== 'string' || valor.texto.trim() === '') erros.texto = mensagemTexto;
 }
 
+const CHAVES_COM_VERSAO = ['privacidade', 'termo'];
+
+// Mudar o texto da política ou do termo exige uma versão maior que a atual: é a versão que diz
+// aos clientes que há um texto novo para aceitar. Devolve {} quando está tudo certo.
+export function conferirVersao(chave, novo, atual) {
+    if (!CHAVES_COM_VERSAO.includes(chave) || !ehObjeto(novo) || !ehObjeto(atual)) return {};
+    if (novo.texto !== atual.texto && !(novo.versao > atual.versao)) {
+        return { versao: `Para mudar o texto, use uma versão maior que a atual (${atual.versao}).` };
+    }
+    return {};
+}
+
 // Devolve {} quando está tudo certo; senão, um mapa campo → mensagem.
 export function validarConfiguracao(chave, valor) {
     if (!CHAVES_CONFIGURACAO.includes(chave)) return { chave: 'Esta configuração não existe.' };

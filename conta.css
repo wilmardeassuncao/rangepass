@@ -21,6 +21,8 @@
 
 * { box-sizing: border-box; }
 
+[hidden] { display: none !important; }
+
 body {
     background-color: var(--cor-fundo-externo);
     color: var(--cor-texto);
