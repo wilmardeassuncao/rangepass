@@ -171,14 +171,36 @@ test('mais tentativas de cadastro que o limite por hora recebem 429', async () =
     const config = await rest('configuracoes?chave=eq.cadastro&select=valor');
     const limite = config.dados[0].valor.tentativas_por_hora;
     assert.strictEqual(limite, 10);
-    for (let i = 0; i < limite; i++) {
-        const r = await funcao('cadastro', { metodo: 'POST', corpo: { cpf: '123' } });
-        assert.strictEqual(r.status, 400, `tentativa ${i + 1}: ${JSON.stringify(r.dados)}`);
+    const MENSAGEM = { erro: 'Muitas tentativas de cadastro em pouco tempo. Tente de novo daqui a uma hora.' };
+    // Dados inválidos de propósito: sem o limite, a resposta é 400, e nenhuma conta nem e-mail é criado.
+    const tentar = () => funcao('cadastro', { metodo: 'POST', corpo: { cpf: '123' } });
+
+    // O mesmo IP pode já ter tentativas na última hora (de outros testes ou do uso da página), que o
+    // teste não apaga. A primeira tentativa revela o IP; depois contamos quantas esse IP já tem.
+    const primeira = await tentar();
+    if (primeira.status === 429) {
+        // Já bloqueado antes de começar (uma tentativa recusada não é gravada): o limite está valendo.
+        assert.deepStrictEqual(primeira.dados, MENSAGEM);
+        return;
     }
-    // Dados inválidos de propósito: sem o limite, a resposta seria 400, e nenhuma conta nem e-mail é criado.
+    assert.strictEqual(primeira.status, 400, `primeira tentativa: ${JSON.stringify(primeira.dados)}`);
+    const nova = await rest(`tentativas_cadastro?id=gt.${marcaTentativas}&select=ip,criado_em&order=id.desc&limit=1`);
+    assert.strictEqual(nova.status, 200, JSON.stringify(nova.dados));
+    assert.ok(nova.dados.length, 'a primeira tentativa deveria ter sido gravada');
+    const { ip, criado_em } = nova.dados[0];
+    // A janela de 1 hora é contada pelo relógio do banco (o criado_em da tentativa que acabou de ser gravada).
+    const desde = new Date(new Date(criado_em).getTime() - 3600 * 1000).toISOString();
+    const doIp = await rest(`tentativas_cadastro?ip=eq.${encodeURIComponent(ip)}&criado_em=gt.${encodeURIComponent(desde)}&select=id`);
+    assert.strictEqual(doIp.status, 200, JSON.stringify(doIp.dados));
+    const n = doIp.dados.length;
+
+    for (let i = n; i < limite; i++) {
+        const r = await tentar();
+        assert.strictEqual(r.status, 400, `tentativa ${i + 1} de ${limite} deste IP: ${JSON.stringify(r.dados)}`);
+    }
     const bloqueada = await cadastrar({ ...corpoValido(), cpf: '123' });
     assert.strictEqual(bloqueada.status, 429, JSON.stringify(bloqueada.dados));
-    assert.deepStrictEqual(bloqueada.dados, { erro: 'Muitas tentativas de cadastro em pouco tempo. Tente de novo daqui a uma hora.' });
+    assert.deepStrictEqual(bloqueada.dados, MENSAGEM);
 });
 
 test('o limite não atrapalha quem só abre a página (GET)', async () => {

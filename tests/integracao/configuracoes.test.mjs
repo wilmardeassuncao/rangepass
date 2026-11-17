@@ -42,13 +42,16 @@ test('cliente lê as configurações', async () => {
     assert.strictEqual(r.dados.configuracoes.estande.fuso, 'America/Sao_Paulo');
 });
 
-test('cliente não altera configurações', async () => {
-    const r = await funcao('configuracoes', {
-        metodo: 'PUT', token: cliente.token,
-        corpo: { chave: 'agenda', valor: { ...linhaAgendaAnterior.valor, antecedencia_maxima_dias: 20 } },
-    });
-    assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
-    assert.deepStrictEqual(r.dados, { erro: 'Você não tem permissão para fazer isso.' });
+test('cliente e instrutor não alteram configurações', async () => {
+    const instrutor = await criarUsuario({ papeis: ['instrutor'] });
+    for (const pessoa of [cliente, instrutor]) {
+        const r = await funcao('configuracoes', {
+            metodo: 'PUT', token: pessoa.token,
+            corpo: { chave: 'agenda', valor: { ...linhaAgendaAnterior.valor, antecedencia_maxima_dias: 20 } },
+        });
+        assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
+        assert.deepStrictEqual(r.dados, { erro: 'Você não tem permissão para fazer isso.' });
+    }
 });
 
 test('superadmin altera, o valor fica salvo e o histórico guarda o autor', async () => {

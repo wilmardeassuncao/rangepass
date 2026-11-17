@@ -114,9 +114,17 @@ test('conferirVersao: texto novo com a mesma versão pede versão maior', () => 
     assert.deepStrictEqual(conferirVersao('termo', { versao: 2, texto: 'b' }, { versao: 2, texto: 'a' }), {
         versao: 'Para mudar o texto, use uma versão maior que a atual (2).',
     });
-    assert.deepStrictEqual(conferirVersao('privacidade', { versao: 1, texto: 'b' }, { versao: 3, texto: 'a' }), {
-        versao: 'Para mudar o texto, use uma versão maior que a atual (3).',
+});
+test('conferirVersao: a versão nunca diminui, nem com o mesmo texto', () => {
+    assert.deepStrictEqual(conferirVersao('termo', { versao: 1, texto: 'a' }, { versao: 2, texto: 'a' }), {
+        versao: 'A versão não pode ser menor que a atual (2).',
     });
+    assert.deepStrictEqual(conferirVersao('privacidade', { versao: 1, texto: 'b' }, { versao: 3, texto: 'a' }), {
+        versao: 'A versão não pode ser menor que a atual (3).',
+    });
+});
+test('conferirVersao: mesmo texto com versão maior passa', () => {
+    assert.deepStrictEqual(conferirVersao('termo', { versao: 3, texto: 'a' }, { versao: 2, texto: 'a' }), {});
 });
 test('conferirVersao: texto novo com versão maior passa', () => {
     assert.deepStrictEqual(conferirVersao('privacidade', { versao: 3, texto: 'b' }, { versao: 2, texto: 'a' }), {});

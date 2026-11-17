@@ -63,8 +63,8 @@ test('sem login dá 401', async () => {
     assert.strictEqual(r.status, 401, JSON.stringify(r.dados));
 });
 
-test('cliente e administrativo recebem 403 em GET, POST e PUT', async () => {
-    for (const pessoa of [cliente, administrativo]) {
+test('cliente, administrativo e instrutor recebem 403 em GET, POST e PUT', async () => {
+    for (const pessoa of [cliente, administrativo, instrutor]) {
         const g = await funcao('catalogo', { token: pessoa.token });
         const p = await cadastrar('categoria', { nome: `Categoria ${marcador()}` }, pessoa.token);
         const u = await editar('categoria', 1, { ativo: true }, pessoa.token);

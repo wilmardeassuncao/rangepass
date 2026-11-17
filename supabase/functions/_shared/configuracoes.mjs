@@ -142,9 +142,13 @@ function validarTextoVersionado(valor, erros, mensagemTexto) {
 const CHAVES_COM_VERSAO = ['privacidade', 'termo'];
 
 // Mudar o texto da política ou do termo exige uma versão maior que a atual: é a versão que diz
-// aos clientes que há um texto novo para aceitar. Devolve {} quando está tudo certo.
+// aos clientes que há um texto novo para aceitar. A versão também nunca diminui, nem com o mesmo
+// texto. Devolve {} quando está tudo certo.
 export function conferirVersao(chave, novo, atual) {
     if (!CHAVES_COM_VERSAO.includes(chave) || !ehObjeto(novo) || !ehObjeto(atual)) return {};
+    if (novo.versao < atual.versao) {
+        return { versao: `A versão não pode ser menor que a atual (${atual.versao}).` };
+    }
     if (novo.texto !== atual.texto && !(novo.versao > atual.versao)) {
         return { versao: `Para mudar o texto, use uma versão maior que a atual (${atual.versao}).` };
     }

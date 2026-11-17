@@ -32,7 +32,7 @@ Cada função nova precisa de uma entrada em `supabase/config.toml` com `entrypo
 
 ### Criar o primeiro superadmin
 
-1. Com o site aberto (veja "Abrir a página da conta no computador"), crie a conta em `conta.html`, confirme o e-mail pelo link que chegar e preencha o cadastro completo (nome, CPF etc.). A área da equipe só abre para quem tem o cadastro completo, por isso não crie a conta direto no painel do Supabase.
+1. Com o site aberto (veja "Abrir a página da conta no computador"), crie a conta em `conta.html`, confirme o e-mail pelo link que chegar e preencha o cadastro completo (nome, CPF etc.). O login pela página da conta exige o cadastro completo (nome, CPF, telefone e data de nascimento).
 2. No painel do Supabase, abra o **SQL Editor** e cole o conteúdo de `supabase/scripts/promover-superadmin.sql`.
 3. Troque `SEU-EMAIL@exemplo.com` pelo e-mail do passo 1 (ele aparece duas vezes) e clique em **Run**.
 4. O resultado deve mostrar uma linha com o e-mail e o papel `superadmin`. Essa conta já pode entrar na área da equipe (veja "Área da equipe", abaixo).
@@ -142,7 +142,7 @@ Um **papel** é o tipo de acesso que a pessoa tem no sistema (cliente, instrutor
 
 O superadmin vê todas as abas. Os outros papéis de equipe (atendente, almoxarifado, instrutor) ainda não têm aba: eles veem a mensagem de área só para a equipe.
 
-Na aba **Agendamentos**, a lista começa mostrando de hoje até daqui a 15 dias (no fuso do estande). O período pode ter no máximo 92 dias. Ao tocar num agendamento, abre o detalhe com os dados pessoais (CPF, e-mail, telefone). Cada detalhe aberto fica registrado no banco (quem abriu e quando), por causa da LGPD.
+Na aba **Agendamentos**, a lista começa mostrando de hoje até daqui a 15 dias (no fuso do estande). O período pode ter no máximo 92 dias. A lista mostra do responsável só o nome e o telefone. Ao tocar num agendamento, abre o detalhe com os dados pessoais (CPF, e-mail, telefone). Cada detalhe aberto e cada busca feita na lista ficam registrados no banco (quem abriu ou buscou e quando), por causa da LGPD.
 
 ### Dar o papel de superadmin ao primeiro usuário
 

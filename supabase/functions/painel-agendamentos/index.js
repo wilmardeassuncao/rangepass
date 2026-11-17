@@ -1,6 +1,8 @@
 // Edge Function painel-agendamentos: a visão do administrativo (o superadmin também passa).
 // GET com filtros: a lista de agendamentos de um período. GET ?id=: o detalhe de um agendamento,
 // com os participantes (CPFs) e o histórico; cada detalhe aberto fica registrado em acessos_dados.
+// A lista mostra do responsável só o nome e o telefone (CPF e e-mail ficam no detalhe); cada busca
+// por texto na lista também fica registrada em acessos_dados.
 // Só administrativo e superadmin chegam aos dados: o papel é conferido antes de qualquer consulta.
 import { tratar, respostaJson, ErroHttp } from '../_shared/http.mjs';
 import { obterContexto, exigirPapel, admin } from '../_shared/contexto.js';
@@ -68,11 +70,16 @@ function lerFiltros(params, hoje) {
 }
 
 // Colunas da Linha. As reservas vêm todas (o histórico precisa dos ids); a Linha mostra só as ativas.
-const CAMPOS_LINHA = `id, inicio, horas, situacao, forma_pagamento, criado_em, responsavel_id,
-    responsavel:perfis!agendamentos_responsavel_id_fkey(nome_completo, cpf, telefone),
+// A lista pede do responsável só nome e telefone; o detalhe pede também o CPF.
+function camposDaLinha(responsavel) {
+    return `id, inicio, horas, situacao, forma_pagamento, criado_em, responsavel_id,
+    responsavel:perfis!agendamentos_responsavel_id_fkey(${responsavel}),
     agendamento_instrutores(id, ativo, principal, perfis(nome_completo)),
     agendamento_pistas(id, ativo, pistas(numero)),
     agendamento_unidades(id, ativo, unidades_arma(numero_registro, modelos(marca, nome)))`;
+}
+const CAMPOS_LINHA_LISTA = camposDaLinha('nome_completo, telefone');
+const CAMPOS_LINHA_DETALHE = camposDaLinha('nome_completo, cpf, telefone');
 
 const CAMPOS_PARTICIPANTES = `participantes(id, nome_completo, cpf, data_nascimento, perfil_id, modalidade, termo_versao,
     itens_participante(id, arma_propria, municao_qtd, modelos(marca, nome), tipos_municao(nome)))`;
@@ -81,7 +88,8 @@ function nomeDoModelo(modelo) {
     return modelo ? `${modelo.marca} ${modelo.nome}` : null;
 }
 
-function montarLinha(linha, emails, participantesQtd) {
+// Sem "emails", a Linha é a da lista: o responsável vem só com nome e telefone.
+function montarLinha(linha, participantesQtd, emails = null) {
     const ativas = (lista) => lista.filter((r) => r.ativo).sort((a, b) => a.id - b.id);
     return {
         id: linha.id,
@@ -90,12 +98,17 @@ function montarLinha(linha, emails, participantesQtd) {
         situacao: linha.situacao,
         forma_pagamento: linha.forma_pagamento,
         criado_em: linha.criado_em,
-        responsavel: {
-            nome_completo: linha.responsavel?.nome_completo ?? null,
-            cpf: linha.responsavel?.cpf ?? null,
-            telefone: linha.responsavel?.telefone ?? null,
-            email: emails.get(linha.responsavel_id) ?? null,
-        },
+        responsavel: emails
+            ? {
+                nome_completo: linha.responsavel?.nome_completo ?? null,
+                cpf: linha.responsavel?.cpf ?? null,
+                telefone: linha.responsavel?.telefone ?? null,
+                email: emails.get(linha.responsavel_id) ?? null,
+            }
+            : {
+                nome_completo: linha.responsavel?.nome_completo ?? null,
+                telefone: linha.responsavel?.telefone ?? null,
+            },
         participantes_qtd: participantesQtd,
         instrutores: ativas(linha.agendamento_instrutores)
             .sort((a, b) => b.principal - a.principal)
@@ -116,7 +129,7 @@ async function emailsDe(ids) {
     return new Map(linhas.map((l) => [l.id, l.email]));
 }
 
-async function listar(params) {
+async function listar(params, contexto) {
     const fuso = await fusoDoEstande();
     const { campos, filtros } = lerFiltros(params, dataNoFuso(new Date(), fuso));
     if (Object.keys(campos).length > 0) return respostaJson(400, { erro: 'Revise os campos destacados.', campos });
@@ -128,15 +141,21 @@ async function listar(params) {
             p_situacao: filtros.situacao,
             p_instrutor: filtros.instrutorId,
             p_busca: filtros.busca,
-        }).select(`${CAMPOS_LINHA}, participantes(count)`).order('inicio').order('id').limit(LIMITE + 1)),
+        }).select(`${CAMPOS_LINHA_LISTA}, participantes(count)`).order('inicio').order('id').limit(LIMITE + 1)),
         consulta(admin.rpc('instrutores_ativos')),
     ]);
     const limiteAtingido = linhas.length > LIMITE;
     const mostradas = linhas.slice(0, LIMITE);
-    const emails = await emailsDe(mostradas.map((l) => l.responsavel_id));
+
+    // Uma busca por texto procura em dados pessoais (nome, CPF, e-mail): fica registrada antes da resposta.
+    if (filtros.busca) {
+        await consulta(admin.rpc('registrar_acesso', {
+            p_usuario: contexto.usuarioId, p_recurso: 'painel.busca', p_registro: filtros.busca,
+        }));
+    }
 
     const corpo = {
-        agendamentos: mostradas.map((l) => montarLinha(l, emails, l.participantes?.[0]?.count ?? 0)),
+        agendamentos: mostradas.map((l) => montarLinha(l, l.participantes?.[0]?.count ?? 0)),
         instrutores: instrutores.map((i) => ({ id: i.id, nome: i.nome })),
     };
     if (limiteAtingido) corpo.limite_atingido = true;
@@ -209,12 +228,12 @@ function ordemDosParticipantes(responsavelId) {
 async function detalhar(id, contexto) {
     if (!UUID.test(id)) throw new ErroHttp(404, NAO_ENCONTRADO);
     const linha = await consulta(admin.from('agendamentos')
-        .select(`${CAMPOS_LINHA}, ${CAMPOS_PARTICIPANTES}`).eq('id', id).maybeSingle());
+        .select(`${CAMPOS_LINHA_DETALHE}, ${CAMPOS_PARTICIPANTES}`).eq('id', id).maybeSingle());
     if (!linha) throw new ErroHttp(404, NAO_ENCONTRADO);
 
     const [emails, historico] = await Promise.all([emailsDe([linha.responsavel_id]), historicoDe(linha)]);
     const agendamento = {
-        ...montarLinha(linha, emails, linha.participantes.length),
+        ...montarLinha(linha, linha.participantes.length, emails),
         participantes: [...linha.participantes].sort(ordemDosParticipantes(linha.responsavel_id)).map(montarParticipante),
     };
 
@@ -233,5 +252,5 @@ Deno.serve(tratar(async (req) => {
     const params = new URL(req.url).searchParams;
     const id = params.get('id');
     if (id !== null) return detalhar(id.trim(), contexto);
-    return listar(params);
+    return listar(params, contexto);
 }));

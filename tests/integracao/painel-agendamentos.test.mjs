@@ -11,7 +11,7 @@ import {
     criarUsuario, criar, apagarTudoCriado, anotarAgendamento, apagarAcessosDe,
 } from './apoio.mjs';
 
-let administrativo, cliente, instrutor, modelo, tipoMunicao, unidade, agendamentoId, data, convidadoCpf;
+let nomeDoCliente, administrativo, cliente, instrutor, modelo, tipoMunicao, unidade, agendamentoId, data, convidadoCpf;
 
 after(async () => {
     const passos = [];
@@ -37,6 +37,7 @@ before(async () => {
     administrativo = await criarUsuario({ papeis: ['administrativo'] });
     cliente = await criarUsuario({ papeis: ['cliente'] });
     instrutor = await criarUsuario({ papeis: ['instrutor'] });
+    nomeDoCliente = (await rest(`perfis?id=eq.${cliente.id}&select=nome_completo`)).dados[0].nome_completo;
     await criar('pistas', { numero: 100000000 + Math.floor(Math.random() * 1000000000) });
     const categoria = await criar('categorias', { nome: `Categoria ${marcador()}` });
     const calibre = await criar('calibres', { nome: `Calibre ${marcador()}` });
@@ -81,10 +82,13 @@ function achar(r) {
     return r.dados.agendamentos.find(a => a.id === agendamentoId);
 }
 
-test('sem login dá 401; cliente dá 403', async () => {
+test('sem login dá 401; cliente, instrutor e atendente dão 403', async () => {
     assert.strictEqual((await painel(null)).status, 401);
-    const r = await painel(cliente.token);
-    assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
+    const atendente = await criarUsuario({ papeis: ['atendente'] });
+    for (const pessoa of [cliente, instrutor, atendente]) {
+        const r = await painel(pessoa.token);
+        assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
+    }
 });
 
 test('o administrativo vê o agendamento no período, com os dados da linha', async () => {
@@ -95,8 +99,10 @@ test('o administrativo vê o agendamento no período, com os dados da linha', as
     assert.ok(linha, 'o agendamento deveria aparecer no período');
     assert.strictEqual(linha.horas, 2);
     assert.strictEqual(linha.situacao, 'aguardando_pagamento');
-    assert.strictEqual(linha.responsavel.cpf, cliente.cpf);
-    assert.strictEqual(linha.responsavel.email, cliente.email);
+    // A lista não leva CPF nem e-mail do responsável: só nome e telefone (os dados completos ficam no detalhe).
+    assert.deepStrictEqual(Object.keys(linha.responsavel).sort(), ['nome_completo', 'telefone']);
+    assert.strictEqual(linha.responsavel.nome_completo, nomeDoCliente);
+    assert.ok(!JSON.stringify(r.dados).includes(cliente.cpf), 'a lista não deveria conter o CPF do responsável');
     assert.strictEqual(linha.participantes_qtd, 2);
     assert.strictEqual(linha.instrutores.length, 1);
     assert.strictEqual(linha.pistas.length, 1);
@@ -122,11 +128,30 @@ test('situacao=cancelado não traz; instrutor_id do instrutor dele traz; busca p
     const busca = await painel(administrativo.token, periodo(`&busca=${cliente.cpf}`));
     assert.strictEqual(busca.status, 200, JSON.stringify(busca.dados));
     assert.ok(achar(busca));
-    assert.ok(busca.dados.agendamentos.every(a => a.responsavel.cpf === cliente.cpf));
+    assert.ok(busca.dados.agendamentos.every(a => a.responsavel.nome_completo === nomeDoCliente));
 
     const porEmail = await painel(administrativo.token, periodo(`&busca=${encodeURIComponent(cliente.email.toUpperCase())}`));
     assert.strictEqual(porEmail.status, 200, JSON.stringify(porEmail.dados));
     assert.ok(achar(porEmail));
+});
+
+async function buscasRegistradas() {
+    const r = await rest(`acessos_dados?usuario_id=eq.${administrativo.id}&recurso=eq.painel.busca&select=registro&order=id`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    return r.dados.map(a => a.registro);
+}
+
+test('a lista com busca registra o acesso (painel.busca); sem busca, não registra', async () => {
+    const antes = await buscasRegistradas();
+    const semBusca = await painel(administrativo.token, periodo('&busca=%20%20'));
+    assert.strictEqual(semBusca.status, 200, JSON.stringify(semBusca.dados));
+    const outra = await painel(administrativo.token, periodo());
+    assert.strictEqual(outra.status, 200, JSON.stringify(outra.dados));
+    assert.deepStrictEqual(await buscasRegistradas(), antes, 'sem busca não registra acesso');
+
+    const comBusca = await painel(administrativo.token, periodo(`&busca=${cliente.cpf}`));
+    assert.strictEqual(comBusca.status, 200, JSON.stringify(comBusca.dados));
+    assert.deepStrictEqual(await buscasRegistradas(), [...antes, cliente.cpf], 'uma linha painel.busca com o termo');
 });
 
 test('ate antes de de dá 400 com a mensagem', async () => {
