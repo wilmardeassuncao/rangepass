@@ -52,3 +52,29 @@ export function numeroDoCampo(texto) {
     const numero = Number(limpo);
     return Number.isFinite(numero) ? numero : null;
 }
+
+// ---------- Catálogo e pistas ----------
+
+// Número da próxima pista: o seguinte ao maior que já existe (inclusive as inativas); 1 se não houver nenhuma.
+export function proximoNumeroDePista(pistas) {
+    return (pistas ?? []).reduce((maior, pista) => Math.max(maior, pista.numero), 0) + 1;
+}
+
+const ROTULOS_SITUACAO = { disponivel: 'Disponível', manutencao: 'Em manutenção', desativada: 'Desativada' };
+
+export function rotuloSituacaoArma(situacao) {
+    return ROTULOS_SITUACAO[situacao] ?? situacao;
+}
+
+const NOME_DO_RECURSO = { unidade: 'Esta arma', pista: 'Esta pista' };
+
+// Mensagem depois de salvar um cadastro. Se a arma ou a pista saiu de uso e ainda tem agendamentos
+// futuros, avisa que eles continuam marcados.
+export function mensagemCadastroSalvo(tipo, reservasFuturas) {
+    if (!(reservasFuturas > 0) || !NOME_DO_RECURSO[tipo]) return 'Salvo.';
+    return `Salvo. ${NOME_DO_RECURSO[tipo]} tem ${reservasFuturas} agendamento(s) futuro(s); eles continuam marcados e o atendimento precisa resolver.`;
+}
+
+export function nomeDoModelo(modelo) {
+    return `${modelo.marca} ${modelo.nome}`;
+}

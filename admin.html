@@ -223,15 +223,109 @@
                 </div>
             </section>
 
-            <!-- ---------- Abas das próximas tarefas ---------- -->
+            <!-- ---------- Catálogo ----------
+                 As listas e os formulários são montados pelo admin.js a partir do GET catalogo. -->
             <section id="painel-catalogo" class="painel" role="tabpanel" aria-labelledby="aba-catalogo" hidden>
-                <header class="cabecalho"><h1>Catálogo</h1></header>
-                <p class="subtitulo">Em construção.</p>
+                <header class="cabecalho">
+                    <h1>Catálogo</h1>
+                    <p class="subtitulo">Nada é apagado: o que não for mais usado fica desativado e some das opções novas.</p>
+                </header>
+                <p id="catalogo-carregando" class="subtitulo">Carregando…</p>
+                <div id="catalogo-erro" class="bloco" hidden>
+                    <p id="catalogo-erro-mensagem" class="erro" role="alert"></p>
+                    <button type="button" id="botao-recarregar-catalogo" class="botao secundario" data-recarregar-cadastros>Tentar de novo</button>
+                </div>
+                <div id="catalogo-secoes" class="formularios" hidden>
+                    <section id="secao-categoria" class="bloco" data-tipo="categoria">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Categorias</h2>
+                            <button type="button" id="botao-adicionar-categoria" class="botao secundario pequeno" data-adicionar>Adicionar</button>
+                        </div>
+                        <form id="form-categoria" class="formulario-cadastro" novalidate hidden></form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-categoria"></tbody>
+                        </table>
+                        <p id="vazio-categoria" class="subtitulo" hidden>Nenhuma categoria cadastrada.</p>
+                    </section>
+                    <section id="secao-calibre" class="bloco" data-tipo="calibre">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Calibres</h2>
+                            <button type="button" id="botao-adicionar-calibre" class="botao secundario pequeno" data-adicionar>Adicionar</button>
+                        </div>
+                        <form id="form-calibre" class="formulario-cadastro" novalidate hidden></form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-calibre"></tbody>
+                        </table>
+                        <p id="vazio-calibre" class="subtitulo" hidden>Nenhum calibre cadastrado.</p>
+                    </section>
+                    <section id="secao-modelo" class="bloco" data-tipo="modelo">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Modelos</h2>
+                            <button type="button" id="botao-adicionar-modelo" class="botao secundario pequeno" data-adicionar>Adicionar</button>
+                        </div>
+                        <form id="form-modelo" class="formulario-cadastro" novalidate hidden></form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Modelo</th><th scope="col">Categoria</th><th scope="col">Calibre</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-modelo"></tbody>
+                        </table>
+                        <p id="vazio-modelo" class="subtitulo" hidden>Nenhum modelo cadastrado.</p>
+                    </section>
+                    <section id="secao-tipo_municao" class="bloco" data-tipo="tipo_municao">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Munições</h2>
+                            <button type="button" id="botao-adicionar-tipo_municao" class="botao secundario pequeno" data-adicionar>Adicionar</button>
+                        </div>
+                        <form id="form-tipo_municao" class="formulario-cadastro" novalidate hidden></form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Munição</th><th scope="col">Calibre</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-tipo_municao"></tbody>
+                        </table>
+                        <p id="vazio-tipo_municao" class="subtitulo" hidden>Nenhuma munição cadastrada.</p>
+                    </section>
+                    <section id="secao-unidade" class="bloco" data-tipo="unidade">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Armas</h2>
+                            <button type="button" id="botao-adicionar-unidade" class="botao secundario pequeno" data-adicionar>Adicionar</button>
+                        </div>
+                        <form id="form-unidade" class="formulario-cadastro" novalidate hidden></form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Nº de registro</th><th scope="col">Modelo</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-unidade"></tbody>
+                        </table>
+                        <p id="vazio-unidade" class="subtitulo" hidden>Nenhuma arma cadastrada.</p>
+                    </section>
+                </div>
             </section>
+
+            <!-- ---------- Pistas ---------- -->
             <section id="painel-pistas" class="painel" role="tabpanel" aria-labelledby="aba-pistas" hidden>
-                <header class="cabecalho"><h1>Pistas</h1></header>
-                <p class="subtitulo">Em construção.</p>
+                <header class="cabecalho">
+                    <h1>Pistas</h1>
+                    <p class="subtitulo">"Adicionar pista" cria a pista com o número seguinte ao maior. Pista inativa não recebe agendamentos novos.</p>
+                </header>
+                <p id="pistas-carregando" class="subtitulo">Carregando…</p>
+                <div id="pistas-erro" class="bloco" hidden>
+                    <p id="pistas-erro-mensagem" class="erro" role="alert"></p>
+                    <button type="button" id="botao-recarregar-pistas" class="botao secundario" data-recarregar-cadastros>Tentar de novo</button>
+                </div>
+                <div id="pistas-conteudo" class="formularios" hidden>
+                    <section id="secao-pista" class="bloco" data-tipo="pista">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Pistas</h2>
+                            <button type="button" id="botao-adicionar-pista" class="botao secundario pequeno">Adicionar pista</button>
+                        </div>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Pista</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-pista"></tbody>
+                        </table>
+                        <p id="vazio-pista" class="subtitulo" hidden>Nenhuma pista cadastrada.</p>
+                    </section>
+                </div>
             </section>
+
+            <!-- ---------- Abas das próximas tarefas ---------- -->
             <section id="painel-equipe" class="painel" role="tabpanel" aria-labelledby="aba-equipe" hidden>
                 <header class="cabecalho"><h1>Equipe</h1></header>
                 <p class="subtitulo">Em construção.</p>

@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import {
     NOMES_DIAS, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, abasVisiveis, numeroDoCampo,
+    proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo,
 } from '../../admin-regras.mjs';
 
 const ABERTO = { fechado: false, abre: '08:00', fecha: '23:00' };
@@ -62,4 +63,34 @@ test('numeroDoCampo: texto do campo vira número; vazio vira null', () => {
     assert.strictEqual(numeroDoCampo(''), null);
     assert.strictEqual(numeroDoCampo('   '), null);
     assert.strictEqual(numeroDoCampo('abc'), null);
+});
+
+test('proximoNumeroDePista: 1 quando não há nenhuma pista', () => {
+    assert.strictEqual(proximoNumeroDePista([]), 1);
+    assert.strictEqual(proximoNumeroDePista(undefined), 1);
+});
+test('proximoNumeroDePista: o número seguinte ao maior, mesmo com buracos, fora de ordem e inativas', () => {
+    assert.strictEqual(proximoNumeroDePista([{ numero: 1 }, { numero: 2 }, { numero: 3 }]), 4);
+    assert.strictEqual(proximoNumeroDePista([{ numero: 7, ativa: false }, { numero: 2 }, { numero: 4 }]), 8);
+});
+
+test('rotuloSituacaoArma: nome de cada situação na tela', () => {
+    assert.strictEqual(rotuloSituacaoArma('disponivel'), 'Disponível');
+    assert.strictEqual(rotuloSituacaoArma('manutencao'), 'Em manutenção');
+    assert.strictEqual(rotuloSituacaoArma('desativada'), 'Desativada');
+});
+
+test('mensagemCadastroSalvo: sem agendamentos futuros, só "Salvo."', () => {
+    assert.strictEqual(mensagemCadastroSalvo('unidade', 0), 'Salvo.');
+    assert.strictEqual(mensagemCadastroSalvo('categoria', undefined), 'Salvo.');
+});
+test('mensagemCadastroSalvo: arma ou pista com agendamentos futuros avisa o atendimento', () => {
+    assert.strictEqual(mensagemCadastroSalvo('unidade', 2),
+        'Salvo. Esta arma tem 2 agendamento(s) futuro(s); eles continuam marcados e o atendimento precisa resolver.');
+    assert.strictEqual(mensagemCadastroSalvo('pista', 1),
+        'Salvo. Esta pista tem 1 agendamento(s) futuro(s); eles continuam marcados e o atendimento precisa resolver.');
+});
+
+test('nomeDoModelo: marca e nome juntos', () => {
+    assert.strictEqual(nomeDoModelo({ marca: 'Glock', nome: 'G17' }), 'Glock G17');
 });
