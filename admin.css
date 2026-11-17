@@ -346,3 +346,28 @@ a.botao { display: block; text-align: center; text-decoration: none; }
     .tabela td.celula-acoes::before { content: none; }
     .tabela select { min-width: 0; }
 }
+
+/* ---------- Equipe ---------- */
+
+.busca { align-items: end; display: flex; flex-wrap: wrap; gap: 10px; }
+.busca .campo { flex: 1 1 240px; }
+.busca .botao { flex: 0 0 auto; width: auto; }
+
+/* Cada pessoa é um cartão (serve igual em tela estreita e larga). */
+.lista-pessoas { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.pessoa {
+    background-color: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+}
+.pessoa.inativo .pessoa-nome { color: var(--cor-texto-secundario); }
+.pessoa-topo { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: space-between; }
+.pessoa-nome { font-weight: 700; overflow-wrap: anywhere; }
+.pessoa-papeis { display: flex; flex-direction: column; gap: 10px; }
+.pessoa-papeis .grupo { display: grid; gap: 0 16px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.pessoa-papeis .grupo .campo-titulo { grid-column: 1 / -1; }
+.pessoa-papeis > .botao, .pessoa .acoes { align-self: flex-start; }

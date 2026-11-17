@@ -78,3 +78,15 @@ export function mensagemCadastroSalvo(tipo, reservasFuturas) {
 export function nomeDoModelo(modelo) {
     return `${modelo.marca} ${modelo.nome}`;
 }
+
+// ---------- Equipe ----------
+
+// Nome de cada papel na tela.
+export const ROTULO_PAPEL = {
+    cliente: 'Cliente',
+    atendente: 'Atendente',
+    almoxarifado: 'Almoxarifado',
+    instrutor: 'Instrutor',
+    administrativo: 'Administrativo',
+    superadmin: 'Superadmin',
+};

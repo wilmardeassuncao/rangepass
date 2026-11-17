@@ -3,8 +3,9 @@ import test from 'node:test';
 import assert from 'node:assert';
 import {
     NOMES_DIAS, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, abasVisiveis, numeroDoCampo,
-    proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo,
+    proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
 } from '../../admin-regras.mjs';
+import { PAPEIS } from '../../supabase/functions/_shared/papeis.mjs';
 
 const ABERTO = { fechado: false, abre: '08:00', fecha: '23:00' };
 const FECHADO = { fechado: true, abre: '', fecha: '' };
@@ -93,4 +94,17 @@ test('mensagemCadastroSalvo: arma ou pista com agendamentos futuros avisa o aten
 
 test('nomeDoModelo: marca e nome juntos', () => {
     assert.strictEqual(nomeDoModelo({ marca: 'Glock', nome: 'G17' }), 'Glock G17');
+});
+
+test('ROTULO_PAPEL: o nome de cada papel na tela', () => {
+    assert.strictEqual(ROTULO_PAPEL.cliente, 'Cliente');
+    assert.strictEqual(ROTULO_PAPEL.atendente, 'Atendente');
+    assert.strictEqual(ROTULO_PAPEL.almoxarifado, 'Almoxarifado');
+    assert.strictEqual(ROTULO_PAPEL.instrutor, 'Instrutor');
+    assert.strictEqual(ROTULO_PAPEL.administrativo, 'Administrativo');
+    assert.strictEqual(ROTULO_PAPEL.superadmin, 'Superadmin');
+});
+
+test('ROTULO_PAPEL: todo papel do sistema tem nome', () => {
+    for (const papel of PAPEIS) assert.ok(ROTULO_PAPEL[papel], `sem nome para ${papel}`);
 });

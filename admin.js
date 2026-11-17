@@ -4,8 +4,10 @@
 import { supabase, chamarFuncao } from './api.mjs';
 import {
     NOMES_DIAS, abasVisiveis, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, numeroDoCampo,
-    proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo,
+    proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
 } from './admin-regras.mjs';
+import { formatarCpf } from './conta-regras.mjs';
+import { PAPEIS } from './supabase/functions/_shared/papeis.mjs';
 import { CHAVES_CONFIGURACAO, validarConfiguracao } from './supabase/functions/_shared/configuracoes.mjs';
 import { SITUACOES_UNIDADE, validarCadastroCatalogo } from './supabase/functions/_shared/catalogo.mjs';
 
@@ -16,6 +18,7 @@ const ENTRAR = 'conta.html?voltar=admin.html';
 const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do estande.';
 
 let papeis = [];          // papéis de quem está logado (GET minha-conta)
+let meuId = null;         // id de quem está logado (só para mostrar "você"; o servidor é quem protege)
 let abaAtual = null;
 
 // ---------- Ajudantes de tela ----------
@@ -106,7 +109,7 @@ const ABRIR_ABA = {
     configuracoes: abrirAbaConfiguracoes,
     catalogo: abrirAbaCadastros,
     pistas: abrirAbaCadastros,
-    equipe: null,
+    equipe: abrirAbaEquipe,
     agendamentos: null,
 };
 
@@ -820,6 +823,178 @@ function abrirAbaCadastros() {
     }
 }
 
+// ---------- Aba Equipe ----------
+// A lista de quem tem papel de equipe e a busca por outras pessoas (nome, e-mail ou CPF, a partir de
+// 2 caracteres). Cada pessoa é um cartão (li.pessoa) com os papéis (caixas de marcar) e o botão de
+// desativar ou reativar a conta. As proteções (ex.: não tirar o próprio superadmin) são do servidor:
+// a recusa dele (409) aparece no aviso.
+
+const listaEquipe = document.getElementById('lista-equipe');
+const campoBuscaEquipe = document.getElementById('busca-equipe');
+let buscaEquipe = '';       // a busca em uso ('' = só a equipe)
+let cargaEquipe = 0;        // número da última carga: respostas atrasadas são ignoradas
+
+function textoDaEquipe(classe, campo, texto) {
+    const p = document.createElement('p');
+    p.className = classe;
+    p.dataset.campo = campo;
+    p.textContent = texto;
+    return p;
+}
+
+function cartaoDaPessoa(pessoa) {
+    const cartao = document.createElement('li');
+    cartao.className = 'pessoa';
+    cartao.dataset.id = String(pessoa.id);
+    cartao.dataset.nome = pessoa.nome_completo || pessoa.email || '';  // para a pergunta de confirmação
+    cartao.classList.toggle('inativo', !pessoa.ativo);
+
+    const topo = document.createElement('div');
+    topo.className = 'pessoa-topo';
+    const identidade = document.createElement('div');
+    const nome = textoDaEquipe('pessoa-nome', 'nome', pessoa.nome_completo || 'Sem cadastro');
+    if (pessoa.id === meuId) nome.append(' (você)');
+    identidade.append(nome, textoDaEquipe('subtitulo', 'email', pessoa.email ?? ''));
+    if (pessoa.cpf) identidade.append(textoDaEquipe('subtitulo', 'cpf', formatarCpf(pessoa.cpf)));
+    const situacao = rotuloSituacao(pessoa.ativo ? 'Ativa' : 'Desativada', pessoa.ativo);
+    situacao.dataset.campo = 'situacao';
+    topo.append(identidade, situacao);
+
+    const form = document.createElement('form');
+    form.className = 'pessoa-papeis';
+    form.noValidate = true;
+    const grupo = document.createElement('fieldset');
+    grupo.className = 'grupo';
+    const legenda = document.createElement('legend');
+    legenda.className = 'campo-titulo';
+    legenda.textContent = 'Papéis';
+    grupo.append(legenda);
+    for (const papel of PAPEIS) {
+        const rotulo = document.createElement('label');
+        rotulo.className = 'caixa';
+        const caixa = document.createElement('input');
+        caixa.type = 'checkbox';
+        caixa.name = 'papeis';
+        caixa.value = papel;
+        caixa.checked = (pessoa.papeis ?? []).includes(papel);
+        rotulo.append(caixa, ROTULO_PAPEL[papel] ?? papel);
+        grupo.append(rotulo);
+    }
+    const erroPapeis = document.createElement('span');
+    erroPapeis.className = 'erro';
+    erroPapeis.dataset.erroPara = 'papeis';
+    const geral = document.createElement('p');
+    geral.className = 'erro';
+    geral.dataset.erroGeral = '';
+    geral.hidden = true;
+    const salvar = criarBotao('Salvar papéis', 'submit', 'botao pequeno');
+    salvar.dataset.acao = 'salvar-papeis';
+    form.append(grupo, erroPapeis, geral, salvar);
+
+    const acoes = document.createElement('div');
+    acoes.className = 'acoes';
+    const alternar = criarBotao(pessoa.ativo ? 'Desativar conta' : 'Reativar conta', 'button',
+        `botao secundario pequeno${pessoa.ativo ? ' perigo' : ''}`);
+    alternar.dataset.acao = pessoa.ativo ? 'desativar' : 'reativar';
+    acoes.append(alternar);
+
+    cartao.append(topo, form, acoes);
+    return cartao;
+}
+
+function mostrarEstadoEquipe(estado, mensagem, quantidade = 0) {
+    document.getElementById('equipe-carregando').hidden = estado !== 'carregando';
+    document.getElementById('equipe-erro').hidden = estado !== 'erro';
+    document.getElementById('equipe-erro-mensagem').textContent = mensagem ?? '';
+    document.getElementById('equipe-vazio').hidden = !(estado === 'pronto' && quantidade === 0);
+    listaEquipe.hidden = !(estado === 'pronto' && quantidade > 0);
+}
+
+// Busca a lista (com a busca em uso) e refaz os cartões. Devolve true se mostrou a lista.
+async function carregarEquipe() {
+    const minha = ++cargaEquipe;
+    mostrarEstadoEquipe('carregando');
+    try {
+        const consulta = buscaEquipe ? `busca=${encodeURIComponent(buscaEquipe)}` : undefined;
+        const r = await chamarFuncao('equipe', { consulta });
+        if (minha !== cargaEquipe) return false;
+        if (precisaEntrar(r)) {
+            await irParaEntrar();
+            return false;
+        }
+        if (r.status !== 200 || !Array.isArray(r.dados?.pessoas)) {
+            mostrarEstadoEquipe('erro', r.dados?.erro ?? ERRO_CARREGAR);
+            return false;
+        }
+        listaEquipe.replaceChildren(...r.dados.pessoas.map(cartaoDaPessoa));
+        mostrarEstadoEquipe('pronto', null, r.dados.pessoas.length);
+        return true;
+    } catch (erro) {
+        console.error(erro);
+        if (minha === cargaEquipe) mostrarEstadoEquipe('erro', ERRO_CARREGAR);
+        return false;
+    }
+}
+
+// PUT equipe. 200: recarrega a lista e avisa o sucesso; 400 com campos: erro no cartão;
+// 401/conta desativada: sai; outro (409, 404...): aviso de erro e a lista é recarregada.
+async function mudarPessoa(cartao, corpo, textoSucesso, form = null) {
+    avisar(null);
+    await ocupado(cartao, async () => {
+        const r = await chamarFuncao('equipe', { metodo: 'PUT', corpo: { usuario_id: cartao.dataset.id, ...corpo } });
+        if (r.status === 200) {
+            const mostrou = await carregarEquipe();
+            avisar(mostrou ? textoSucesso : `${textoSucesso} Mas não deu para atualizar a lista.`, { sucesso: true });
+        } else if (precisaEntrar(r)) {
+            await irParaEntrar();
+        } else if (r.status === 400 && r.dados?.campos && form) {
+            mostrarErros(form, r.dados.campos);
+        } else {
+            const mensagem = r.dados?.erro ?? ERRO_PADRAO;
+            await carregarEquipe();
+            avisar(mensagem);
+        }
+    });
+}
+
+listaEquipe.addEventListener('submit', (evento) => {
+    evento.preventDefault();
+    const form = evento.target;
+    limparErros(form);
+    const marcados = [...form.querySelectorAll('input[name="papeis"]:checked')].map((caixa) => caixa.value);
+    mudarPessoa(form.closest('li.pessoa'), { papeis: marcados }, 'Papéis salvos.', form);
+});
+
+listaEquipe.addEventListener('click', (evento) => {
+    const botao = evento.target.closest('button[data-acao="desativar"], button[data-acao="reativar"]');
+    if (!botao) return;
+    const cartao = botao.closest('li.pessoa');
+    if (botao.dataset.acao === 'desativar') {
+        if (!confirm(`Desativar a conta de ${cartao.dataset.nome}? A pessoa não vai mais conseguir entrar.`)) return;
+        mudarPessoa(cartao, { acao: 'desativar' }, 'Conta desativada.');
+    } else {
+        mudarPessoa(cartao, { acao: 'reativar' }, 'Conta reativada.');
+    }
+});
+
+// Menos de 2 caracteres: não consulta pessoas; mostra a lista da equipe.
+document.getElementById('form-busca-equipe').addEventListener('submit', (evento) => {
+    evento.preventDefault();
+    const texto = campoBuscaEquipe.value.trim();
+    buscaEquipe = texto.length >= 2 ? texto : '';
+    avisar(null);
+    ocupado(evento.currentTarget, carregarEquipe);
+});
+
+document.getElementById('botao-recarregar-equipe').addEventListener('click', (evento) => {
+    ocupado(evento.currentTarget.parentElement, carregarEquipe);
+});
+
+// Carrega toda vez que a aba é aberta, para mostrar o estado de agora.
+function abrirAbaEquipe() {
+    carregarEquipe();
+}
+
 // ---------- Início ----------
 
 function mostrarErroCarregar(mensagem) {
@@ -833,6 +1008,7 @@ async function carregar() {
     if (precisaEntrar(r)) return irParaEntrar();
     if (r.status !== 200) return mostrarErroCarregar(r.dados?.erro);
     papeis = r.dados.papeis ?? [];
+    meuId = r.dados.id ?? null;
     document.getElementById('nome-equipe').textContent = r.dados.perfil?.nome_completo ?? r.dados.email ?? '';
     document.getElementById('topo-conta').hidden = false;
 
