@@ -32,10 +32,10 @@ Cada função nova precisa de uma entrada em `supabase/config.toml` com `entrypo
 
 ### Criar o primeiro superadmin
 
-1. No painel do Supabase, abra **Authentication → Users → Add user → Create new user**. Informe o e-mail e a senha e deixe marcada a opção **Auto Confirm User**.
-2. Abra o **SQL Editor** e cole o conteúdo de `supabase/scripts/promover-superadmin.sql`.
+1. Com o site aberto (veja "Abrir a página da conta no computador"), crie a conta em `conta.html`, confirme o e-mail pelo link que chegar e preencha o cadastro completo (nome, CPF etc.). A área da equipe só abre para quem tem o cadastro completo, por isso não crie a conta direto no painel do Supabase.
+2. No painel do Supabase, abra o **SQL Editor** e cole o conteúdo de `supabase/scripts/promover-superadmin.sql`.
 3. Troque `SEU-EMAIL@exemplo.com` pelo e-mail do passo 1 (ele aparece duas vezes) e clique em **Run**.
-4. O resultado deve mostrar uma linha com o e-mail e o papel `superadmin`. Essa conta já pode alterar as Configurações.
+4. O resultado deve mostrar uma linha com o e-mail e o papel `superadmin`. Essa conta já pode entrar na área da equipe (veja "Área da equipe", abaixo).
 
 ## Dados de exemplo
 
@@ -107,3 +107,43 @@ Depois:
 5. **Alterar horário:** no cartão, toque em "Alterar horário", escolha outra hora e salve. Deve aparecer "Horário alterado." e o horário novo no cartão. Só o dia, a hora e a duração mudam.
 6. **Cancelar:** no cartão, toque em "Cancelar" e confirme na janela que abrir. Deve aparecer "Agendamento cancelado." e o cartão passa para "Anteriores", como "Cancelado".
 7. Quando faltar pouco para a sessão (menos que o prazo das Configurações), os botões somem e o cartão diz para falar com o estande.
+
+## Área da equipe
+
+A página `admin.html` é a área de trabalho da equipe do estande. Quem não tem papel de equipe vê a mensagem "Esta área é só para a equipe do estande.".
+
+### Publicar as funções da equipe
+
+Uma vez, no PowerShell, na pasta do projeto (um comando por linha):
+
+```powershell
+npx.cmd --yes supabase@2.20.12 functions deploy catalogo --use-api
+npx.cmd --yes supabase@2.20.12 functions deploy equipe --use-api
+npx.cmd --yes supabase@2.20.12 functions deploy painel-agendamentos --use-api
+```
+
+### Como entrar
+
+1. Ligue o servidor local (veja "Abrir a página da conta no computador").
+2. Abra `http://localhost:5500/admin.html`.
+3. Se você não estiver logado, a página leva você para entrar e depois volta para a área da equipe.
+
+### Quem vê cada aba
+
+Um **papel** é o tipo de acesso que a pessoa tem no sistema (cliente, instrutor, administrativo, superadmin etc.). Uma pessoa pode ter mais de um.
+
+| Aba | O que tem | Quem vê |
+|---|---|---|
+| **Configurações** | Dados do estande, horário de funcionamento, regras da agenda, munição, cadastro, créditos, política de privacidade e termo | Superadmin |
+| **Catálogo** | Categorias, calibres, modelos, munições e armas | Superadmin |
+| **Pistas** | As pistas do estande (ativas e inativas) | Superadmin |
+| **Equipe** | Dar e tirar papéis, desativar e reativar contas | Superadmin |
+| **Agendamentos** | Lista de agendamentos com filtros e o detalhe de cada um, com participantes e histórico | Administrativo e superadmin |
+
+O superadmin vê todas as abas. Os outros papéis de equipe (atendente, almoxarifado, instrutor) ainda não têm aba: eles veem a mensagem de área só para a equipe.
+
+Na aba **Agendamentos**, a lista começa mostrando de hoje até daqui a 15 dias (no fuso do estande). O período pode ter no máximo 92 dias. Ao tocar num agendamento, abre o detalhe com os dados pessoais (CPF, e-mail, telefone). Cada detalhe aberto fica registrado no banco (quem abriu e quando), por causa da LGPD.
+
+### Dar o papel de superadmin ao primeiro usuário
+
+O primeiro superadmin é criado com o script `supabase/scripts/promover-superadmin.sql`, seguindo os passos de "Criar o primeiro superadmin" (acima). Lembre: a conta precisa ser criada e confirmada antes, pela página `conta.html`, com o cadastro completo. Depois disso, esse superadmin dá os outros papéis pela aba **Equipe**, sem precisar do SQL.

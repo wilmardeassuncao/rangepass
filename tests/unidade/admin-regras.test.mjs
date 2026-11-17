@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import {
     NOMES_DIAS, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, abasVisiveis, numeroDoCampo,
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
+    consultaDosFiltros, descreverEvento, dataHoraNoFuso,
 } from '../../admin-regras.mjs';
 import { PAPEIS } from '../../supabase/functions/_shared/papeis.mjs';
 
@@ -107,4 +108,82 @@ test('ROTULO_PAPEL: o nome de cada papel na tela', () => {
 
 test('ROTULO_PAPEL: todo papel do sistema tem nome', () => {
     for (const papel of PAPEIS) assert.ok(ROTULO_PAPEL[papel], `sem nome para ${papel}`);
+});
+
+// ---------- Agendamentos ----------
+
+test('consultaDosFiltros: só os filtros preenchidos, sem o "?"', () => {
+    assert.strictEqual(consultaDosFiltros({ de: '2026-11-17', ate: '2026-12-02', situacao: '', instrutor_id: '', busca: '' }),
+        'de=2026-11-17&ate=2026-12-02');
+    assert.strictEqual(consultaDosFiltros({}), '');
+    assert.strictEqual(consultaDosFiltros({ de: null, ate: undefined, situacao: 'pago', instrutor_id: 'abc', busca: '   ' }),
+        'situacao=pago&instrutor_id=abc');
+});
+
+test('consultaDosFiltros: acentos e espaços vão codificados', () => {
+    assert.strictEqual(consultaDosFiltros({ busca: 'João da Silva' }), 'busca=Jo%C3%A3o%20da%20Silva');
+    assert.strictEqual(consultaDosFiltros({ busca: 'a&b=c' }), 'busca=a%26b%3Dc');
+});
+
+const evento = (tabela, acao, antes = null, depois = null) => ({ tabela, acao, antes, depois });
+
+test('descreverEvento: agendamento criado', () => {
+    assert.strictEqual(descreverEvento(evento('agendamentos', 'insercao', null, { situacao: 'aguardando_pagamento' })),
+        'Agendamento criado');
+});
+
+test('descreverEvento: mudança de situação, com os nomes da tela', () => {
+    assert.strictEqual(descreverEvento(evento('agendamentos', 'alteracao',
+        { situacao: 'aguardando_pagamento', inicio: '2026-11-20T13:00:00+00:00', horas: 1 },
+        { situacao: 'cancelado', inicio: '2026-11-20T13:00:00+00:00', horas: 1 })),
+    'Situação: Aguardando pagamento → Cancelado');
+});
+
+test('descreverEvento: situação e horário mudando juntos → vale a situação', () => {
+    assert.strictEqual(descreverEvento(evento('agendamentos', 'alteracao',
+        { situacao: 'pago', inicio: '2026-11-20T13:00:00+00:00', horas: 1 },
+        { situacao: 'check_in', inicio: '2026-11-20T14:00:00+00:00', horas: 2 })),
+    'Situação: Pago → Check-in feito');
+});
+
+test('descreverEvento: horário alterado (início ou horas)', () => {
+    assert.strictEqual(descreverEvento(evento('agendamentos', 'alteracao',
+        { situacao: 'pago', inicio: '2026-11-20T13:00:00+00:00', horas: 1 },
+        { situacao: 'pago', inicio: '2026-11-21T13:00:00+00:00', horas: 1 })), 'Horário alterado');
+    assert.strictEqual(descreverEvento(evento('agendamentos', 'alteracao',
+        { situacao: 'pago', inicio: '2026-11-20T13:00:00+00:00', horas: 1 },
+        { situacao: 'pago', inicio: '2026-11-20T13:00:00+00:00', horas: 2 })), 'Horário alterado');
+});
+
+test('descreverEvento: alteração do agendamento sem situação nem horário → Alteração registrada', () => {
+    assert.strictEqual(descreverEvento(evento('agendamentos', 'alteracao',
+        { situacao: 'pago', inicio: 'x', horas: 1, forma_pagamento: null },
+        { situacao: 'pago', inicio: 'x', horas: 1, forma_pagamento: 'pix' })), 'Alteração registrada');
+});
+
+test('descreverEvento: reservas criadas', () => {
+    assert.strictEqual(descreverEvento(evento('agendamento_pistas', 'insercao')), 'Pista reservada');
+    assert.strictEqual(descreverEvento(evento('agendamento_instrutores', 'insercao')), 'Instrutor reservado');
+    assert.strictEqual(descreverEvento(evento('agendamento_unidades', 'insercao')), 'Arma reservada');
+});
+
+test('descreverEvento: reserva alterada → Reserva atualizada', () => {
+    for (const tabela of ['agendamento_pistas', 'agendamento_instrutores', 'agendamento_unidades']) {
+        assert.strictEqual(descreverEvento(evento(tabela, 'alteracao', { ativo: true }, { ativo: false })), 'Reserva atualizada');
+    }
+});
+
+test('descreverEvento: participante e item incluídos', () => {
+    assert.strictEqual(descreverEvento(evento('participantes', 'insercao')), 'Participante incluído');
+    assert.strictEqual(descreverEvento(evento('itens_participante', 'insercao')), 'Item incluído');
+});
+
+test('descreverEvento: qualquer outro → Alteração registrada', () => {
+    assert.strictEqual(descreverEvento(evento('participantes', 'alteracao', {}, {})), 'Alteração registrada');
+    assert.strictEqual(descreverEvento(evento('outra_tabela', 'insercao')), 'Alteração registrada');
+});
+
+test('dataHoraNoFuso: DD/MM/AAAA HH:MM no fuso do estande', () => {
+    assert.strictEqual(dataHoraNoFuso('2026-11-20T02:05:00Z', 'America/Sao_Paulo'), '19/11/2026 23:05');
+    assert.strictEqual(dataHoraNoFuso('2026-11-20T15:30:00Z', 'America/Sao_Paulo'), '20/11/2026 12:30');
 });

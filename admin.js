@@ -1,12 +1,14 @@
 // Área da equipe (admin.html): a moldura (cabeçalho, abas e aviso) e uma seção por aba.
-// Cada aba tem a sua função "abrirAba..." chamada quando ela é escolhida; as abas ainda sem
-// função mostram "Em construção." (Tasks 8 e 9 do plano 4 trocam isso).
+// Cada aba tem a sua função "abrirAba..." chamada quando ela é escolhida.
 import { supabase, chamarFuncao } from './api.mjs';
 import {
     NOMES_DIAS, abasVisiveis, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, numeroDoCampo,
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
+    consultaDosFiltros, descreverEvento, dataHoraNoFuso,
 } from './admin-regras.mjs';
-import { formatarCpf } from './conta-regras.mjs';
+import { formatarCpf, formatarTelefone } from './conta-regras.mjs';
+import { descreverSessao, TEXTO_SITUACAO, somarDias } from './agendar-regras.mjs';
+import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 import { PAPEIS } from './supabase/functions/_shared/papeis.mjs';
 import { CHAVES_CONFIGURACAO, validarConfiguracao } from './supabase/functions/_shared/configuracoes.mjs';
 import { SITUACOES_UNIDADE, validarCadastroCatalogo } from './supabase/functions/_shared/catalogo.mjs';
@@ -104,13 +106,13 @@ function copiarMolde(id) {
 
 // ---------- Moldura: abas ----------
 
-// A função de abrir de cada aba. null = ainda em construção (o painel já mostra o aviso).
+// A função de abrir de cada aba.
 const ABRIR_ABA = {
     configuracoes: abrirAbaConfiguracoes,
     catalogo: abrirAbaCadastros,
     pistas: abrirAbaCadastros,
     equipe: abrirAbaEquipe,
-    agendamentos: null,
+    agendamentos: abrirAbaAgendamentos,
 };
 
 function botoesDasAbas() {
@@ -994,6 +996,360 @@ document.getElementById('botao-recarregar-equipe').addEventListener('click', (ev
 function abrirAbaEquipe() {
     carregarEquipe();
 }
+
+// ---------- Aba Agendamentos ----------
+// A visão do administrativo. Duas vistas na mesma aba: a lista (filtros + tabela, que vira cartões no
+// celular) e o detalhe de um agendamento (responsável, participantes e histórico). Abrir o detalhe
+// chama o GET painel-agendamentos?id=, e o servidor registra esse acesso aos dados pessoais.
+// Datas e horas aparecem sempre no relógio do fuso do estande (configuração "estande").
+
+const DIAS_PADRAO_AGENDAMENTOS = 15;
+const SEM_VALOR = '—';
+const TEXTO_MODALIDADE = {
+    estande: 'Arma e munição do estande',
+    arma_propria: 'Arma própria com munição do estande',
+    tudo_proprio: 'Arma e munição próprias',
+};
+
+const formFiltros = document.getElementById('form-filtros-agendamentos');
+const linhasAgendamentos = document.getElementById('linhas-agendamentos');
+const vistaDetalhe = document.getElementById('agendamentos-vista-detalhe');
+let fusoEstande = null;         // fuso do estande (GET configuracoes, chave estande)
+let cargaAgendamentos = 0;      // número da última carga da lista: respostas atrasadas são ignoradas
+let cargaDetalhe = 0;           // o mesmo, para o detalhe
+let agendamentoAberto = null;   // id do agendamento mostrado no detalhe (para voltar à linha dele)
+let agendamentosAbertos = false;
+
+function opcao(valor, texto) {
+    const el = document.createElement('option');
+    el.value = valor;
+    el.textContent = texto;
+    return el;
+}
+
+// Situação: "Todas" e as seis, montadas uma vez só.
+function montarSituacoes() {
+    formFiltros.elements.situacao.replaceChildren(opcao('', 'Todas'),
+        ...Object.entries(TEXTO_SITUACAO).map(([valor, texto]) => opcao(valor, texto)));
+}
+
+// Instrutor: "Todos" e a lista que veio na resposta, sem perder o escolhido.
+function preencherInstrutores(instrutores) {
+    const select = formFiltros.elements.instrutor_id;
+    const escolhido = select.value;
+    select.replaceChildren(opcao('', 'Todos'), ...(instrutores ?? []).map((i) => opcao(i.id, i.nome)));
+    select.value = escolhido;
+    if (select.selectedIndex < 0) select.value = '';
+}
+
+// O fuso do estande: o da aba Configurações, se já foi carregado; senão, GET configuracoes
+// (qualquer pessoa logada pode ler). Devolve o fuso, ou null (o erro já foi mostrado ou a pessoa
+// foi mandada para entrar).
+async function obterFuso() {
+    if (fusoEstande) return fusoEstande;
+    if (configuracoes?.estande?.fuso) {
+        fusoEstande = configuracoes.estande.fuso;
+        return fusoEstande;
+    }
+    const r = await chamarFuncao('configuracoes');
+    if (precisaEntrar(r)) {
+        await irParaEntrar();
+        return null;
+    }
+    const fuso = r.dados?.configuracoes?.estande?.fuso;
+    if (r.status !== 200 || !fuso) {
+        mostrarErroGeral(formFiltros, r.dados?.erro ?? ERRO_CARREGAR);
+        return null;
+    }
+    fusoEstande = fuso;
+    return fuso;
+}
+
+// Datas em branco ganham o padrão: de hoje até hoje + 15 dias, no fuso do estande.
+function preencherDatasPadrao(fuso) {
+    const { de, ate } = formFiltros.elements;
+    if (de.value || ate.value) return;
+    de.value = dataNoFuso(new Date(), fuso);
+    ate.value = somarDias(de.value, DIAS_PADRAO_AGENDAMENTOS);
+}
+
+function filtrosDoFormulario() {
+    const campos = formFiltros.elements;
+    return {
+        de: campos.de.value,
+        ate: campos.ate.value,
+        situacao: campos.situacao.value,
+        instrutor_id: campos.instrutor_id.value,
+        busca: campos.busca.value,
+    };
+}
+
+// estado: 'carregando', 'pronto' (com a quantidade de linhas) ou 'nada' (erro, mostrado no formulário).
+function mostrarEstadoAgendamentos(estado, { quantidade = 0, limite = false } = {}) {
+    const pronto = estado === 'pronto';
+    document.getElementById('agendamentos-carregando').hidden = estado !== 'carregando';
+    document.getElementById('agendamentos-vazio').hidden = !(pronto && quantidade === 0);
+    document.getElementById('agendamentos-limite').hidden = !(pronto && limite);
+    document.getElementById('tabela-agendamentos').hidden = !(pronto && quantidade > 0);
+}
+
+// Célula com uma ou mais linhas de texto (ex.: nome e telefone do responsável).
+function celulaDeTextos(coluna, textos) {
+    const caixa = document.createElement('div');
+    caixa.className = 'celula-texto';
+    for (const texto of textos) {
+        const linha = document.createElement('span');
+        linha.textContent = texto;
+        caixa.append(linha);
+    }
+    return celula(coluna, caixa);
+}
+
+const listaOuTraco = (itens) => (itens.length ? itens : [SEM_VALOR]);
+const textoDasPistas = (pistas) => (pistas ?? []).map((numero) => `Pista ${numero}`);
+const textoDasArmas = (armas) => (armas ?? []).map((arma) => {
+    const modelo = arma.modelo ?? 'Arma';
+    return arma.numero_registro ? `${modelo} (nº ${arma.numero_registro})` : modelo;
+});
+
+function rotuloDaSituacao(situacao) {
+    const rotulo = document.createElement('span');
+    rotulo.className = 'rotulo';
+    rotulo.dataset.situacao = situacao;
+    rotulo.textContent = TEXTO_SITUACAO[situacao] ?? situacao;
+    return rotulo;
+}
+
+// Uma linha por agendamento. A linha inteira abre o detalhe (clique, Enter ou espaço).
+function linhaDoAgendamento(a) {
+    const linha = document.createElement('tr');
+    linha.className = 'clicavel';
+    linha.dataset.id = a.id;
+    linha.tabIndex = 0;
+    const responsavel = [a.responsavel?.nome_completo || 'Sem nome'];
+    if (a.responsavel?.telefone) responsavel.push(formatarTelefone(a.responsavel.telefone));
+    linha.append(
+        celula('Sessão', descreverSessao(a.inicio, a.horas, fusoEstande)),
+        celula('Situação', rotuloDaSituacao(a.situacao)),
+        celulaDeTextos('Responsável', responsavel),
+        celula('Pessoas', String(a.participantes_qtd ?? 0)),
+        celulaDeTextos('Instrutores', listaOuTraco(a.instrutores ?? [])),
+        celulaDeTextos('Pistas', listaOuTraco(textoDasPistas(a.pistas))),
+        celulaDeTextos('Armas', listaOuTraco(textoDasArmas(a.armas))),
+    );
+    return linha;
+}
+
+// Busca a lista com os filtros do formulário. 400 com campos: o erro vai para baixo de cada filtro;
+// outro erro: no fim do formulário.
+async function carregarAgendamentos() {
+    const minha = ++cargaAgendamentos;
+    limparErros(formFiltros);
+    mostrarEstadoAgendamentos('carregando');
+    try {
+        const fuso = await obterFuso();
+        if (minha !== cargaAgendamentos) return;
+        if (!fuso) {
+            mostrarEstadoAgendamentos('nada');
+            return;
+        }
+        preencherDatasPadrao(fuso);
+        const consulta = consultaDosFiltros(filtrosDoFormulario());
+        const r = await chamarFuncao('painel-agendamentos', { consulta: consulta || undefined });
+        if (minha !== cargaAgendamentos) return;
+        if (precisaEntrar(r)) {
+            await irParaEntrar();
+            return;
+        }
+        if (r.status !== 200 || !Array.isArray(r.dados?.agendamentos)) {
+            mostrarEstadoAgendamentos('nada');
+            if (r.status === 400 && r.dados?.campos) mostrarErros(formFiltros, r.dados.campos);
+            else mostrarErroGeral(formFiltros, r.dados?.erro ?? ERRO_CARREGAR);
+            return;
+        }
+        preencherInstrutores(r.dados.instrutores);
+        linhasAgendamentos.replaceChildren(...r.dados.agendamentos.map(linhaDoAgendamento));
+        mostrarEstadoAgendamentos('pronto', {
+            quantidade: r.dados.agendamentos.length,
+            limite: r.dados.limite_atingido === true,
+        });
+    } catch (erro) {
+        console.error(erro);
+        if (minha !== cargaAgendamentos) return;
+        mostrarEstadoAgendamentos('nada');
+        mostrarErroGeral(formFiltros, ERRO_CARREGAR);
+    }
+}
+
+formFiltros.addEventListener('submit', (evento) => {
+    evento.preventDefault();
+    avisar(null);
+    ocupado(formFiltros, carregarAgendamentos);
+});
+
+// ----- Detalhe -----
+
+function mostrarVistaAgendamentos(vista) {
+    document.getElementById('agendamentos-vista-lista').hidden = vista !== 'lista';
+    vistaDetalhe.hidden = vista !== 'detalhe';
+}
+
+function mostrarEstadoDetalhe(estado, mensagem) {
+    document.getElementById('detalhe-carregando').hidden = estado !== 'carregando';
+    document.getElementById('detalhe-erro').hidden = estado !== 'erro';
+    document.getElementById('detalhe-erro-mensagem').textContent = mensagem ?? '';
+    document.getElementById('detalhe-conteudo').hidden = estado !== 'pronto';
+}
+
+// 'AAAA-MM-DD' → 'DD/MM/AAAA'.
+function dataBrasileira(data) {
+    const [ano, mes, dia] = String(data ?? '').split('-');
+    return dia ? `${dia}/${mes}/${ano}` : SEM_VALOR;
+}
+
+function armaDoParticipante(p) {
+    if (p.modalidade === 'estande') return `${p.modelo ?? 'Arma'}, do estande`;
+    const arma = p.arma_propria;
+    if (!arma) return 'Arma própria';
+    let texto = arma.modelo ?? 'Arma';
+    if (arma.calibre) texto += ` (${arma.calibre})`;
+    if (arma.numero_registro) texto += `, nº ${arma.numero_registro}`;
+    return `${texto}, arma própria`;
+}
+
+function municaoDoParticipante(p) {
+    if (p.modalidade === 'tudo_proprio' || !p.tipo_municao) return 'Própria';
+    return `${p.municao_qtd ?? 0} × ${p.tipo_municao}`;
+}
+
+// Lista de pares nome → valor (dl).
+function dadosEmLista(pares) {
+    const lista = document.createElement('dl');
+    lista.className = 'dados';
+    for (const [nome, valor] of pares) {
+        const par = document.createElement('div');
+        const dt = document.createElement('dt');
+        dt.textContent = nome;
+        const dd = document.createElement('dd');
+        dd.textContent = valor;
+        par.append(dt, dd);
+        lista.append(par);
+    }
+    return lista;
+}
+
+function cartaoDoParticipante(p) {
+    const cartao = document.createElement('li');
+    cartao.className = 'participante';
+    const nome = document.createElement('p');
+    nome.className = 'pessoa-nome';
+    nome.textContent = p.nome_completo;
+    const pares = [
+        ['CPF', p.cpf ? formatarCpf(p.cpf) : SEM_VALOR],
+        ['Nascimento', dataBrasileira(p.data_nascimento)],
+        ['Modalidade', TEXTO_MODALIDADE[p.modalidade] ?? p.modalidade],
+        ['Arma', armaDoParticipante(p)],
+        ['Munição', municaoDoParticipante(p)],
+    ];
+    if (p.termo_versao !== null && p.termo_versao !== undefined) pares.push(['Termo', `Aceito na versão ${p.termo_versao}`]);
+    cartao.append(nome, dadosEmLista(pares));
+    return cartao;
+}
+
+function preencherDetalhe({ agendamento: a, historico }) {
+    document.getElementById('detalhe-sessao').textContent = descreverSessao(a.inicio, a.horas, fusoEstande);
+    document.getElementById('detalhe-situacao').replaceChildren(rotuloDaSituacao(a.situacao));
+    document.getElementById('detalhe-instrutores').textContent = listaOuTraco(a.instrutores ?? []).join(', ');
+    document.getElementById('detalhe-pistas').textContent = listaOuTraco(textoDasPistas(a.pistas)).join(', ');
+    document.getElementById('detalhe-armas').textContent = listaOuTraco(textoDasArmas(a.armas)).join(', ');
+
+    const resp = a.responsavel ?? {};
+    const valores = {
+        nome: resp.nome_completo || SEM_VALOR,
+        email: resp.email || SEM_VALOR,
+        cpf: resp.cpf ? formatarCpf(resp.cpf) : SEM_VALOR,
+        telefone: resp.telefone ? formatarTelefone(resp.telefone) : SEM_VALOR,
+    };
+    const responsavel = document.getElementById('detalhe-responsavel');
+    for (const [campo, valor] of Object.entries(valores)) {
+        responsavel.querySelector(`[data-campo="${campo}"]`).textContent = valor;
+    }
+
+    document.getElementById('detalhe-participantes').replaceChildren(...(a.participantes ?? []).map(cartaoDoParticipante));
+
+    // Uma linha por evento, na ordem em que aconteceram (o servidor já manda em ordem).
+    const eventos = historico ?? [];
+    document.getElementById('detalhe-historico').replaceChildren(...eventos.map((evento) => {
+        const item = document.createElement('li');
+        item.textContent = `${dataHoraNoFuso(evento.em, fusoEstande)} · ${evento.autor || 'Sistema'} · ${descreverEvento(evento)}`;
+        return item;
+    }));
+    document.getElementById('detalhe-historico-vazio').hidden = eventos.length > 0;
+}
+
+async function abrirDetalhe(id) {
+    const minha = ++cargaDetalhe;
+    agendamentoAberto = id;
+    avisar(null);
+    mostrarVistaAgendamentos('detalhe');
+    mostrarEstadoDetalhe('carregando');
+    window.scrollTo(0, 0);
+    document.getElementById('botao-voltar-agendamentos').focus({ preventScroll: true });
+    try {
+        const r = await chamarFuncao('painel-agendamentos', { consulta: `id=${encodeURIComponent(id)}` });
+        if (minha !== cargaDetalhe) return;
+        if (precisaEntrar(r)) {
+            await irParaEntrar();
+            return;
+        }
+        if (r.status !== 200 || !r.dados?.agendamento) {
+            mostrarEstadoDetalhe('erro', r.dados?.erro ?? ERRO_CARREGAR);
+            return;
+        }
+        preencherDetalhe(r.dados);
+        mostrarEstadoDetalhe('pronto');
+    } catch (erro) {
+        console.error(erro);
+        if (minha === cargaDetalhe) mostrarEstadoDetalhe('erro', ERRO_CARREGAR);
+    }
+}
+
+// Volta para a lista como ela estava, com o foco na linha que foi aberta.
+function voltarParaLista() {
+    cargaDetalhe++;
+    avisar(null);
+    mostrarVistaAgendamentos('lista');
+    const linha = [...linhasAgendamentos.querySelectorAll('tr[data-id]')].find((tr) => tr.dataset.id === agendamentoAberto);
+    agendamentoAberto = null;
+    if (linha) {
+        linha.scrollIntoView?.({ block: 'center' });
+        linha.focus({ preventScroll: true });
+    }
+}
+
+linhasAgendamentos.addEventListener('click', (evento) => {
+    const linha = evento.target.closest('tr[data-id]');
+    if (linha) abrirDetalhe(linha.dataset.id);
+});
+
+linhasAgendamentos.addEventListener('keydown', (evento) => {
+    if (evento.key !== 'Enter' && evento.key !== ' ') return;
+    if (!evento.target.matches('tr[data-id]')) return;
+    evento.preventDefault();
+    abrirDetalhe(evento.target.dataset.id);
+});
+
+document.getElementById('botao-voltar-agendamentos').addEventListener('click', voltarParaLista);
+
+// Na primeira vez, carrega com o período padrão. Depois, os filtros continuam como estavam e a
+// lista é carregada de novo (estado de agora); se o detalhe estava aberto, ele continua aberto.
+function abrirAbaAgendamentos() {
+    if (agendamentosAbertos && !vistaDetalhe.hidden) return;
+    agendamentosAbertos = true;
+    ocupado(formFiltros, carregarAgendamentos);
+}
+
+montarSituacoes();
 
 // ---------- Início ----------
 

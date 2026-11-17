@@ -1,5 +1,7 @@
 // Regras da página da equipe (admin.html) que não mexem na tela: dá para testar no Node.
 import { temAlgumPapel } from './supabase/functions/_shared/papeis.mjs';
+import { partesNoFuso } from './supabase/functions/_shared/agendamento.mjs';
+import { TEXTO_SITUACAO, doisDigitos } from './agendar-regras.mjs';
 
 export const NOMES_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -90,3 +92,54 @@ export const ROTULO_PAPEL = {
     administrativo: 'Administrativo',
     superadmin: 'Superadmin',
 };
+
+// ---------- Agendamentos ----------
+
+const NOMES_FILTROS = ['de', 'ate', 'situacao', 'instrutor_id', 'busca'];
+
+// Filtros da lista → consulta do GET painel-agendamentos (sem o "?"). Só vão os preenchidos.
+export function consultaDosFiltros(filtros) {
+    return NOMES_FILTROS
+        .map((nome) => [nome, String(filtros?.[nome] ?? '').trim()])
+        .filter(([, valor]) => valor !== '')
+        .map(([nome, valor]) => `${nome}=${encodeURIComponent(valor)}`)
+        .join('&');
+}
+
+const RESERVAS = {
+    agendamento_pistas: 'Pista reservada',
+    agendamento_instrutores: 'Instrutor reservado',
+    agendamento_unidades: 'Arma reservada',
+};
+const INCLUIDOS = { participantes: 'Participante incluído', itens_participante: 'Item incluído' };
+
+const textoDaSituacao = (situacao) => TEXTO_SITUACAO[situacao] ?? situacao;
+
+// Uma linha do histórico → o que aconteceu, em poucas palavras.
+// No agendamento, se a situação e o horário mudaram juntos, vale a situação.
+export function descreverEvento({ tabela, acao, antes, depois }) {
+    const insercao = acao === 'insercao';
+    if (tabela === 'agendamentos') {
+        if (insercao) return 'Agendamento criado';
+        if (acao === 'alteracao' && antes && depois) {
+            if (antes.situacao !== depois.situacao) {
+                return `Situação: ${textoDaSituacao(antes.situacao)} → ${textoDaSituacao(depois.situacao)}`;
+            }
+            if (antes.inicio !== depois.inicio || antes.horas !== depois.horas) return 'Horário alterado';
+        }
+        return 'Alteração registrada';
+    }
+    if (RESERVAS[tabela]) {
+        if (insercao) return RESERVAS[tabela];
+        if (acao === 'alteracao') return 'Reserva atualizada';
+    }
+    if (INCLUIDOS[tabela] && insercao) return INCLUIDOS[tabela];
+    return 'Alteração registrada';
+}
+
+// Instante → 'DD/MM/AAAA HH:MM' no relógio do fuso do estande.
+export function dataHoraNoFuso(instante, fuso) {
+    const p = partesNoFuso(new Date(instante), fuso);
+    const [ano, mes, dia] = p.data.split('-');
+    return `${dia}/${mes}/${ano} ${doisDigitos(p.hora)}:${doisDigitos(p.minuto)}`;
+}

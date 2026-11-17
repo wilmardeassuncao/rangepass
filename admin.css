@@ -279,7 +279,7 @@ a.botao { display: block; text-align: center; text-decoration: none; }
     width: 64px;
 }
 
-/* ---------- Tabelas (para as abas das próximas tarefas) ----------
+/* ---------- Tabelas (Catálogo, Pistas e Agendamentos) ----------
    No computador, tabela comum; em tela estreita, cada linha vira um cartão e cada célula mostra
    o nome da coluna (atributo data-coluna da célula). */
 
@@ -371,3 +371,48 @@ a.botao { display: block; text-align: center; text-decoration: none; }
 .pessoa-papeis .grupo { display: grid; gap: 0 16px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .pessoa-papeis .grupo .campo-titulo { grid-column: 1 / -1; }
 .pessoa-papeis > .botao, .pessoa .acoes { align-self: flex-start; }
+
+/* ---------- Agendamentos ---------- */
+
+/* Aviso informativo (ex.: "Mostrando os 500 primeiros"). */
+.nota {
+    border: 1px solid var(--cor-marca);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-marca-clara);
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 10px 14px;
+}
+
+/* A linha inteira abre o detalhe. */
+.tabela tr.clicavel { cursor: pointer; }
+.tabela tr.clicavel:hover td { background-color: var(--cor-campo); }
+.tabela tr.clicavel:focus-visible { outline: 2px solid var(--cor-marca-clara); outline-offset: -2px; }
+.celula-texto { display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+/* No responsável, o telefone fica embaixo do nome, mais apagado. */
+.tabela td[data-coluna="Responsável"] .celula-texto span + span { color: var(--cor-texto-secundario); }
+
+@media (max-width: 719px) {
+    .tabela tr.clicavel:hover td { background-color: transparent; }
+    .tabela tr.clicavel:hover { border-color: var(--cor-marca-clara); }
+    .tabela-agendamentos .celula-texto { align-items: flex-end; text-align: right; }
+}
+
+.link.voltar { align-self: flex-start; min-height: 48px; }
+
+/* Pares nome → valor do detalhe. */
+.dados { display: grid; gap: 10px 16px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.dados dt { color: var(--cor-texto-secundario); font-size: 13px; }
+.dados dd { font-size: 15px; overflow-wrap: anywhere; }
+
+.lista-participantes { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.participante {
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+}
+
+.lista-historico { display: flex; flex-direction: column; font-size: 14px; gap: 8px; line-height: 1.4; margin: 0; padding-left: 20px; }

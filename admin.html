@@ -325,7 +325,6 @@
                 </div>
             </section>
 
-            <!-- ---------- Abas das próximas tarefas ---------- -->
             <!-- ---------- Equipe ---------- -->
             <section id="painel-equipe" class="painel" role="tabpanel" aria-labelledby="aba-equipe" hidden>
                 <header class="cabecalho">
@@ -346,9 +345,94 @@
                 <p id="equipe-vazio" class="subtitulo" hidden>Nenhuma pessoa encontrada.</p>
                 <ul id="lista-equipe" class="lista-pessoas" hidden></ul>
             </section>
+
+            <!-- ---------- Agendamentos ----------
+                 Duas vistas dentro da aba: a lista (com os filtros) e o detalhe de um agendamento.
+                 As linhas, as opções de instrutor e o detalhe são montados pelo admin.js. -->
             <section id="painel-agendamentos" class="painel" role="tabpanel" aria-labelledby="aba-agendamentos" hidden>
-                <header class="cabecalho"><h1>Agendamentos</h1></header>
-                <p class="subtitulo">Em construção.</p>
+                <div id="agendamentos-vista-lista" class="formularios">
+                    <header class="cabecalho">
+                        <h1>Agendamentos</h1>
+                        <p class="subtitulo">Escolha o período e os filtros e toque em "Filtrar". Toque num agendamento para ver os detalhes e o histórico.</p>
+                    </header>
+                    <form id="form-filtros-agendamentos" class="bloco" novalidate>
+                        <div class="grade">
+                            <label class="campo">De
+                                <input id="filtro-de" name="de" type="date">
+                                <span class="erro" data-erro-para="de"></span>
+                            </label>
+                            <label class="campo">Até
+                                <input id="filtro-ate" name="ate" type="date">
+                                <span class="erro" data-erro-para="ate"></span>
+                            </label>
+                            <label class="campo">Situação
+                                <select id="filtro-situacao" name="situacao"></select>
+                                <span class="erro" data-erro-para="situacao"></span>
+                            </label>
+                            <label class="campo">Instrutor
+                                <select id="filtro-instrutor" name="instrutor_id"><option value="">Todos</option></select>
+                                <span class="erro" data-erro-para="instrutor_id"></span>
+                            </label>
+                            <label class="campo largo">Buscar o responsável <small>(nome, e-mail ou CPF)</small>
+                                <input id="filtro-busca" name="busca" type="search" autocomplete="off">
+                            </label>
+                        </div>
+                        <p class="erro" data-erro-geral role="alert" hidden></p>
+                        <button type="submit" id="botao-filtrar-agendamentos" class="botao">Filtrar</button>
+                    </form>
+                    <p id="agendamentos-carregando" class="subtitulo" hidden>Carregando…</p>
+                    <p id="agendamentos-limite" class="nota" hidden>Mostrando os 500 primeiros. Diminua o período para ver todos.</p>
+                    <p id="agendamentos-vazio" class="subtitulo" hidden>Nenhum agendamento com estes filtros.</p>
+                    <table id="tabela-agendamentos" class="tabela tabela-agendamentos" hidden>
+                        <thead>
+                            <tr>
+                                <th scope="col">Sessão</th><th scope="col">Situação</th><th scope="col">Responsável</th>
+                                <th scope="col">Pessoas</th><th scope="col">Instrutores</th><th scope="col">Pistas</th><th scope="col">Armas</th>
+                            </tr>
+                        </thead>
+                        <tbody id="linhas-agendamentos"></tbody>
+                    </table>
+                </div>
+
+                <div id="agendamentos-vista-detalhe" class="formularios" hidden>
+                    <button type="button" id="botao-voltar-agendamentos" class="link voltar">← Voltar para a lista</button>
+                    <p id="detalhe-carregando" class="subtitulo">Carregando…</p>
+                    <div id="detalhe-erro" class="bloco" hidden>
+                        <p id="detalhe-erro-mensagem" class="erro" role="alert"></p>
+                    </div>
+                    <div id="detalhe-conteudo" class="formularios" hidden>
+                        <header class="cabecalho">
+                            <h1 id="detalhe-sessao"></h1>
+                            <p class="subtitulo"><span id="detalhe-situacao"></span></p>
+                        </header>
+                        <section class="bloco">
+                            <h2 class="bloco-titulo">Reservas</h2>
+                            <dl class="dados">
+                                <div><dt>Instrutores</dt><dd id="detalhe-instrutores"></dd></div>
+                                <div><dt>Pistas</dt><dd id="detalhe-pistas"></dd></div>
+                                <div><dt>Armas</dt><dd id="detalhe-armas"></dd></div>
+                            </dl>
+                        </section>
+                        <section class="bloco">
+                            <h2 class="bloco-titulo">Responsável</h2>
+                            <dl id="detalhe-responsavel" class="dados">
+                                <div><dt>Nome</dt><dd data-campo="nome"></dd></div>
+                                <div><dt>E-mail</dt><dd data-campo="email"></dd></div>
+                                <div><dt>CPF</dt><dd data-campo="cpf"></dd></div>
+                                <div><dt>Telefone</dt><dd data-campo="telefone"></dd></div>
+                            </dl>
+                        </section>
+                        <section class="bloco">
+                            <h2 class="bloco-titulo">Participantes</h2>
+                            <ul id="detalhe-participantes" class="lista-participantes"></ul>
+                        </section>
+                        <section class="bloco">
+                            <h2 class="bloco-titulo">Histórico</h2>
+                            <ol id="detalhe-historico" class="lista-historico"></ol>
+                            <p id="detalhe-historico-vazio" class="subtitulo" hidden>Nenhum registro no histórico.</p>
+                        </section>
+                    </div>
+                </div>
             </section>
         </section>
     </main>
