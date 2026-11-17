@@ -177,6 +177,113 @@ test('desativar uma unidade com agendamento futuro devolve reservas_futuras 1 e 
     assert.strictEqual(outra.dados.reservas_futuras, 0, JSON.stringify(outra.dados));
 });
 
+test('PUT grava e tira o preço do modelo e da munição; o GET traz o preço', async () => {
+    const c = await criarTudo();
+    assert.strictEqual(c.modelo.preco_hora_centavos, null);
+    assert.strictEqual(c.tipo_municao.preco_unidade_centavos, null);
+    try {
+        const m = await editar('modelo', c.modelo.id, { preco_hora_centavos: 4000 });
+        assert.strictEqual(m.status, 200, JSON.stringify(m.dados));
+        assert.strictEqual(m.dados.item.preco_hora_centavos, 4000);
+        const t = await editar('tipo_municao', c.tipo_municao.id, { preco_unidade_centavos: 350 });
+        assert.strictEqual(t.status, 200, JSON.stringify(t.dados));
+        assert.strictEqual(t.dados.item.preco_unidade_centavos, 350);
+
+        const g = await funcao('catalogo', { token: superadmin.token });
+        assert.strictEqual(g.dados.modelos.find(i => i.id === c.modelo.id).preco_hora_centavos, 4000);
+        assert.strictEqual(g.dados.tipos_municao.find(i => i.id === c.tipo_municao.id).preco_unidade_centavos, 350);
+
+        const ruim = await editar('modelo', c.modelo.id, { preco_hora_centavos: 0 });
+        assert.strictEqual(ruim.status, 400, JSON.stringify(ruim.dados));
+        assert.strictEqual(ruim.dados.campos.preco_hora_centavos, 'Informe um valor maior que zero.');
+    } finally {
+        // Volta a "sem preço", como os outros testes esperam.
+        const a = await editar('modelo', c.modelo.id, { preco_hora_centavos: null });
+        assert.strictEqual(a.status, 200, JSON.stringify(a.dados));
+        assert.strictEqual(a.dados.item.preco_hora_centavos, null);
+        const b = await editar('tipo_municao', c.tipo_municao.id, { preco_unidade_centavos: null });
+        assert.strictEqual(b.status, 200, JSON.stringify(b.dados));
+    }
+});
+
+test('o banco recusa preço 0 no modelo', async () => {
+    const c = await criarTudo();
+    const r = await rest(`modelos?id=eq.${c.modelo.id}`, { metodo: 'PATCH', corpo: { preco_hora_centavos: 0 } });
+    assert.strictEqual(r.dados?.code, '23514', `${r.status} ${JSON.stringify(r.dados)}`);
+});
+
+// --- salvar_promocao (a RPC das regras por horário, campanhas, classes e pacotes) ---
+
+const TABELAS_PROMOCAO = { regra: 'regras_preco', campanha: 'campanhas', classe: 'classes_desconto', pacote: 'pacotes' };
+
+async function promover(tipo, id, dados, autor = superadmin.id) {
+    const r = await rpc('salvar_promocao', { p_tipo: tipo, p_id: id, p_dados: dados, p_autor: autor });
+    if (r.status === 200 && id === null && r.dados?.id) anotarRegistro(TABELAS_PROMOCAO[tipo], r.dados.id);
+    return r;
+}
+
+test('salvar_promocao cria e edita cada tipo, com o autor no histórico', async () => {
+    const c = await criarTudo();
+    const m = marcador();
+    const casos = [
+        ['regra',
+            { nome: `Sábado à noite ${m}`, dias: [6], hora_inicio: '18:00', hora_fim: '23:00', percentual: 20 },
+            { dias: [6], hora_inicio: '18:00:00', hora_fim: '23:00:00', percentual: 20, prioridade: 0, ativo: true },
+            { percentual: -10, dias: [0, 6], prioridade: 2 },
+            { percentual: -10, dias: [0, 6], prioridade: 2 }],
+        ['campanha',
+            { nome: `Black Friday ${m}`, percentual: 10, inicio: '2030-11-20', fim: '2030-11-30' },
+            { percentual: 10, inicio: '2030-11-20', fim: '2030-11-30', ativo: true },
+            { fim: '2030-12-01', ativo: false },
+            { fim: '2030-12-01', ativo: false }],
+        ['classe',
+            { nome: `Policiais ${m}`, percentual: 15 },
+            { percentual: 15, ativo: true },
+            { percentual: 20 },
+            { percentual: 20 }],
+        ['pacote',
+            { nome: `Iniciante ${m}`, inicio: '2030-01-01', fim: '2030-12-31', preco_centavos: 25000, horas: 1,
+                modelo_id: c.modelo.id, tipo_municao_id: c.tipo_municao.id, municao_qtd: 50 },
+            { preco_centavos: 25000, horas: 1, modelo_id: c.modelo.id, tipo_municao_id: c.tipo_municao.id, municao_qtd: 50, ativo: true },
+            { modelo_id: null, tipo_municao_id: null, municao_qtd: null, horas: 2 },
+            { modelo_id: null, tipo_municao_id: null, municao_qtd: null, horas: 2 }],
+    ];
+    for (const [tipo, dados, esperado, edicao, esperadoEdicao] of casos) {
+        const r = await promover(tipo, null, dados);
+        assert.strictEqual(r.status, 200, `${tipo}: ${JSON.stringify(r.dados)}`);
+        for (const [campo, valor] of Object.entries({ nome: dados.nome, ...esperado })) {
+            assert.deepStrictEqual(r.dados[campo], valor, `${tipo}.${campo}`);
+        }
+        const e = await promover(tipo, r.dados.id, edicao, administrativo.id);
+        assert.strictEqual(e.status, 200, `${tipo}: ${JSON.stringify(e.dados)}`);
+        for (const [campo, valor] of Object.entries(esperadoEdicao)) {
+            assert.deepStrictEqual(e.dados[campo], valor, `${tipo}.${campo} (edição)`);
+        }
+        assert.strictEqual(e.dados.nome, dados.nome, `${tipo}: a edição não muda o que não veio`);
+
+        const h = await rest(`historico_alteracoes?tabela=eq.${TABELAS_PROMOCAO[tipo]}&registro_id=eq.${r.dados.id}&select=acao,feito_por&order=id`);
+        assert.deepStrictEqual(h.dados, [
+            { acao: 'insercao', feito_por: superadmin.id },
+            { acao: 'alteracao', feito_por: administrativo.id },
+        ], tipo);
+    }
+});
+
+test('salvar_promocao: o banco recusa percentual 0 numa regra', async () => {
+    const r = await promover('regra', null, { nome: `Regra ${marcador()}`, dias: [1], hora_inicio: '08:00', hora_fim: '12:00', percentual: 0 });
+    assert.strictEqual(r.dados?.code, '23514', `${r.status} ${JSON.stringify(r.dados)}`);
+});
+
+test('salvar_promocao: tipo, campo ou id que não existe', async () => {
+    assertCodigo(await promover('xyz', null, { nome: 'A' }), '22023');
+    assertCodigo(await promover('classe', null, { nome: `Classe ${marcador()}`, percentual: 10, cor: 'azul' }), '22023');
+    assertCodigo(await promover('classe', 2000000000, { percentual: 10 }), 'P0002');
+});
+
+function assertCodigo(r, codigo) {
+    assert.strictEqual(r.dados?.code, codigo, `${r.status} ${JSON.stringify(r.dados)}`);
+}
+
 test('PUT com id inexistente dá 404', async () => {
     const r = await editar('categoria', 2000000000, { ativo: false });
     assert.strictEqual(r.status, 404, JSON.stringify(r.dados));

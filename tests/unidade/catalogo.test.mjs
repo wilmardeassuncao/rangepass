@@ -86,6 +86,29 @@ test('dados que não são objeto contam como vazios', () => {
     assert.strictEqual(validarCadastroCatalogo('categoria', [1], CRIAR).campos.nome, 'Preencha este campo.');
 });
 
+// Preços: modelo (por hora de aluguel) e munição (por unidade), em centavos. null = sem preço.
+test('preço do modelo e da munição: inteiro > 0 ou null, editável', () => {
+    const casos = [['modelo', 'preco_hora_centavos'], ['tipo_municao', 'preco_unidade_centavos']];
+    for (const [tipo, campo] of casos) {
+        assert.deepStrictEqual(validarCadastroCatalogo(tipo, { [campo]: 4000 }, EDITAR), { campos: {}, valores: { [campo]: 4000 } }, tipo);
+        assert.deepStrictEqual(validarCadastroCatalogo(tipo, { [campo]: null }, EDITAR), { campos: {}, valores: { [campo]: null } }, tipo);
+        for (const ruim of [0, -1, 1.5, '4000', true]) {
+            assert.strictEqual(validarCadastroCatalogo(tipo, { [campo]: ruim }, EDITAR).campos[campo],
+                'Informe um valor maior que zero.', `${tipo} ${String(ruim)}`);
+        }
+    }
+});
+
+test('preço é opcional ao criar e entra quando enviado', () => {
+    const sem = validarCadastroCatalogo('modelo', { categoria_id: 1, calibre_id: 2, marca: 'M', nome: 'N' }, CRIAR);
+    assert.deepStrictEqual(sem.valores, { categoria_id: 1, calibre_id: 2, marca: 'M', nome: 'N' });
+    const com = validarCadastroCatalogo('tipo_municao', { calibre_id: 2, nome: 'FMJ', preco_unidade_centavos: 350 }, CRIAR);
+    assert.deepStrictEqual(com.valores, { calibre_id: 2, nome: 'FMJ', preco_unidade_centavos: 350 });
+    // Os outros tipos não têm preço.
+    assert.strictEqual(validarCadastroCatalogo('categoria', { preco_hora_centavos: 100 }, EDITAR).campos.preco_hora_centavos,
+        'Este campo não pode ser mudado aqui.');
+});
+
 test('MENSAGENS_DUPLICADO tem um campo e uma mensagem por tipo', () => {
     assert.deepStrictEqual(MENSAGENS_DUPLICADO, {
         categoria: { nome: 'Já existe um cadastro com este nome.' },

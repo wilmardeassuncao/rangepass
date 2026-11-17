@@ -22,11 +22,13 @@ const CAMPOS = {
         marca: { tipo: 'texto', obrigatorio: true, editavel: true },
         nome: { tipo: 'texto', obrigatorio: true, editavel: true },
         ativo: { tipo: 'booleano', editavel: true },
+        preco_hora_centavos: { tipo: 'centavos', editavel: true },
     },
     tipo_municao: {
         calibre_id: { tipo: 'id', obrigatorio: true, editavel: false },
         nome: { tipo: 'texto', obrigatorio: true, editavel: true },
         ativo: { tipo: 'booleano', editavel: true },
+        preco_unidade_centavos: { tipo: 'centavos', editavel: true },
     },
     unidade: {
         modelo_id: { tipo: 'id', obrigatorio: true, editavel: false },
@@ -79,6 +81,10 @@ function conferir(regra, valor) {
             return { valor };
         case 'numero':
             if (!Number.isInteger(valor) || valor < 1) return { erro: 'Informe um número inteiro maior que 0.' };
+            return { valor };
+        case 'centavos':
+            // Preço em centavos; null quer dizer "sem preço" (o item não aparece para o cliente).
+            if (valor !== null && (!Number.isInteger(valor) || valor < 1)) return { erro: 'Informe um valor maior que zero.' };
             return { valor };
         default:
             throw new Error(`Regra desconhecida: ${regra.tipo}`);

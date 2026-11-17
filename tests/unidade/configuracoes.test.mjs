@@ -14,8 +14,18 @@ const DIA = { abre: '08:00', fecha: '23:00' };
 const DIAS_PADRAO = { 0: DIA, 1: DIA, 2: DIA, 3: DIA, 4: DIA, 5: DIA, 6: DIA };
 const ESTANDE_PADRAO = { nome: 'RangePass', logo_url: null, endereco: '', contato: '', fuso: 'America/Sao_Paulo' };
 
-test('CHAVES_CONFIGURACAO lista as oito chaves', () => {
-    assert.deepStrictEqual(CHAVES_CONFIGURACAO, ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade', 'termo']);
+test('CHAVES_CONFIGURACAO lista as nove chaves', () => {
+    assert.deepStrictEqual(CHAVES_CONFIGURACAO, ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade', 'termo', 'precos']);
+});
+
+test('validarConfiguracao precos: hora de pista inteira em centavos, maior que zero', () => {
+    assert.deepStrictEqual(validarConfiguracao('precos', { hora_pista_centavos: 12000 }), {});
+    assert.deepStrictEqual(validarConfiguracao('precos', { hora_pista_centavos: 1 }), {});
+    for (const ruim of [null, undefined, 0, -100, 120.5, '12000', true]) {
+        assert.deepStrictEqual(validarConfiguracao('precos', { hora_pista_centavos: ruim }),
+            { hora_pista_centavos: 'Informe um valor maior que zero.' }, String(ruim));
+    }
+    assert.deepStrictEqual(validarConfiguracao('precos', {}), { hora_pista_centavos: 'Informe um valor maior que zero.' });
 });
 
 test('validarConfiguracao: todos os padrões iniciais são válidos', () => {

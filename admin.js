@@ -321,6 +321,9 @@ function formularioDa(chave) {
     return document.getElementById(`form-${chave}`);
 }
 
+// As chaves que têm formulário nesta aba. A chave precos (hora de pista) fica na aba Preços.
+const CHAVES_DA_ABA = CHAVES_CONFIGURACAO.filter((chave) => Object.hasOwn(FORMULARIOS, chave));
+
 function preencherConfiguracao(chave) {
     FORMULARIOS[chave].preencher(formularioDa(chave), configuracoes[chave]);
 }
@@ -350,7 +353,7 @@ function salvarConfiguracao(form) {
     });
 }
 
-for (const chave of CHAVES_CONFIGURACAO) {
+for (const chave of CHAVES_DA_ABA) {
     formularioDa(chave).addEventListener('submit', (evento) => {
         evento.preventDefault();
         salvarConfiguracao(evento.currentTarget);
@@ -371,7 +374,7 @@ async function carregarConfiguracoes() {
         if (precisaEntrar(r)) return irParaEntrar();
         if (r.status !== 200 || !r.dados?.configuracoes) return mostrarEstadoConfiguracoes('erro', r.dados?.erro ?? ERRO_CARREGAR);
         configuracoes = r.dados.configuracoes;
-        for (const chave of CHAVES_CONFIGURACAO) {
+        for (const chave of CHAVES_DA_ABA) {
             limparErros(formularioDa(chave));
             preencherConfiguracao(chave);
         }

@@ -20,7 +20,9 @@ test('chave de serviço lê as configurações iniciais', async () => {
     const r = await rest('configuracoes?select=chave,valor');
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     const mapa = Object.fromEntries(r.dados.map(l => [l.chave, l.valor]));
-    assert.deepStrictEqual(Object.keys(mapa).sort(), ['agenda', 'cadastro', 'creditos', 'estande', 'funcionamento', 'municao', 'privacidade', 'termo']);
+    assert.deepStrictEqual(Object.keys(mapa).sort(), ['agenda', 'cadastro', 'creditos', 'estande', 'funcionamento', 'municao', 'precos', 'privacidade', 'termo']);
+    // A hora de pista começa vazia; o estande (ou os dados de exemplo) define o valor depois.
+    assert.ok(Object.hasOwn(mapa.precos, 'hora_pista_centavos'), JSON.stringify(mapa.precos));
     assert.strictEqual(mapa.agenda.antecedencia_maxima_dias, 15);
     assert.strictEqual(mapa.agenda.duracao_maxima_grupo, 6);
     assert.strictEqual(mapa.municao.minima_por_participante, 50);

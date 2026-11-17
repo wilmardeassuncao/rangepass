@@ -1,7 +1,7 @@
 // Conferência dos valores das Configurações antes de gravar.
 // Módulo puro: roda igual no Node (testes) e no Deno (Edge Functions).
 
-export const CHAVES_CONFIGURACAO = ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade', 'termo'];
+export const CHAVES_CONFIGURACAO = ['estande', 'funcionamento', 'agenda', 'municao', 'cadastro', 'creditos', 'privacidade', 'termo', 'precos'];
 
 // Campos numéricos obrigatórios de cada chave. Todos são inteiros maiores que 0, salvo os de ACEITAM_ZERO.
 const CAMPOS_NUMERICOS = {
@@ -133,6 +133,13 @@ function validarCreditos(valor, erros) {
     }
 }
 
+// Preço da hora de pista, em centavos. Vazio (null) só no banco, antes de o estande definir; pelo PUT, não.
+function validarPrecos(valor, erros) {
+    if (!Number.isInteger(valor.hora_pista_centavos) || valor.hora_pista_centavos < 1) {
+        erros.hora_pista_centavos = 'Informe um valor maior que zero.';
+    }
+}
+
 // Texto com versão: a política de privacidade e o termo de responsabilidade de quem traz arma própria.
 function validarTextoVersionado(valor, erros, mensagemTexto) {
     if (!Number.isInteger(valor.versao) || valor.versao < 1) erros.versao = 'Informe um número inteiro maior que 0.';
@@ -167,6 +174,7 @@ export function validarConfiguracao(chave, valor) {
     else if (chave === 'creditos') validarCreditos(valor, erros);
     else if (chave === 'privacidade') validarTextoVersionado(valor, erros, 'Escreva o texto da política.');
     else if (chave === 'termo') validarTextoVersionado(valor, erros, 'Escreva o texto do termo.');
+    else if (chave === 'precos') validarPrecos(valor, erros);
     else validarNumeros(chave, valor, erros);
     return erros;
 }

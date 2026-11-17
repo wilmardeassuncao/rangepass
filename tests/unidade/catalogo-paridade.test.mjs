@@ -8,8 +8,12 @@ import { CAMPOS_CADASTRO, TIPOS_CADASTRO } from '../../supabase/functions/_share
 import { CAMPOS_FORMULARIO } from '../../admin-regras.mjs';
 
 // Campos do servidor que de propósito não aparecem no formulário: ativo/ativa mudam pelo botão
-// "Desativar"/"Reativar", e o número da pista é escolhido sozinho (o próximo livre).
-const FORA_DO_FORMULARIO = { categoria: ['ativo'], calibre: ['ativo'], modelo: ['ativo'], tipo_municao: ['ativo'], unidade: [], pista: ['numero', 'ativa'] };
+// "Desativar"/"Reativar", o número da pista é escolhido sozinho (o próximo livre) e os preços da
+// arma e da munição mudam na aba Preços.
+const FORA_DO_FORMULARIO = {
+    categoria: ['ativo'], calibre: ['ativo'], modelo: ['ativo', 'preco_hora_centavos'],
+    tipo_municao: ['ativo', 'preco_unidade_centavos'], unidade: [], pista: ['numero', 'ativa'],
+};
 
 test('CAMPOS_CADASTRO tem um mapa para cada tipo de cadastro e não pode ser mudado', () => {
     assert.deepStrictEqual(Object.keys(CAMPOS_CADASTRO).sort(), [...TIPOS_CADASTRO].sort());

@@ -228,8 +228,9 @@ test('grupo com 2 participantes estande do mesmo modelo recebe 2 unidades difere
 // --- Alterar o horário e cancelar ---
 // Cada teste usa um dia próprio, então as 2 unidades do modelo de teste estão livres em todos.
 
-function alterar(id, inicio, horas = 1, autor = cliente.id) {
-    return rpc('alterar_horario_agendamento', { p_agendamento: id, p_inicio: inicio, p_horas: horas, p_autor: autor });
+// A versão de 5 argumentos; p_preco nulo mantém o preço gravado.
+function alterar(id, inicio, horas = 1, autor = cliente.id, preco = null) {
+    return rpc('alterar_horario_agendamento', { p_agendamento: id, p_inicio: inicio, p_horas: horas, p_autor: autor, p_preco: preco });
 }
 
 // Cria pela RPC e devolve o id (falha o teste se não conseguir).
@@ -592,6 +593,64 @@ test('alterar com o instrutor escolhido bloqueado dá RP007 e ocupado continua R
     await ocuparInstrutores([escolhido.id], '2030-08-27T15:00:00-03:00');
     const r = await alterar(id, '2030-08-27T15:00:00-03:00');
     assertErro(r, 'RP001');
+});
+
+// --- Preço congelado no agendamento ---
+
+// Um objeto Preco (_shared/precos.mjs), como a função agendamentos vai mandar.
+function precoDeTeste(total) {
+    return {
+        itens: [{ descricao: 'Pista (1 pista × 1 hora)', total_centavos: total }],
+        subtotal_centavos: total, desconto: null, total_centavos: total,
+    };
+}
+
+async function lerPreco(id) {
+    const r = await rest(`agendamentos?id=eq.${id}&select=preco_total_centavos,preco_detalhe`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    return r.dados[0];
+}
+
+test('criar_agendamento grava o preço do pedido; sem preço, fica vazio', async () => {
+    const preco = precoDeTeste(12000);
+    const id = await agendarOk(pedido({ inicio: '2030-08-28T10:00:00-03:00', preco }));
+    assert.deepStrictEqual(await lerPreco(id), { preco_total_centavos: 12000, preco_detalhe: preco });
+
+    const semPreco = await agendarOk(pedido({ inicio: '2030-08-28T15:00:00-03:00' }));
+    assert.deepStrictEqual(await lerPreco(semPreco), { preco_total_centavos: null, preco_detalhe: null });
+});
+
+test('alterar com 5 argumentos grava o preço novo; com p_preco nulo mantém o gravado', async () => {
+    const id = await agendarOk(pedido({ inicio: '2030-08-29T10:00:00-03:00', preco: precoDeTeste(12000) }));
+
+    const novo = {
+        itens: [{ descricao: 'Pista (1 pista × 1 hora)', total_centavos: 16000 }],
+        subtotal_centavos: 16000,
+        desconto: { tipo: 'campanha', nome: 'Campanha Teste (10%)', valor_centavos: 1600 },
+        total_centavos: 14400,
+    };
+    const r = await alterar(id, '2030-08-29T15:00:00-03:00', 1, cliente.id, novo);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.preco_total_centavos, 14400);
+    assert.deepStrictEqual(await lerPreco(id), { preco_total_centavos: 14400, preco_detalhe: novo });
+
+    const igual = await alterar(id, '2030-08-29T17:00:00-03:00');
+    assert.strictEqual(igual.status, 200, JSON.stringify(igual.dados));
+    assert.deepStrictEqual(await lerPreco(id), { preco_total_centavos: 14400, preco_detalhe: novo });
+});
+
+// A função agendamentos publicada ainda chama a versão de 4 argumentos (até a Task 4).
+test('alterar com 4 argumentos ainda funciona e mantém o preço gravado', async () => {
+    const preco = precoDeTeste(12000);
+    const id = await agendarOk(pedido({ inicio: '2030-08-30T10:00:00-03:00', preco }));
+    const r = await rpc('alterar_horario_agendamento', {
+        p_agendamento: id, p_inicio: '2030-08-30T15:00:00-03:00', p_horas: 2, p_autor: instrutorB.id,
+    });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.horas, 2);
+    assert.deepStrictEqual(await lerPreco(id), { preco_total_centavos: 12000, preco_detalhe: preco });
+    const h = await rest(`historico_alteracoes?tabela=eq.agendamentos&registro_id=eq.${id}&select=feito_por&order=id.desc&limit=1`);
+    assert.strictEqual(h.dados[0].feito_por, instrutorB.id);
 });
 
 test('instrutores_ativos não traz bloqueado nem perfil inativo', async () => {
