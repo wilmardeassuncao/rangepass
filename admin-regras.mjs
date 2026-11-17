@@ -2,6 +2,7 @@
 import { temAlgumPapel } from './supabase/functions/_shared/papeis.mjs';
 import { partesNoFuso } from './supabase/functions/_shared/agendamento.mjs';
 import { TEXTO_SITUACAO, doisDigitos } from './agendar-regras.mjs';
+import { CAMPOS_CADASTRO } from './supabase/functions/_shared/catalogo.mjs';
 
 export const NOMES_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -143,3 +144,35 @@ export function dataHoraNoFuso(instante, fuso) {
     const [ano, mes, dia] = p.data.split('-');
     return `${dia}/${mes}/${ano} ${doisDigitos(p.hora)}:${doisDigitos(p.minuto)}`;
 }
+
+// Campos que o formulário de cada cadastro mostra (Adicionar/Editar), na ordem da tela.
+// rotulo: o texto do campo; escolha: a lista de onde vêm as opções (pelo nome); situacao: a lista
+// das situações da arma. Ativo/ativa não entram: mudam pelo "Desativar"/"Reativar". A pista não
+// tem campos: o número é o próximo livre.
+// fixo (só ao criar) vem do servidor (CAMPOS_CADASTRO: o contrário de editavel), para os dois não
+// se desencontrarem. soAoCriar é só da tela: a situação da arma pode mudar, mas pela lista.
+const FORMULARIOS = {
+    categoria: [{ nome: 'nome', rotulo: 'Nome' }],
+    calibre: [{ nome: 'nome', rotulo: 'Nome' }],
+    modelo: [
+        { nome: 'categoria_id', rotulo: 'Categoria', escolha: 'categorias' },
+        { nome: 'calibre_id', rotulo: 'Calibre', escolha: 'calibres' },
+        { nome: 'marca', rotulo: 'Marca' },
+        { nome: 'nome', rotulo: 'Nome' },
+    ],
+    tipo_municao: [
+        { nome: 'calibre_id', rotulo: 'Calibre', escolha: 'calibres' },
+        { nome: 'nome', rotulo: 'Nome' },
+    ],
+    unidade: [
+        { nome: 'modelo_id', rotulo: 'Modelo', escolha: 'modelos' },
+        { nome: 'numero_registro', rotulo: 'Nº de registro' },
+        { nome: 'situacao', rotulo: 'Situação', situacao: true, soAoCriar: true },
+    ],
+    pista: [],
+};
+
+export const CAMPOS_FORMULARIO = Object.fromEntries(Object.entries(FORMULARIOS).map(([tipo, campos]) => [
+    tipo,
+    campos.map((campo) => ({ ...campo, fixo: !CAMPOS_CADASTRO[tipo][campo.nome].editavel })),
+]));

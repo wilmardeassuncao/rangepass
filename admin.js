@@ -4,7 +4,7 @@ import { supabase, chamarFuncao } from './api.mjs';
 import {
     NOMES_DIAS, abasVisiveis, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, numeroDoCampo,
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
-    consultaDosFiltros, descreverEvento, dataHoraNoFuso,
+    consultaDosFiltros, descreverEvento, dataHoraNoFuso, CAMPOS_FORMULARIO,
 } from './admin-regras.mjs';
 import { formatarCpf, formatarTelefone } from './conta-regras.mjs';
 import { descreverSessao, TEXTO_SITUACAO, somarDias } from './agendar-regras.mjs';
@@ -402,28 +402,22 @@ montarDias();
 let catalogo = null;            // { categorias, calibres, modelos, tipos_municao, unidades, pistas }
 let catalogoEmCarga = null;     // a primeira carga em andamento (as duas abas não pedem duas vezes)
 
-// campos: o que o formulário mostra. escolha = lista de onde vêm as opções (pelo nome);
-// fixo = só ao criar (o servidor não deixa mudar depois); soAoCriar = só ao criar, porque depois
-// muda pela lista (a situação da arma). Ativo/ativa não entram: mudam pelo "Desativar"/"Reativar".
+// campos: o que o formulário mostra (CAMPOS_FORMULARIO, em admin-regras.mjs: rótulos, listas de
+// escolha e o fixo/soAoCriar, este tirado das regras do servidor).
 const CADASTROS = {
     categoria: {
         lista: 'categorias', nomeItem: 'categoria', campoAtivo: 'ativo',
-        campos: [{ nome: 'nome', rotulo: 'Nome' }],
+        campos: CAMPOS_FORMULARIO.categoria,
         colunas: (item) => [['Nome', item.nome]],
     },
     calibre: {
         lista: 'calibres', nomeItem: 'calibre', campoAtivo: 'ativo',
-        campos: [{ nome: 'nome', rotulo: 'Nome' }],
+        campos: CAMPOS_FORMULARIO.calibre,
         colunas: (item) => [['Nome', item.nome]],
     },
     modelo: {
         lista: 'modelos', nomeItem: 'modelo', campoAtivo: 'ativo',
-        campos: [
-            { nome: 'categoria_id', rotulo: 'Categoria', escolha: 'categorias' },
-            { nome: 'calibre_id', rotulo: 'Calibre', escolha: 'calibres', fixo: true },
-            { nome: 'marca', rotulo: 'Marca' },
-            { nome: 'nome', rotulo: 'Nome' },
-        ],
+        campos: CAMPOS_FORMULARIO.modelo,
         avisoAoEditar: 'O calibre não pode ser mudado depois de criado.',
         colunas: (item) => [
             ['Modelo', nomeDoModelo(item)],
@@ -433,26 +427,19 @@ const CADASTROS = {
     },
     tipo_municao: {
         lista: 'tipos_municao', nomeItem: 'munição', campoAtivo: 'ativo',
-        campos: [
-            { nome: 'calibre_id', rotulo: 'Calibre', escolha: 'calibres', fixo: true },
-            { nome: 'nome', rotulo: 'Nome' },
-        ],
+        campos: CAMPOS_FORMULARIO.tipo_municao,
         avisoAoEditar: 'O calibre não pode ser mudado depois de criado.',
         colunas: (item) => [['Munição', item.nome], ['Calibre', nomeNaLista('calibres', item.calibre_id)]],
     },
     unidade: {
         lista: 'unidades', nomeItem: 'arma',
-        campos: [
-            { nome: 'modelo_id', rotulo: 'Modelo', escolha: 'modelos', fixo: true },
-            { nome: 'numero_registro', rotulo: 'Nº de registro' },
-            { nome: 'situacao', rotulo: 'Situação', situacao: true, soAoCriar: true },
-        ],
+        campos: CAMPOS_FORMULARIO.unidade,
         avisoAoEditar: 'O modelo não pode ser mudado depois de criado. A situação muda na lista.',
         colunas: (item) => [['Nº de registro', item.numero_registro], ['Modelo', nomeNaLista('modelos', item.modelo_id)]],
     },
     pista: {
         lista: 'pistas', nomeItem: 'pista', campoAtivo: 'ativa', rotulos: ['Ativa', 'Inativa'],
-        campos: [],
+        campos: CAMPOS_FORMULARIO.pista,
         colunas: (item) => [['Pista', `Pista ${item.numero}`]],
     },
 };

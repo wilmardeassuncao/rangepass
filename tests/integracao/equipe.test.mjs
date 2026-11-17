@@ -80,6 +80,41 @@ test('a busca pelo começo do CPF acha o cliente', async () => {
     assert.ok(r.dados.pessoas.some(p => p.id === cliente.id), JSON.stringify(r.dados));
 });
 
+// Só letras no nome e no e-mail, para que uma busca por dígitos só possa achar a pessoa pelo CPF.
+function soLetras(tamanho) {
+    return Array.from({ length: tamanho }, () => String.fromCharCode(97 + Math.floor(Math.random() * 26))).join('');
+}
+
+test('o CPF só é procurado com 3 ou mais dígitos', async () => {
+    const pessoa = await criarUsuario({ papeis: ['cliente'], email: `cpf-${soLetras(12)}@rangepass.test` });
+    const p = await rest(`perfis?id=eq.${pessoa.id}`, { metodo: 'PATCH', corpo: { nome_completo: `Teste ${soLetras(12)}` } });
+    assert.strictEqual(p.status, 200, JSON.stringify(p.dados));
+
+    for (const [tamanho, deveAchar] of [[1, false], [2, false], [3, true]]) {
+        const r = await rpc('buscar_pessoas', { p_busca: pessoa.cpf.slice(0, tamanho) });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+        assert.strictEqual(r.dados.some(l => l.id === pessoa.id), deveAchar, `${tamanho} dígito(s)`);
+    }
+});
+
+test('a barra invertida na busca vale como letra comum', async () => {
+    const comBarra = await criarUsuario({ papeis: ['cliente'], email: `barra-${soLetras(12)}@rangepass.test` });
+    const semBarra = await criarUsuario({ papeis: ['cliente'], email: `barra-${soLetras(12)}@rangepass.test` });
+    for (const [pessoa, nome] of [[comBarra, 'Ana\\Teste Silva'], [semBarra, 'Anaxyz Silva']]) {
+        const p = await rest(`perfis?id=eq.${pessoa.id}`, { metodo: 'PATCH', corpo: { nome_completo: nome } });
+        assert.strictEqual(p.status, 200, JSON.stringify(p.dados));
+    }
+
+    const achou = await rpc('buscar_pessoas', { p_busca: 'Ana\\T' });
+    assert.strictEqual(achou.status, 200, JSON.stringify(achou.dados));
+    assert.ok(achou.dados.some(l => l.id === comBarra.id), JSON.stringify(achou.dados));
+
+    // Se a barra virasse o escape do LIKE, 'Ana\x' procuraria 'Anax' e acharia a outra pessoa.
+    const outra = await rpc('buscar_pessoas', { p_busca: 'Ana\\x' });
+    assert.strictEqual(outra.status, 200, JSON.stringify(outra.dados));
+    assert.ok(!outra.dados.some(l => l.id === semBarra.id), JSON.stringify(outra.dados));
+});
+
 test('sem busca, lista a equipe (sem clientes) e não registra acesso', async () => {
     const antes = await rest(`acessos_dados?usuario_id=eq.${superB.id}&select=id`);
     const r = await buscar(undefined, superB.token);
@@ -136,6 +171,16 @@ test('dar instrutor ao cliente: o GET mostra e o histórico guarda o autor', asy
     assert.strictEqual(volta.status, 200, JSON.stringify(volta.dados));
 });
 
+test('definir_papeis com a mesma lista não grava histórico', async () => {
+    const pessoa = await criarUsuario({ papeis: ['cliente', 'instrutor'] });
+    const r = await rpc('definir_papeis', { p_usuario: pessoa.id, p_papeis: ['instrutor', 'cliente'], p_autor: superA.id });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.deepStrictEqual([...r.dados].sort(), ['cliente', 'instrutor']);
+    const h = await rest(`historico_alteracoes?tabela=eq.papeis_usuario&registro_id=eq.${pessoa.id}&select=id`);
+    assert.strictEqual(h.status, 200, JSON.stringify(h.dados));
+    assert.deepStrictEqual(h.dados, []);
+});
+
 test('superadmin tirando o próprio superadmin dá 409 e nada muda', async () => {
     const r = await mudar({ usuario_id: superA.id, papeis: ['instrutor'] });
     assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
@@ -189,13 +234,14 @@ test('desativar a própria conta dá 409', async () => {
 
 // Daqui em diante, superA é o único superadmin de teste que consegue entrar (superB já perdeu o papel).
 // Se o banco tiver outro superadmin ativo (uma conta real), estes testes são pulados: não mexemos nela.
+// Nesse caso, o mesmo caso é conferido por rp101-sql.test.mjs, sem gravar nada nas contas reais.
 async function soSuperAAtivo(t) {
     const r = await rpc('superadmins_ativos');
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     const ids = r.dados.map(l => l.usuario_id);
     assert.ok(ids.includes(superA.id), JSON.stringify(ids));
     if (ids.length > 1) {
-        t.skip('Há outro superadmin ativo no banco; o teste do último superadmin não se aplica.');
+        t.skip('coberto por rp101-sql.test.mjs');
         return false;
     }
     return true;

@@ -19,6 +19,9 @@
 - `npm test`: testes rápidos, que não usam a internet.
 - `npm run test:integracao`: testes contra o projeto Supabase, usando as chaves do `.env.teste`.
 - Os testes de integração apagam tudo o que criam. Depois deles, o banco fica como estava.
+- O teste `tests/integracao/rp101-sql.test.mjs` (o sistema nunca fica sem superadmin) roda um SQL direto no banco, pela API de gerenciamento do Supabase, e precisa de `SUPABASE_ACCESS_TOKEN` no `.env.teste`. Sem ele, o teste é pulado com o aviso `preencha SUPABASE_ACCESS_TOKEN no .env.teste`. O SQL desse teste sempre termina em erro de propósito, e um erro desfaz tudo: nenhuma conta de verdade muda.
+  - **Como gerar o token:** no site do Supabase, clique na sua foto (canto de cima) → *Account* → *Access Tokens* → *Generate new token*. Dê um nome (por exemplo, `rangepass-testes`), copie o valor (ele só aparece uma vez) e cole em `SUPABASE_ACCESS_TOKEN=` no `.env.teste`.
+  - ⚠️ Esse token dá acesso a **todos** os seus projetos no Supabase. Ele fica só no `.env.teste` (que fica fora do Git): nunca o coloque no Git, numa página ou numa mensagem. Se vazar, apague-o na mesma tela (*Access Tokens*) e gere outro.
 
 ### Aplicar o banco e publicar as funções
 
@@ -32,7 +35,7 @@ Cada função nova precisa de uma entrada em `supabase/config.toml` com `entrypo
 
 ### Criar o primeiro superadmin
 
-1. Com o site aberto (veja "Abrir a página da conta no computador"), crie a conta em `conta.html`, confirme o e-mail pelo link que chegar e preencha o cadastro completo (nome, CPF etc.). O login pela página da conta exige o cadastro completo (nome, CPF, telefone e data de nascimento).
+1. Com o site aberto (veja "Abrir a página da conta no computador"), crie a conta em `conta.html`, confirme o e-mail pelo link que chegar e preencha o cadastro completo (nome, CPF etc.). O login pela página da conta exige o cadastro completo (nome, CPF, telefone e data de nascimento). Por isso, não crie a conta direto no painel do Supabase: ela ficaria sem cadastro e não conseguiria entrar.
 2. No painel do Supabase, abra o **SQL Editor** e cole o conteúdo de `supabase/scripts/promover-superadmin.sql`.
 3. Troque `SEU-EMAIL@exemplo.com` pelo e-mail do passo 1 (ele aparece duas vezes) e clique em **Run**.
 4. O resultado deve mostrar uma linha com o e-mail e o papel `superadmin`. Essa conta já pode entrar na área da equipe (veja "Área da equipe", abaixo).

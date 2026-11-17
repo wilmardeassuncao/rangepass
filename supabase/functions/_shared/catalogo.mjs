@@ -6,6 +6,7 @@ export const TIPOS_CADASTRO = ['categoria', 'calibre', 'modelo', 'tipo_municao',
 export const SITUACOES_UNIDADE = ['disponivel', 'manutencao', 'desativada'];
 
 // Campos de cada tipo. tipo: como conferir; obrigatorio: precisa vir ao criar; editavel: pode mudar depois.
+// Exportado (só leitura) para a página da equipe tirar daqui o que pode mudar depois de criado.
 const CAMPOS = {
     categoria: {
         nome: { tipo: 'texto', obrigatorio: true, editavel: true },
@@ -37,6 +38,13 @@ const CAMPOS = {
         ativa: { tipo: 'booleano', editavel: true },
     },
 };
+
+// Congela tudo (o mapa, cada tipo e cada regra): quem importa só pode ler.
+for (const regras of Object.values(CAMPOS)) {
+    for (const regra of Object.values(regras)) Object.freeze(regra);
+    Object.freeze(regras);
+}
+export const CAMPOS_CADASTRO = Object.freeze(CAMPOS);
 
 // Mensagem do nome repetido (erro 23505 do banco), por tipo: { campo: mensagem }.
 export const MENSAGENS_DUPLICADO = {
