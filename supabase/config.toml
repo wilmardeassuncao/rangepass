@@ -333,3 +333,7 @@ verify_jwt = false
 [functions.equipe]
 entrypoint = "./functions/equipe/index.js"
 verify_jwt = false
+
+[functions.painel-agendamentos]
+entrypoint = "./functions/painel-agendamentos/index.js"
+verify_jwt = false
