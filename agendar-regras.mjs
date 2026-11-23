@@ -1,6 +1,7 @@
 // Regras puras da tela de agendamento: textos para mostrar e filtros do catálogo que veio do servidor.
 // Roda igual no navegador e no Node (testes).
 import { partesNoFuso } from './supabase/functions/_shared/agendamento.mjs';
+import { formatarReais } from './supabase/functions/_shared/precos.mjs';
 
 const HORA_MS = 3600000;
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -84,6 +85,16 @@ export function armaDoParticipante(p) {
 export function municaoDoParticipante(p) {
     if (p.modalidade === 'tudo_proprio' || !p.tipo_municao) return 'Própria';
     return `${p.municao_qtd} × ${comCalibre(p.tipo_municao.nome, p.tipo_municao.calibre)}`;
+}
+
+// Linhas da tabela "Valor" da revisão: cada item, o desconto (se houver) e o total, por último.
+export function linhasDoPreco(preco) {
+    const linhas = preco.itens.map((i) => ({ rotulo: i.descricao, valor: formatarReais(i.total_centavos) }));
+    if (preco.desconto) {
+        linhas.push({ rotulo: preco.desconto.nome, valor: `− ${formatarReais(preco.desconto.valor_centavos)}` });
+    }
+    linhas.push({ rotulo: 'Total', valor: formatarReais(preco.total_centavos) });
+    return linhas;
 }
 
 // Por que o cartão não mostra "Alterar" e "Cancelar": null quando não há nada a explicar

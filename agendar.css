@@ -208,6 +208,13 @@ form { display: flex; flex-direction: column; gap: 14px; }
 
 .revisao { display: flex; flex-direction: column; gap: 14px; }
 
+/* Tabela "Valor": a última linha é o total, em destaque. */
+.valor .total { border-top: 1px solid var(--cor-borda); padding-top: 10px; }
+.valor .total dt, .valor .total dd { color: var(--cor-texto); font-size: 16px; font-weight: 700; }
+.valor .desconto dd { color: var(--cor-sucesso); }
+.valor-total { font-size: 16px; font-weight: 700; }
+.cartao-total { font-size: 14px; font-weight: 500; }
+
 .confirmacao {
     align-items: center;
     display: flex;

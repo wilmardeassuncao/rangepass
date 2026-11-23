@@ -5,12 +5,13 @@ import { supabase, chamarFuncao } from './api.mjs';
 import {
     descreverSessao, modelosDaCategoria, municoesDoModelo, nomeDoCalibre,
     TEXTO_SITUACAO, separarAgendamentos, armaDoParticipante, municaoDoParticipante,
-    textoSemAlteracao, somarDias, doisDigitos,
+    textoSemAlteracao, somarDias, doisDigitos, linhasDoPreco,
 } from './agendar-regras.mjs';
 import {
     validarPedido, validarNovoHorario, horariosDoDia, duracoesPossiveis, instrutoresNecessarios, partesNoFuso,
 } from './supabase/functions/_shared/agendamento.mjs';
 import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
+import { calcularPreco, formatarReais } from './supabase/functions/_shared/precos.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ENTRAR = 'conta.html?voltar=index.html';
@@ -19,6 +20,7 @@ const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do e
 const ERRO_CARREGAR = 'Não foi possível carregar agora. Verifique a internet e tente de novo.';
 // No erro do servidor, o campo do cartão que fica marcado não tem o mesmo nome da chave do erro.
 const CAMPO_DO_ERRO = { aceite_termo_versao: 'aceite', arma_propria: 'arma_modelo' };
+const PRECO_MUDOU = 'O preço mudou. Confira o novo valor e confirme de novo.';
 
 const form = document.getElementById('form-agendar');
 const listaParticipantes = document.getElementById('participantes');
@@ -32,6 +34,10 @@ let pedidoAtual = null;     // o que vai no POST, montado ao revisar
 // já criado em vez de criar outro. Nasce ao abrir a revisão e é trocada ao voltar para o formulário.
 let chaveEnvio = null;
 let itemAlterando = null;   // o agendamento (Item do servidor) aberto em "Alterar horário"
+// O preço que a pessoa está vendo (na revisão e no "Alterar horário"): o total dele vai no envio
+// (preco_esperado_centavos), para o servidor conferir. null quando não deu para calcular aqui.
+let precoAtual = null;
+let precoAlterar = null;
 
 // ---------- Ajudantes de tela ----------
 
@@ -376,7 +382,38 @@ function mostrarRevisao(pedido, inicio) {
         lista.append(dl);
     });
     mostrarErroGeral(revisao, null);
+    mostrarPrecoMudou(false);
     mostrarTela('tela-revisar');
+}
+
+// Sem o valor da hora de pista o estande ainda não tem preços: nada é calculado aqui
+// (o servidor responde com a mensagem certa ao confirmar).
+const temPrecos = () => Number.isInteger(opcoes.precos?.hora_pista_centavos);
+
+// O mesmo cálculo do servidor, com a tabela e o "hoje" que vieram nas opções.
+function calcular(pedido) {
+    return calcularPreco(pedido, opcoes.precos, { hoje: opcoes.hoje, fuso: opcoes.estande.fuso });
+}
+
+// A tabela "Valor" da revisão: os itens, o desconto e o total (a última linha, em destaque).
+function mostrarValor(preco) {
+    const tabela = document.getElementById('revisao-valor');
+    tabela.hidden = !preco;
+    if (!preco) return;
+    const titulo = document.createElement('p');
+    titulo.className = 'bloco-titulo';
+    titulo.textContent = 'Valor';
+    const linhas = linhasDoPreco(preco).map((l) => linhaDeDado(l.rotulo, l.valor));
+    linhas.at(-1).classList.add('total');
+    if (preco.desconto) linhas.at(-2).classList.add('desconto');
+    tabela.replaceChildren(titulo, ...linhas);
+}
+
+function mostrarPrecoMudou(mudou) {
+    const aviso = document.getElementById('revisao-preco-mudou');
+    aviso.textContent = mudou ? PRECO_MUDOU : '';
+    aviso.hidden = !mudou;
+    if (mudou) aviso.scrollIntoView?.({ block: 'center' });
 }
 
 form.addEventListener('submit', (evento) => {
@@ -388,7 +425,9 @@ form.addEventListener('submit', (evento) => {
     if (Object.keys(campos).length) return mostrarErros(campos);
     pedidoAtual = pedido;
     chaveEnvio = crypto.randomUUID();
+    precoAtual = temPrecos() ? calcular(conferido) : null;
     mostrarRevisao(pedido, conferido.inicio);
+    mostrarValor(precoAtual);
 });
 
 document.getElementById('botao-voltar').addEventListener('click', () => {
@@ -411,9 +450,11 @@ async function atualizarTermo() {
 
 document.getElementById('botao-confirmar').addEventListener('click', () => {
     mostrarErroGeral(revisao, null);
+    mostrarPrecoMudou(false);
     ocupado(revisao, async () => {
         const r = await chamarFuncao('agendamentos', {
-            metodo: 'POST', corpo: { ...pedidoAtual, chave_envio: chaveEnvio },
+            metodo: 'POST',
+            corpo: { ...pedidoAtual, chave_envio: chaveEnvio, preco_esperado_centavos: precoAtual?.total_centavos ?? 0 },
         });
         // 201: criado agora. 200: o mesmo envio já tinha sido criado (clique repetido, rede que caiu).
         if (r.status === 201 || r.status === 200) {
@@ -430,6 +471,12 @@ document.getElementById('botao-confirmar').addEventListener('click', () => {
             if (Object.keys(r.dados.campos).some((chave) => chave.endsWith('.aceite_termo_versao'))) {
                 await atualizarTermo();
             }
+        } else if (r.status === 409 && r.dados?.preco) {
+            // O preço mudou com a revisão aberta: mostra o novo e espera a pessoa confirmar de novo.
+            // A chave de envio continua a mesma (nada foi gravado).
+            precoAtual = r.dados.preco;
+            mostrarValor(precoAtual);
+            mostrarPrecoMudou(true);
         } else {
             mostrarErroGeral(revisao, r.dados?.erro ?? ERRO_PADRAO);
         }
@@ -472,6 +519,14 @@ function cartaoDoAgendamento(a, agora) {
         titulo.textContent = p.nome_completo;
         dl.append(titulo, linhaDeDado('Arma', armaDoParticipante(p)), linhaDeDado('Munição', municaoDoParticipante(p)));
         lista.append(dl);
+    }
+
+    // Agendamento feito antes dos preços: sem preço, sem a linha.
+    if (a.preco) {
+        const total = cartao.querySelector('[data-total]');
+        const desconto = a.preco.desconto ? ` · ${a.preco.desconto.nome}` : '';
+        total.textContent = `Total: ${formatarReais(a.preco.total_centavos)}${desconto}`;
+        total.hidden = false;
     }
 
     // Quem decide se ainda dá para mexer é o servidor (pode_alterar); a tela não recalcula o prazo.
@@ -555,11 +610,87 @@ function abrirAlterar(a) {
     formAlterar.elements.hora.value = String(atual.hora);
     atualizarDuracoes(formAlterar, maximoAlterar);
     formAlterar.elements.horas.value = String(a.horas);
+    atualizarValorAlterar();
     mostrarTela('tela-alterar');
+}
+
+function lerNovoHorario() {
+    return {
+        data: formAlterar.elements.data.value,
+        hora: numeroOuNulo(formAlterar.elements.hora.value),
+        horas: numeroOuNulo(formAlterar.elements.horas.value),
+    };
+}
+
+// O agendamento gravado com o horário novo, no formato que o cálculo usa. O Item não traz os ids:
+// o modelo e a munição são achados no catálogo pelo nome. Se algum não estiver lá (saiu do catálogo),
+// devolve null: o servidor calcula e, se for diferente, devolve o valor certo para a pessoa conferir.
+function pedidoDoAlterar(inicio, horas) {
+    const { catalogo, agenda } = opcoes;
+    const calibre = (id) => catalogo.calibres.find((c) => c.id === id)?.nome ?? null;
+    const participantes = [];
+    for (const p of itemAlterando.participantes) {
+        const saida = { modalidade: p.modalidade, modelo_id: null, tipo_municao_id: null, municao_qtd: p.municao_qtd };
+        if (p.modalidade === 'estande') {
+            const m = catalogo.modelos.find((x) => x.marca === p.modelo?.marca && x.nome === p.modelo?.nome
+                && calibre(x.calibre_id) === p.modelo?.calibre);
+            if (!m) return null;
+            saida.modelo_id = m.id;
+        }
+        if (p.modalidade !== 'tudo_proprio') {
+            const t = catalogo.tipos_municao.find((x) => x.nome === p.tipo_municao?.nome
+                && calibre(x.calibre_id) === p.tipo_municao?.calibre);
+            if (!t) return null;
+            saida.tipo_municao_id = t.id;
+        }
+        participantes.push(saida);
+    }
+    return {
+        inicio,
+        horas,
+        instrutores_necessarios: instrutoresNecessarios(participantes.length, agenda.faixas_instrutores),
+        participantes,
+    };
+}
+
+// "Novo valor" do horário escolhido. Mostra o preço dado (o que veio do servidor num 409) ou calcula aqui.
+function atualizarValorAlterar(preco) {
+    const caixa = document.getElementById('alterar-valor');
+    const valor = caixa.querySelector('[data-novo-valor]');
+    const desconto = caixa.querySelector('[data-desconto]');
+    precoAlterar = preco ?? null;
+    if (!preco) {
+        const novo = lerNovoHorario();
+        const { campos, inicio, horas } = validarNovoHorario(novo, {
+            agora: new Date(), opcoes, quantidade: itemAlterando.participantes.length,
+        });
+        if (Object.keys(campos).length || !temPrecos()) {
+            caixa.hidden = true;
+            return;
+        }
+        const pedido = pedidoDoAlterar(inicio, horas);
+        try {
+            precoAlterar = pedido ? calcular(pedido) : null;
+        } catch {
+            precoAlterar = null;
+        }
+    }
+    caixa.hidden = false;
+    desconto.hidden = !precoAlterar?.desconto;
+    if (!precoAlterar) {
+        valor.textContent = 'O novo valor aparece ao salvar, antes de confirmar.';
+        return;
+    }
+    valor.textContent = `Novo valor: ${formatarReais(precoAlterar.total_centavos)}`;
+    if (precoAlterar.desconto) {
+        desconto.textContent = `Com desconto: ${precoAlterar.desconto.nome}, − ${formatarReais(precoAlterar.desconto.valor_centavos)}`;
+    }
 }
 
 formAlterar.elements.data.addEventListener('change', () => atualizarHorarios(formAlterar, maximoAlterar));
 formAlterar.elements.hora.addEventListener('change', () => atualizarDuracoes(formAlterar, maximoAlterar));
+// Depois dos campos acima (o evento sobe do campo para o formulário): o valor segue a escolha.
+formAlterar.addEventListener('change', () => atualizarValorAlterar());
 
 document.getElementById('botao-alterar-voltar').addEventListener('click', () => {
     avisar(null);
@@ -570,22 +701,27 @@ formAlterar.addEventListener('submit', (evento) => {
     evento.preventDefault();
     limparErros(formAlterar);
     avisar(null);
-    const novo = {
-        data: formAlterar.elements.data.value,
-        hora: numeroOuNulo(formAlterar.elements.hora.value),
-        horas: numeroOuNulo(formAlterar.elements.horas.value),
-    };
+    const novo = lerNovoHorario();
     const { campos } = validarNovoHorario(novo, {
         agora: new Date(), opcoes, quantidade: itemAlterando.participantes.length,
     });
     if (Object.keys(campos).length) return mostrarErros(campos, formAlterar);
     ocupado(formAlterar, async () => {
         const r = await chamarFuncao('agendamentos', {
-            metodo: 'PUT', corpo: { id: itemAlterando.id, acao: 'alterar_horario', ...novo },
+            metodo: 'PUT',
+            corpo: {
+                id: itemAlterando.id, acao: 'alterar_horario', ...novo,
+                preco_esperado_centavos: precoAlterar?.total_centavos ?? 0,
+            },
         });
         if (r.status === 200) return recarregarDepoisDe('Horário alterado.');
         if (precisaEntrar(r)) return irParaEntrar();
         if (r.status === 400 && r.dados?.campos) return mostrarErros(r.dados.campos, formAlterar);
+        if (r.status === 409 && r.dados?.preco) {
+            // O valor é outro: mostra o certo e espera a pessoa salvar de novo.
+            atualizarValorAlterar(r.dados.preco);
+            return avisar(PRECO_MUDOU);
+        }
         avisar(r.dados?.erro ?? ERRO_PADRAO);   // 403 (prazo), 404, 409: aviso, e fica na tela
     });
 });

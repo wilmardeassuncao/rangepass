@@ -68,6 +68,10 @@
                         <span class="erro" data-erro-para="horas"></span>
                     </label>
                 </fieldset>
+                <div id="alterar-valor" class="bloco" hidden>
+                    <p class="valor-total" data-novo-valor></p>
+                    <p class="subtitulo" data-desconto hidden></p>
+                </div>
                 <p class="subtitulo">Só o dia, o horário e a duração mudam. Para mudar armas ou participantes, cancele e agende de novo.</p>
                 <p class="erro" data-erro-geral hidden></p>
                 <button type="submit" class="botao">Salvar novo horário</button>
@@ -131,6 +135,8 @@
                     <div><dt>Ocupa</dt><dd id="revisao-ocupacao"></dd></div>
                 </dl>
                 <div id="revisao-participantes" class="participantes"></div>
+                <p id="revisao-preco-mudou" class="aviso" role="status" hidden></p>
+                <dl id="revisao-valor" class="bloco dados valor" hidden></dl>
                 <p class="subtitulo">Pagamento no balcão, no dia da sessão.</p>
                 <p id="revisao-prazo" class="subtitulo"></p>
                 <p class="erro" data-erro-geral hidden></p>
@@ -160,6 +166,7 @@
                 <div><dt data-titulo-instrutores>Instrutor</dt><dd data-instrutores></dd></div>
             </dl>
             <div class="participantes" data-participantes></div>
+            <p class="cartao-total" data-total hidden></p>
             <p class="subtitulo" data-prazo hidden></p>
             <div class="acoes" data-acoes hidden>
                 <button type="button" class="botao secundario" data-alterar>Alterar horário</button>

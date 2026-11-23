@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import {
     descreverSessao, TEXTO_SITUACAO, modelosDaCategoria, municoesDoModelo, nomeDoCalibre, separarAgendamentos,
-    armaDoParticipante, municaoDoParticipante, textoSemAlteracao, somarDias, doisDigitos,
+    armaDoParticipante, municaoDoParticipante, textoSemAlteracao, somarDias, doisDigitos, linhasDoPreco,
 } from '../../agendar-regras.mjs';
 
 test('descreverSessao mostra o dia e as horas no fuso do estande', () => {
@@ -123,4 +123,37 @@ test('textoSemAlteracao explica por que não dá para mexer no agendamento', () 
     );
     // Já terminou: nada a dizer.
     assert.strictEqual(textoSemAlteracao({ ...base, inicio: '2026-11-16T10:00:00Z' }, agora), null);
+});
+
+test('linhasDoPreco mostra cada item, o desconto e o total', () => {
+    const preco = {
+        itens: [
+            { descricao: 'Pista (1 pista × 2 horas)', total_centavos: 24000 },
+            { descricao: 'Aluguel de armas', total_centavos: 8000 },
+            { descricao: 'Munição', total_centavos: 123456 },
+        ],
+        subtotal_centavos: 155456,
+        desconto: { tipo: 'campanha', nome: 'Campanha Natal (10%)', valor_centavos: 15546 },
+        total_centavos: 139910,
+    };
+    assert.deepStrictEqual(linhasDoPreco(preco), [
+        { rotulo: 'Pista (1 pista × 2 horas)', valor: 'R$ 240,00' },
+        { rotulo: 'Aluguel de armas', valor: 'R$ 80,00' },
+        { rotulo: 'Munição', valor: 'R$ 1.234,56' },
+        { rotulo: 'Campanha Natal (10%)', valor: '− R$ 155,46' },
+        { rotulo: 'Total', valor: 'R$ 1.399,10' },
+    ]);
+});
+
+test('linhasDoPreco sem desconto: só os itens e o total', () => {
+    const preco = {
+        itens: [{ descricao: 'Pista (2 pistas × 1 hora)', total_centavos: 20000 }],
+        subtotal_centavos: 20000,
+        desconto: null,
+        total_centavos: 20000,
+    };
+    assert.deepStrictEqual(linhasDoPreco(preco), [
+        { rotulo: 'Pista (2 pistas × 1 hora)', valor: 'R$ 200,00' },
+        { rotulo: 'Total', valor: 'R$ 200,00' },
+    ]);
 });
