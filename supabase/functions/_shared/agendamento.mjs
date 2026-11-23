@@ -26,7 +26,7 @@ function dataReal(data) {
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === data;
 }
 
-function somarDias(data, dias) {
+export function somarDias(data, dias) {
     const d = new Date(`${data}T00:00:00Z`);
     d.setUTCDate(d.getUTCDate() + dias);
     return d.toISOString().slice(0, 10);

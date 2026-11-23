@@ -1,10 +1,10 @@
 // Edge Function agendamentos: opções do formulário, lista dos agendamentos do cliente logado,
-// criar, alterar o horário e cancelar. Nunca devolve números de registro, pistas, unidades
+// criar, alterar o horário e cancelar. Nunca devolve números de registro, números de pista, unidades
 // nem CPFs de convidados. O preço é calculado aqui (o valor oficial), conferido com o que o
 // cliente viu na revisão (preco_esperado_centavos) e congelado no agendamento.
 import { tratar, respostaJson, ErroHttp } from '../_shared/http.mjs';
 import { obterContexto, admin } from '../_shared/contexto.js';
-import { validarPedido, validarNovoHorario, podeAlterar, erroDeReserva } from '../_shared/agendamento.mjs';
+import { validarPedido, validarNovoHorario, podeAlterar, erroDeReserva, horariosDoDia, instanteNoFuso, somarDias } from '../_shared/agendamento.mjs';
 import { dataNoFuso } from '../_shared/cadastro.mjs';
 import { calcularPreco } from '../_shared/precos.mjs';
 
@@ -350,9 +350,52 @@ async function alterar(req, contexto) {
     return respostaJson(200, { agendamento: await carregarItem(contexto.usuarioId, ag.id) });
 }
 
+// Pistas e instrutores livres em cada hora, de hoje até a antecedência máxima (Disponibilidade).
+// Com ?agendamento=<id> de um agendamento ativo do próprio cliente, as reservas dele não contam
+// (para a troca de horário). Os "pistas" são ids internos, não os números das pistas.
+async function disponibilidade(req, contexto) {
+    const pedido = new URL(req.url).searchParams.get('agendamento');
+    let ignorar = null;
+    let agendamento = null;
+    if (pedido !== null) {
+        if (!UUID.test(pedido)) throw new ErroHttp(404, NAO_ENCONTRADO);
+        const ag = await consulta(admin.from('agendamentos').select('id, situacao, instrutor_escolhido_id')
+            .eq('id', pedido).eq('responsavel_id', contexto.usuarioId).maybeSingle());
+        if (!ag || !ATIVAS.includes(ag.situacao)) throw new ErroHttp(404, NAO_ENCONTRADO);
+        const { count, error } = await admin.from('participantes')
+            .select('id', { count: 'exact', head: true }).eq('agendamento_id', ag.id);
+        if (error) throw error;
+        ignorar = ag.id;
+        agendamento = { instrutor_escolhido_id: ag.instrutor_escolhido_id ?? null, participantes: count };
+    }
+
+    const linhas = await consulta(admin.from('configuracoes').select('chave, valor').in('chave', ['estande', 'agenda', 'funcionamento']));
+    const c = Object.fromEntries(linhas.map((l) => [l.chave, l.valor]));
+    const fuso = c.estande.fuso;
+    const hoje = dataNoFuso(new Date(), fuso);
+
+    const dias = {};
+    const horas = [];
+    for (let n = 0; n <= c.agenda.antecedencia_maxima_dias; n++) {
+        const data = somarDias(hoje, n);
+        dias[data] = {};
+        for (const hora of horariosDoDia(data, c.funcionamento)) horas.push({ data, hora, inicio: instanteNoFuso(data, hora, fuso).toISOString() });
+    }
+    if (horas.length > 0) {
+        const vagas = await consulta(admin.rpc('vagas_por_hora', { p_inicios: horas.map((h) => h.inicio), p_ignorar: ignorar }));
+        const porInicio = new Map(vagas.map((v) => [new Date(v.inicio).getTime(), v]));
+        for (const h of horas) {
+            const v = porInicio.get(new Date(h.inicio).getTime());
+            dias[h.data][String(h.hora)] = { pistas: v?.pistas ?? [], instrutores: v?.instrutores ?? [] };
+        }
+    }
+    return respostaJson(200, { hoje, dias, agendamento });
+}
+
 async function listar(req, contexto) {
     const ver = new URL(req.url).searchParams.get('ver');
     if (ver === 'opcoes') return respostaJson(200, await montarOpcoes(contexto));
+    if (ver === 'disponibilidade') return disponibilidade(req, contexto);
     return respostaJson(200, { agendamentos: await carregarItens(contexto.usuarioId) });
 }
 
