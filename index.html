@@ -87,20 +87,41 @@
             </header>
             <form id="form-agendar" novalidate>
                 <p class="aviso" data-sem-precos role="status" hidden></p>
-                <fieldset class="bloco">
+                <fieldset class="bloco bloco-agenda">
                     <legend class="bloco-titulo">Quando</legend>
-                    <label class="campo">Dia
-                        <input name="data" type="date">
-                        <span class="erro" data-erro-para="data"></span>
-                    </label>
-                    <label class="campo">Horário de início
-                        <select name="hora" disabled></select>
-                        <span class="erro" data-erro-para="hora"></span>
-                    </label>
-                    <label class="campo">Duração
-                        <select name="horas" disabled></select>
-                        <span class="erro" data-erro-para="horas"></span>
-                    </label>
+                    <!-- Agenda visual: os botões de dia, hora e duração são desenhados pelo agenda-tela.mjs. -->
+                    <div class="agenda" data-agenda>
+                        <div class="agenda-falha" data-falha-agenda hidden>
+                            <p data-falha-texto role="alert"></p>
+                            <button type="button" class="botao secundario" data-tentar-agenda>Tentar de novo</button>
+                        </div>
+                        <div class="agenda-coluna">
+                            <div class="agenda-parte">
+                                <p class="agenda-titulo">Dia</p>
+                                <div class="agenda-dias" data-dias role="radiogroup" aria-label="Dia"></div>
+                                <span class="erro" data-erro-para="data"></span>
+                            </div>
+                            <div class="agenda-parte">
+                                <p class="agenda-titulo">Horário de início</p>
+                                <ul class="agenda-legenda" aria-label="Legenda das cores">
+                                    <li data-cor="livre">livre</li>
+                                    <li data-cor="poucas">poucas vagas</li>
+                                    <li data-cor="lotado">lotado</li>
+                                </ul>
+                                <div class="agenda-horas" data-horas role="radiogroup" aria-label="Horário de início"></div>
+                                <span class="erro" data-erro-para="hora"></span>
+                            </div>
+                        </div>
+                        <div class="agenda-coluna">
+                            <div class="agenda-parte">
+                                <p class="agenda-titulo">Duração</p>
+                                <div class="agenda-duracoes" data-duracoes role="radiogroup" aria-label="Duração"></div>
+                                <span class="erro" data-erro-para="horas"></span>
+                            </div>
+                            <p class="agenda-resumo" data-resumo hidden></p>
+                            <p class="aviso" data-aviso-agenda role="status" hidden></p>
+                        </div>
+                    </div>
                 </fieldset>
 
                 <fieldset class="bloco">

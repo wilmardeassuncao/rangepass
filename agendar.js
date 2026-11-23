@@ -12,6 +12,8 @@ import {
 } from './supabase/functions/_shared/agendamento.mjs';
 import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 import { calcularPreco, formatarReais } from './supabase/functions/_shared/precos.mjs';
+import { montarAgenda } from './agenda-regras.mjs';
+import { criarAgenda } from './agenda-tela.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ENTRAR = 'conta.html?voltar=index.html';
@@ -21,14 +23,17 @@ const ERRO_CARREGAR = 'Não foi possível carregar agora. Verifique a internet e
 // No erro do servidor, o campo do cartão que fica marcado não tem o mesmo nome da chave do erro.
 const CAMPO_DO_ERRO = { aceite_termo_versao: 'aceite', arma_propria: 'arma_modelo' };
 const PRECO_MUDOU = 'O preço mudou. Confira o novo valor e confirme de novo.';
+const ERRO_DISPONIBILIDADE = 'Não foi possível ver os horários livres agora. Verifique a internet e tente de novo.';
 
 const form = document.getElementById('form-agendar');
 const listaParticipantes = document.getElementById('participantes');
 const botaoAdicionar = document.getElementById('botao-adicionar');
 const revisao = document.getElementById('revisao');
 const formAlterar = document.getElementById('form-alterar');
+const agendaVisual = criarAgenda(form.querySelector('[data-agenda]'), { aoMudar: () => redesenhar() });
 
 let opcoes = null;          // resposta do GET ?ver=opcoes
+let disponibilidade = null; // resposta do GET ?ver=disponibilidade (pistas e instrutores livres por hora)
 let pedidoAtual = null;     // o que vai no POST, montado ao revisar
 // Identifica um envio: a mesma chave em "Confirmar" repetidos faz o servidor devolver o agendamento
 // já criado em vez de criar outro. Nasce ao abrir a revisão e é trocada ao voltar para o formulário.
@@ -87,7 +92,8 @@ function mostrarErros(campos, f = form) {
         lugar.textContent = mensagem;
         const nomeCampo = partes ? (CAMPO_DO_ERRO[partes[2]] ?? partes[2]) : null;
         const campo = partes ? cartao.querySelector(`[data-campo="${nomeCampo}"]`) : f.elements[chave];
-        campo?.setAttribute('aria-invalid', 'true');
+        // Os rádios da agenda (vários com o mesmo nome) não são um campo só: o erro fica só no texto.
+        if (campo instanceof Element) campo.setAttribute('aria-invalid', 'true');
     }
     const primeiro = f.querySelector('[aria-invalid="true"]')
         ?? [...f.querySelectorAll('[data-erro-para], [data-erro]')].find((el) => el.textContent);
@@ -142,8 +148,47 @@ function idDe(lista, valor) {
 
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
-// ---------- Quando (dia, horário e duração) ----------
-// Os mesmos campos servem ao novo agendamento (form) e ao "Alterar horário" (formAlterar).
+// ---------- Quando, no novo agendamento: a agenda visual ----------
+// As cores dizem se ainda há pista e instrutor livres. A falta de arma e o CPF repetido só aparecem no Confirmar.
+
+const AGENDA_VAZIA = { dias: [], horas: [], duracoes: [], escolha: { data: null, hora: null, horas: null }, aviso: null, resumo: null };
+
+// Busca a disponibilidade. Se não vier, a agenda fica vazia, com a mensagem e o "Tentar de novo".
+async function carregarDisponibilidade() {
+    agendaVisual.mostrarErro(null);
+    let r = null;
+    try {
+        r = await chamarFuncao('agendamentos', { consulta: 'ver=disponibilidade' });
+    } catch (erro) {
+        console.error(erro);
+    }
+    if (r && precisaEntrar(r)) return irParaEntrar();
+    if (r?.status === 200 && r.dados?.dias) {
+        disponibilidade = r.dados;
+        return;
+    }
+    disponibilidade = null;
+    agendaVisual.mostrarErro(ERRO_DISPONIBILIDADE, async () => {
+        await carregarDisponibilidade();
+        redesenhar();
+    });
+}
+
+// Repinta a agenda com o tamanho do grupo e o instrutor de agora; uma escolha que não cabe mais é desfeita, com o aviso.
+function redesenhar() {
+    if (!disponibilidade) return agendaVisual.desenhar(AGENDA_VAZIA);
+    const instrutor = form.elements.instrutor_id.value;
+    const contexto = {
+        disponibilidade,
+        opcoes,
+        agora: new Date(),
+        quantidade: cartoes().length,
+        instrutorId: instrutor === '' ? null : idDe(opcoes.instrutores, instrutor),
+    };
+    agendaVisual.desenhar(montarAgenda(contexto, agendaVisual.escolha()));
+}
+
+// ---------- Quando, no "Alterar horário" (dia, horário e duração em campos comuns) ----------
 // `maximo` é uma função que diz a duração máxima: depende de quantas pessoas vão.
 
 function duracaoMaxima(quantidade) {
@@ -151,7 +196,6 @@ function duracaoMaxima(quantidade) {
     return quantidade > 1 ? agenda.duracao_maxima_grupo : agenda.duracao_maxima_individual;
 }
 
-const maximoNovo = () => duracaoMaxima(cartoes().length);
 const maximoAlterar = () => duracaoMaxima(itemAlterando.participantes.length);
 
 // O dia vai de hoje (no fuso do estande) até a antecedência máxima.
@@ -284,7 +328,7 @@ function atualizarGrupo() {
     document.getElementById('ocupacao').textContent = todos.length > 1
         ? `Este grupo vai ocupar ${plural(n, 'instrutor', 'instrutores')} e ${plural(n, 'pista', 'pistas')}.`
         : `Você vai ocupar ${plural(n, 'instrutor', 'instrutores')} e ${plural(n, 'pista', 'pistas')}.`;
-    atualizarDuracoes(form, maximoNovo);
+    redesenhar();
 }
 
 // ---------- Montar o pedido ----------
@@ -320,12 +364,14 @@ function lerParticipante(cartao, i) {
     return p;
 }
 
+// Dia, hora e duração vêm da agenda (com um rádio só, form.elements.hora não seria uma lista).
 function lerPedido() {
     const instrutor = form.elements.instrutor_id.value;
+    const { data, hora, horas } = agendaVisual.escolha();
     return {
-        data: form.elements.data.value,
-        hora: numeroOuNulo(form.elements.hora.value),
-        horas: numeroOuNulo(form.elements.horas.value),
+        data: data ?? '',
+        hora,
+        horas,
         instrutor_id: instrutor === '' ? null : idDe(opcoes.instrutores, instrutor),
         participantes: cartoes().map(lerParticipante),
     };
@@ -487,6 +533,12 @@ document.getElementById('botao-confirmar').addEventListener('click', () => {
             precoAtual = r.dados.preco;
             mostrarValor(precoAtual);
             mostrarPrecoMudou(true);
+        } else if (r.status === 409) {
+            // Recusa por vaga (pista, instrutor, arma, CPF): o erro fica na revisão e a agenda é buscada
+            // de novo, para que, ao voltar, ela já mostre o que está livre agora.
+            mostrarErroGeral(revisao, r.dados?.erro ?? ERRO_PADRAO);
+            await carregarDisponibilidade();
+            redesenhar();
         } else {
             mostrarErroGeral(revisao, r.dados?.erro ?? ERRO_PADRAO);
         }
@@ -499,8 +551,7 @@ document.getElementById('botao-ver-agendamentos').addEventListener('click', () =
 });
 
 botaoAdicionar.addEventListener('click', adicionarParticipante);
-form.elements.data.addEventListener('change', () => atualizarHorarios(form, maximoNovo));
-form.elements.hora.addEventListener('change', () => atualizarDuracoes(form, maximoNovo));
+form.elements.instrutor_id.addEventListener('change', () => redesenhar());
 
 document.getElementById('botao-novo-voltar').addEventListener('click', () => {
     avisar(null);
@@ -599,8 +650,10 @@ async function recarregarDepoisDe(sucesso) {
 
 document.getElementById('botao-novo').addEventListener('click', () => {
     avisar(null);
-    montarFormulario();
-    mostrarTela('tela-novo');
+    ocupado(document.getElementById('tela-lista'), async () => {
+        await montarFormulario();
+        mostrarTela('tela-novo');
+    });
 });
 
 // ---------- Alterar horário ----------
@@ -752,19 +805,21 @@ function cancelar(a, sessao, cartao) {
 
 // ---------- Início ----------
 
-function montarFormulario() {
+// Abre o formulário limpo, com a disponibilidade buscada agora.
+async function montarFormulario() {
     const { instrutores } = opcoes;
     form.reset();
     limparErros();
     pedidoAtual = null;
     chaveEnvio = null;
-    limitarDatas(form);
+    disponibilidade = null;
     preencherSelect(form.elements.instrutor_id, instrutores.map((i) => [i.id, i.nome]), { vazio: 'Sem preferência' });
     form.elements.instrutor_id.value = '';
     listaParticipantes.replaceChildren();
     adicionarParticipante();
-    atualizarHorarios(form, maximoNovo);
     avisarSemPrecos(form);
+    await carregarDisponibilidade();
+    redesenhar();
 }
 
 // Se as opções ou a lista não vierem, a tela de erro mostra o motivo e o botão "Tentar de novo".
