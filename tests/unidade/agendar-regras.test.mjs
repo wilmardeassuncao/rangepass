@@ -4,7 +4,19 @@ import assert from 'node:assert';
 import {
     descreverSessao, TEXTO_SITUACAO, modelosDaCategoria, municoesDoModelo, nomeDoCalibre, separarAgendamentos,
     armaDoParticipante, municaoDoParticipante, textoSemAlteracao, somarDias, doisDigitos, linhasDoPreco,
+    textoSemPrecos,
 } from '../../agendar-regras.mjs';
+
+test('textoSemPrecos avisa logo quando o estande ainda não tem o preço da hora de pista', () => {
+    const SEM = 'O estande ainda não definiu os preços. Tente de novo mais tarde.';
+    assert.strictEqual(textoSemPrecos(undefined), SEM);
+    assert.strictEqual(textoSemPrecos(null), SEM);
+    assert.strictEqual(textoSemPrecos({}), SEM);
+    assert.strictEqual(textoSemPrecos({ hora_pista_centavos: null }), SEM);
+    assert.strictEqual(textoSemPrecos({ hora_pista_centavos: '10000' }), SEM);
+    assert.strictEqual(textoSemPrecos({ hora_pista_centavos: 10000 }), null);
+    assert.strictEqual(textoSemPrecos({ hora_pista_centavos: 0 }), null);
+});
 
 test('descreverSessao mostra o dia e as horas no fuso do estande', () => {
     assert.strictEqual(descreverSessao('2026-11-18T13:00:00Z', 2, 'America/Sao_Paulo'), 'Quarta, 18/11 · das 10:00 às 12:00');

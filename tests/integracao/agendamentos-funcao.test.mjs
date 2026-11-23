@@ -349,7 +349,7 @@ test('o agendamento mantém o preço depois que o preço do modelo muda; alterar
             corpo: { id: ag.id, acao: 'alterar_horario', data: dia2.data, hora: horaLivre2(), horas: 1, preco_esperado_centavos: 0 },
         });
         assert.strictEqual(semPreco.status, 409, JSON.stringify(semPreco.dados));
-        assert.deepStrictEqual(semPreco.dados, { erro: 'Os preços deste agendamento mudaram. Fale com o estande para alterar o horário.' });
+        assert.deepStrictEqual(semPreco.dados, { erro: 'Um item deste agendamento está sem preço no momento, então o horário não pode ser alterado pelo app. Fale com o estande.' });
     } finally {
         await mudarPrecoDoModelo(modelo.id, PRECO_MODELO);
     }

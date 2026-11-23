@@ -164,6 +164,8 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--co
 
 a.botao { display: block; text-align: center; text-decoration: none; }
 .botao:disabled { cursor: wait; opacity: 0.6; }
+/* Travado por falta de preços (não é "carregando"). */
+[data-sem-precos]:not([hidden]) ~ .botao[type="submit"]:disabled { cursor: not-allowed; }
 .botao.secundario { background-color: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto); }
 
 .links { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; }

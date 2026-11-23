@@ -185,7 +185,8 @@ O superadmin cadastra os preços na aba **Preços** e as promoções na aba **Pr
 ### Sem preço
 
 - **Sem o preço da hora de pista, ninguém consegue agendar.**
-- Uma arma (modelo) ou uma munição **sem preço não aparece para os clientes**. Para tirar um item do app por um tempo, basta deixar o preço vazio na aba Preços.
+- Uma arma (modelo) ou uma munição **sem preço não aparece para os clientes**.
+- Para tirar uma arma ou munição do app por um tempo, use **"Desativar"** na aba Catálogo. Deixar o preço vazio também esconde o item, mas aí quem já agendou com ele não consegue alterar o horário pelo app e precisa falar com o estande.
 
 ### Onde ver o valor
 

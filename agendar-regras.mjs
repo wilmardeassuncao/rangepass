@@ -97,6 +97,14 @@ export function linhasDoPreco(preco) {
     return linhas;
 }
 
+// Sem o valor da hora de pista o estande ainda não tem preços e o servidor recusa agendar e alterar
+// o horário (409). Devolve a mesma mensagem do servidor, para a tela avisar logo; null quando há preços.
+export function textoSemPrecos(precos) {
+    return Number.isInteger(precos?.hora_pista_centavos)
+        ? null
+        : 'O estande ainda não definiu os preços. Tente de novo mais tarde.';
+}
+
 // Por que o cartão não mostra "Alterar" e "Cancelar": null quando não há nada a explicar
 // (dá para mexer, o agendamento não está ativo ou a sessão já terminou).
 export function textoSemAlteracao(item, agora) {

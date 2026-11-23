@@ -5,7 +5,7 @@ import { supabase, chamarFuncao } from './api.mjs';
 import {
     descreverSessao, modelosDaCategoria, municoesDoModelo, nomeDoCalibre,
     TEXTO_SITUACAO, separarAgendamentos, armaDoParticipante, municaoDoParticipante,
-    textoSemAlteracao, somarDias, doisDigitos, linhasDoPreco,
+    textoSemAlteracao, somarDias, doisDigitos, linhasDoPreco, textoSemPrecos,
 } from './agendar-regras.mjs';
 import {
     validarPedido, validarNovoHorario, horariosDoDia, duracoesPossiveis, instrutoresNecessarios, partesNoFuso,
@@ -387,8 +387,18 @@ function mostrarRevisao(pedido, inicio) {
 }
 
 // Sem o valor da hora de pista o estande ainda não tem preços: nada é calculado aqui
-// (o servidor responde com a mensagem certa ao confirmar).
-const temPrecos = () => Number.isInteger(opcoes.precos?.hora_pista_centavos);
+// e o servidor recusa agendar e alterar o horário.
+const temPrecos = () => textoSemPrecos(opcoes.precos) === null;
+
+// Sem preços, avisa no alto do formulário e trava o botão de enviar, para a pessoa não preencher
+// tudo à toa. Com preços, esconde o aviso e libera o botão.
+function avisarSemPrecos(f) {
+    const texto = textoSemPrecos(opcoes.precos);
+    const aviso = f.querySelector('[data-sem-precos]');
+    aviso.textContent = texto ?? '';
+    aviso.hidden = !texto;
+    f.querySelector('button[type="submit"]').disabled = Boolean(texto);
+}
 
 // O mesmo cálculo do servidor, com a tabela e o "hoje" que vieram nas opções.
 function calcular(pedido) {
@@ -611,6 +621,7 @@ function abrirAlterar(a) {
     atualizarDuracoes(formAlterar, maximoAlterar);
     formAlterar.elements.horas.value = String(a.horas);
     atualizarValorAlterar();
+    avisarSemPrecos(formAlterar);
     mostrarTela('tela-alterar');
 }
 
@@ -753,6 +764,7 @@ function montarFormulario() {
     listaParticipantes.replaceChildren();
     adicionarParticipante();
     atualizarHorarios(form, maximoNovo);
+    avisarSemPrecos(form);
 }
 
 // Se as opções ou a lista não vierem, a tela de erro mostra o motivo e o botão "Tentar de novo".

@@ -17,7 +17,7 @@ const NAO_ENCONTRADO = 'Não encontramos este agendamento.';
 const ILEGIVEL = 'Não foi possível ler os dados enviados. Tente de novo.';
 const SEM_PRECOS = 'O estande ainda não definiu os preços. Tente de novo mais tarde.';
 const PRECO_MUDOU = 'O preço mudou desde que você abriu a revisão. Confira o novo valor e confirme de novo.';
-const PRECOS_DO_AGENDAMENTO_MUDARAM = 'Os preços deste agendamento mudaram. Fale com o estande para alterar o horário.';
+const ITEM_SEM_PRECO = 'Um item deste agendamento está sem preço no momento, então o horário não pode ser alterado pelo app. Fale com o estande.';
 
 async function consulta(promessa) {
     const { data, error } = await promessa;
@@ -338,7 +338,7 @@ async function alterar(req, contexto) {
         const tabela = await precosDoAgendamento(recalculo.participantes, opcoes.precos);
         const semPreco = recalculo.participantes.some((p) => (p.modalidade === 'estande' && !Number.isInteger(tabela.modelos[p.modelo_id]))
             || ((p.modalidade === 'estande' || p.modalidade === 'arma_propria') && !Number.isInteger(tabela.tipos_municao[p.tipo_municao_id])));
-        if (semPreco) throw new ErroHttp(409, PRECOS_DO_AGENDAMENTO_MUDARAM);
+        if (semPreco) throw new ErroHttp(409, ITEM_SEM_PRECO);
         const { resposta, preco } = conferirPreco(recalculo, { ...opcoes, precos: tabela }, esperado);
         if (resposta) return resposta;
 
