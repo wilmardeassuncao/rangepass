@@ -47,6 +47,7 @@
                 <button type="button" role="tab" id="aba-configuracoes" data-aba="configuracoes" aria-controls="painel-configuracoes" hidden>Configurações</button>
                 <button type="button" role="tab" id="aba-catalogo" data-aba="catalogo" aria-controls="painel-catalogo" hidden>Catálogo</button>
                 <button type="button" role="tab" id="aba-pistas" data-aba="pistas" aria-controls="painel-pistas" hidden>Pistas</button>
+                <button type="button" role="tab" id="aba-precos" data-aba="precos" aria-controls="painel-precos" hidden>Preços</button>
                 <button type="button" role="tab" id="aba-equipe" data-aba="equipe" aria-controls="painel-equipe" hidden>Equipe</button>
                 <button type="button" role="tab" id="aba-agendamentos" data-aba="agendamentos" aria-controls="painel-agendamentos" hidden>Agendamentos</button>
             </nav>
@@ -325,6 +326,95 @@
                 </div>
             </section>
 
+            <!-- ---------- Preços ----------
+                 Os valores vêm do GET precos (hora de pista e regras) e do GET catalogo (armas e munições). -->
+            <section id="painel-precos" class="painel" role="tabpanel" aria-labelledby="aba-precos" hidden>
+                <header class="cabecalho">
+                    <h1>Preços</h1>
+                    <p class="subtitulo">Valores em reais, por exemplo 120,00. Cada parte é salva no seu botão "Salvar".</p>
+                </header>
+                <p id="precos-carregando" class="subtitulo">Carregando…</p>
+                <div id="precos-erro" class="bloco" hidden>
+                    <p id="precos-erro-mensagem" class="erro" role="alert"></p>
+                    <button type="button" id="botao-recarregar-precos" class="botao secundario">Tentar de novo</button>
+                </div>
+                <div id="precos-conteudo" class="formularios" hidden>
+                    <form id="form-hora-pista" class="bloco" novalidate>
+                        <h2 class="bloco-titulo">Hora de pista</h2>
+                        <label class="campo">Preço da hora de pista <small>(em reais)</small>
+                            <input name="hora_pista_centavos" inputmode="decimal" autocomplete="off" placeholder="120,00">
+                            <span class="erro" data-erro-para="hora_pista_centavos"></span>
+                        </label>
+                        <p id="sem-preco-hora-pista" class="nota-sem-preco" hidden></p>
+                        <p class="erro" data-erro-geral hidden></p>
+                        <button type="submit" class="botao">Salvar</button>
+                    </form>
+
+                    <section id="secao-precos-modelo" class="bloco">
+                        <h2 class="bloco-titulo">Armas</h2>
+                        <p class="subtitulo">Preço do aluguel por hora de cada modelo. Deixe vazio para tirar o preço.</p>
+                        <ul id="lista-precos-modelo" class="lista-precos"></ul>
+                        <p id="vazio-precos-modelo" class="subtitulo" hidden>Nenhum modelo cadastrado. Cadastre na aba Catálogo.</p>
+                    </section>
+
+                    <section id="secao-precos-tipo_municao" class="bloco">
+                        <h2 class="bloco-titulo">Munições</h2>
+                        <p class="subtitulo">Preço de cada unidade de munição. Deixe vazio para tirar o preço.</p>
+                        <ul id="lista-precos-tipo_municao" class="lista-precos"></ul>
+                        <p id="vazio-precos-tipo_municao" class="subtitulo" hidden>Nenhuma munição cadastrada. Cadastre na aba Catálogo.</p>
+                    </section>
+
+                    <section id="secao-regras" class="bloco">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Regras por dia e horário</h2>
+                            <button type="button" id="botao-adicionar-regra" class="botao secundario pequeno">Adicionar</button>
+                        </div>
+                        <p class="subtitulo">Aumentam ou diminuem a hora de pista em certos dias e horários. Quando duas regras valem na mesma hora, vale a de maior prioridade.</p>
+                        <form id="form-regra" class="formulario-cadastro" novalidate hidden>
+                            <h3 id="titulo-form-regra" class="formulario-titulo">Adicionar regra</h3>
+                            <div class="grade">
+                                <label class="campo">Nome
+                                    <input name="nome" autocomplete="off">
+                                    <span class="erro" data-erro-para="nome"></span>
+                                </label>
+                                <label class="campo">Percentual <small>(20 = 20% mais caro; -10 = 10% mais barato)</small>
+                                    <input name="percentual" type="number" step="1">
+                                    <span class="erro" data-erro-para="percentual"></span>
+                                </label>
+                                <label class="campo">Início
+                                    <input name="hora_inicio" type="time">
+                                    <span class="erro" data-erro-para="hora_inicio"></span>
+                                </label>
+                                <label class="campo">Fim
+                                    <input name="hora_fim" type="time">
+                                    <span class="erro" data-erro-para="hora_fim"></span>
+                                </label>
+                                <label class="campo">Prioridade <small>(0 ou mais)</small>
+                                    <input name="prioridade" type="number" min="0" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="prioridade"></span>
+                                </label>
+                            </div>
+                            <fieldset class="grupo" data-grupo-erro="dias">
+                                <legend class="campo-titulo">Dias da semana</legend>
+                                <div id="dias-regra" class="caixas-dias"></div>
+                                <span class="erro" data-erro-para="dias"></span>
+                            </fieldset>
+                            <label class="caixa"><input type="checkbox" name="ativo"> Ativa</label>
+                            <p class="erro" data-erro-geral hidden></p>
+                            <div class="botoes">
+                                <button type="submit" class="botao">Salvar</button>
+                                <button type="button" class="botao secundario" data-cancelar>Cancelar</button>
+                            </div>
+                        </form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Dias</th><th scope="col">Horário</th><th scope="col">Ajuste</th><th scope="col">Prioridade</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-regra"></tbody>
+                        </table>
+                        <p id="vazio-regra" class="subtitulo" hidden>Nenhuma regra cadastrada. Sem regras, a hora de pista vale o mesmo em todos os horários.</p>
+                    </section>
+                </div>
+            </section>
+
             <!-- ---------- Equipe ---------- -->
             <section id="painel-equipe" class="painel" role="tabpanel" aria-labelledby="aba-equipe" hidden>
                 <header class="cabecalho">
@@ -462,6 +552,22 @@
             <label class="campo">Instrutores <input type="number" min="1" step="1" inputmode="numeric" data-campo="instrutores"></label>
             <button type="button" class="botao secundario perigo pequeno" data-remover>Remover</button>
         </div>
+    </template>
+
+    <!-- Uma arma ou munição na aba Preços. O admin.js põe o nome, o rótulo e o name do campo. -->
+    <template id="molde-preco">
+        <li class="item-preco">
+            <p class="item-preco-nome" data-nome></p>
+            <form class="form-preco" novalidate>
+                <label class="campo"><span data-rotulo></span>
+                    <input inputmode="decimal" autocomplete="off" placeholder="Sem preço" data-campo-preco>
+                    <span class="erro" data-erro-preco></span>
+                </label>
+                <button type="submit" class="botao secundario pequeno">Salvar</button>
+                <p class="nota-sem-preco" data-sem-preco hidden></p>
+                <p class="erro" data-erro-geral hidden></p>
+            </form>
+        </li>
     </template>
 
     <script type="module" src="admin.js"></script>

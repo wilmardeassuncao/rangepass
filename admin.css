@@ -347,6 +347,27 @@ a.botao { display: block; text-align: center; text-decoration: none; }
     .tabela select { min-width: 0; }
 }
 
+/* ---------- Preços ---------- */
+
+.lista-precos { display: flex; flex-direction: column; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.item-preco {
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+}
+.item-preco.inativo .item-preco-nome { color: var(--cor-texto-secundario); }
+.item-preco-nome { font-weight: 700; overflow-wrap: anywhere; }
+.form-preco { align-items: end; display: flex; flex-wrap: wrap; gap: 10px; }
+.form-preco .campo { flex: 1 1 180px; min-width: 0; }
+.form-preco .botao { min-height: 48px; }
+.form-preco .nota-sem-preco, .form-preco [data-erro-geral] { flex-basis: 100%; }
+.nota-sem-preco { color: var(--cor-marca-clara); font-size: 13px; line-height: 1.4; }
+
+.caixas-dias { display: grid; gap: 0 16px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+
 /* ---------- Equipe ---------- */
 
 .busca { align-items: end; display: flex; flex-wrap: wrap; gap: 10px; }

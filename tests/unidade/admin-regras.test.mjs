@@ -5,6 +5,7 @@ import {
     NOMES_DIAS, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, abasVisiveis, numeroDoCampo,
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
     consultaDosFiltros, descreverEvento, dataHoraNoFuso,
+    precoDoCampo, textoDoPreco, AVISO_SEM_PRECO, regraDoFormulario, formularioDaRegra, diasDaRegra, textoDoPercentual,
 } from '../../admin-regras.mjs';
 import { PAPEIS } from '../../supabase/functions/_shared/papeis.mjs';
 
@@ -49,7 +50,7 @@ test('proximaVersao: texto igual mantém a versão; texto novo soma 1', () => {
 });
 
 test('abasVisiveis: o superadmin vê todas, na ordem', () => {
-    assert.deepStrictEqual(abasVisiveis(['superadmin']), ['configuracoes', 'catalogo', 'pistas', 'equipe', 'agendamentos']);
+    assert.deepStrictEqual(abasVisiveis(['superadmin']), ['configuracoes', 'catalogo', 'pistas', 'precos', 'equipe', 'agendamentos']);
 });
 test('abasVisiveis: o administrativo vê só Agendamentos', () => {
     assert.deepStrictEqual(abasVisiveis(['cliente', 'administrativo']), ['agendamentos']);
@@ -186,4 +187,78 @@ test('descreverEvento: qualquer outro → Alteração registrada', () => {
 test('dataHoraNoFuso: DD/MM/AAAA HH:MM no fuso do estande', () => {
     assert.strictEqual(dataHoraNoFuso('2026-11-20T02:05:00Z', 'America/Sao_Paulo'), '19/11/2026 23:05');
     assert.strictEqual(dataHoraNoFuso('2026-11-20T15:30:00Z', 'America/Sao_Paulo'), '20/11/2026 12:30');
+});
+
+// ---------- Preços ----------
+
+test('abasVisiveis: a aba Preços é só do superadmin', () => {
+    assert.ok(!abasVisiveis(['administrativo']).includes('precos'));
+    assert.ok(abasVisiveis(['superadmin']).includes('precos'));
+});
+
+test('precoDoCampo: reais digitados viram centavos; vazio vira null (sem preço)', () => {
+    assert.deepStrictEqual(precoDoCampo('120'), { valor: 12000 });
+    assert.deepStrictEqual(precoDoCampo(' 120,5 '), { valor: 12050 });
+    assert.deepStrictEqual(precoDoCampo('R$ 1.234,56'), { valor: 123456 });
+    assert.deepStrictEqual(precoDoCampo(''), { valor: null });
+    assert.deepStrictEqual(precoDoCampo('   '), { valor: null });
+    assert.deepStrictEqual(precoDoCampo(undefined), { valor: null });
+});
+
+test('precoDoCampo: texto que não é valor em reais vira erro', () => {
+    for (const texto of ['abc', '12,345', '-5', '1,2,3']) {
+        assert.deepStrictEqual(precoDoCampo(texto), { erro: 'Use um valor em reais, por exemplo 120,00.' }, texto);
+    }
+});
+
+test('textoDoPreco: centavos viram reais; sem preço vira campo vazio', () => {
+    assert.strictEqual(textoDoPreco(12000), 'R$ 120,00');
+    assert.strictEqual(textoDoPreco(null), '');
+    assert.strictEqual(textoDoPreco(undefined), '');
+    // E a volta: o texto mostrado é aceito de novo pelo campo.
+    assert.deepStrictEqual(precoDoCampo(textoDoPreco(123456)), { valor: 123456 });
+});
+
+test('AVISO_SEM_PRECO: o aviso de cada item sem preço', () => {
+    assert.strictEqual(AVISO_SEM_PRECO.modelo, 'Sem preço, esta arma não aparece para os clientes.');
+    assert.strictEqual(AVISO_SEM_PRECO.tipo_municao, 'Sem preço, esta munição não aparece para os clientes.');
+    assert.strictEqual(AVISO_SEM_PRECO.hora_pista, 'Sem preço da hora de pista, ninguém consegue agendar.');
+});
+
+test('regraDoFormulario: os campos da tela viram os dados da regra', () => {
+    assert.deepStrictEqual(regraDoFormulario({
+        nome: ' Fim de semana ', dias: ['6', '0'], hora_inicio: '18:00', hora_fim: '22:00',
+        percentual: '20', prioridade: '1', ativo: true,
+    }), {
+        nome: ' Fim de semana ', dias: [0, 6], hora_inicio: '18:00', hora_fim: '22:00',
+        percentual: 20, prioridade: 1, ativo: true,
+    });
+});
+
+test('regraDoFormulario: prioridade vazia vira 0; percentual vazio vira null (o servidor recusa)', () => {
+    const dados = regraDoFormulario({ nome: 'x', dias: [], hora_inicio: '', hora_fim: '', percentual: '', prioridade: '', ativo: false });
+    assert.strictEqual(dados.prioridade, 0);
+    assert.strictEqual(dados.percentual, null);
+    assert.deepStrictEqual(dados.dias, []);
+    assert.strictEqual(dados.ativo, false);
+});
+
+test('formularioDaRegra: regra salva → campos da tela; sem regra, o formulário vazio', () => {
+    assert.deepStrictEqual(formularioDaRegra({
+        id: 3, nome: 'Sábado', dias: [6], hora_inicio: '08:00', hora_fim: '12:00', percentual: -10, prioridade: 2, ativo: false,
+    }), { nome: 'Sábado', dias: [6], hora_inicio: '08:00', hora_fim: '12:00', percentual: '-10', prioridade: '2', ativo: false });
+    assert.deepStrictEqual(formularioDaRegra(null), {
+        nome: '', dias: [], hora_inicio: '', hora_fim: '', percentual: '', prioridade: '0', ativo: true,
+    });
+});
+
+test('diasDaRegra: os dias abreviados, de domingo a sábado; todos = Todos os dias', () => {
+    assert.strictEqual(diasDaRegra([6, 0]), 'Dom, Sáb');
+    assert.strictEqual(diasDaRegra([1, 2, 3]), 'Seg, Ter, Qua');
+    assert.strictEqual(diasDaRegra([0, 1, 2, 3, 4, 5, 6]), 'Todos os dias');
+});
+
+test('textoDoPercentual: aumento com +, desconto com -', () => {
+    assert.strictEqual(textoDoPercentual(20), '+20%');
+    assert.strictEqual(textoDoPercentual(-10), '-10%');
 });

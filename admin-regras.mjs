@@ -3,6 +3,7 @@ import { temAlgumPapel } from './supabase/functions/_shared/papeis.mjs';
 import { partesNoFuso } from './supabase/functions/_shared/agendamento.mjs';
 import { TEXTO_SITUACAO, doisDigitos } from './agendar-regras.mjs';
 import { CAMPOS_CADASTRO } from './supabase/functions/_shared/catalogo.mjs';
+import { centavosDoTexto, formatarReais } from './supabase/functions/_shared/precos.mjs';
 
 export const NOMES_DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
@@ -12,6 +13,7 @@ export const ABAS = [
     { id: 'configuracoes', papeis: ['superadmin'] },
     { id: 'catalogo', papeis: ['superadmin'] },
     { id: 'pistas', papeis: ['superadmin'] },
+    { id: 'precos', papeis: ['superadmin'] },
     { id: 'equipe', papeis: ['superadmin'] },
     { id: 'agendamentos', papeis: ['administrativo'] },
 ];
@@ -80,6 +82,67 @@ export function mensagemCadastroSalvo(tipo, reservasFuturas) {
 
 export function nomeDoModelo(modelo) {
     return `${modelo.marca} ${modelo.nome}`;
+}
+
+// ---------- Preços ----------
+
+const VALOR_INVALIDO = 'Use um valor em reais, por exemplo 120,00.';
+
+// Campo de preço (em reais) → { valor: centavos } ou { erro }. Vazio = sem preço (null); quem não
+// aceita null (a hora de pista) recusa com a mensagem do servidor.
+export function precoDoCampo(texto) {
+    const limpo = String(texto ?? '').trim();
+    if (limpo === '') return { valor: null };
+    const centavos = centavosDoTexto(limpo);
+    return centavos === null ? { erro: VALOR_INVALIDO } : { valor: centavos };
+}
+
+// O inverso: centavos → texto do campo ('' quando não tem preço).
+export function textoDoPreco(centavos) {
+    return Number.isInteger(centavos) ? formatarReais(centavos) : '';
+}
+
+export const AVISO_SEM_PRECO = {
+    modelo: 'Sem preço, esta arma não aparece para os clientes.',
+    tipo_municao: 'Sem preço, esta munição não aparece para os clientes.',
+    hora_pista: 'Sem preço da hora de pista, ninguém consegue agendar.',
+};
+
+// Formulário da regra por dia e horário → dados do POST/PUT precos. Os dias chegam como os valores
+// das caixas marcadas ('0' a '6'). Prioridade vazia vale 0; percentual vazio vai null (o servidor recusa).
+export function regraDoFormulario(campos) {
+    return {
+        nome: campos.nome,
+        dias: campos.dias.map(Number).sort((a, b) => a - b),
+        hora_inicio: campos.hora_inicio,
+        hora_fim: campos.hora_fim,
+        percentual: numeroDoCampo(campos.percentual),
+        prioridade: numeroDoCampo(campos.prioridade) ?? 0,
+        ativo: campos.ativo,
+    };
+}
+
+// O inverso: regra salva (ou null, para uma nova) → valores dos campos da tela.
+export function formularioDaRegra(regra) {
+    if (!regra) return { nome: '', dias: [], hora_inicio: '', hora_fim: '', percentual: '', prioridade: '0', ativo: true };
+    return {
+        nome: regra.nome,
+        dias: [...regra.dias],
+        hora_inicio: regra.hora_inicio,
+        hora_fim: regra.hora_fim,
+        percentual: String(regra.percentual),
+        prioridade: String(regra.prioridade),
+        ativo: regra.ativo,
+    };
+}
+
+export function diasDaRegra(dias) {
+    if (dias.length === NOMES_DIAS.length) return 'Todos os dias';
+    return [...dias].sort((a, b) => a - b).map((dia) => NOMES_DIAS[dia].slice(0, 3)).join(', ');
+}
+
+export function textoDoPercentual(percentual) {
+    return `${percentual > 0 ? '+' : ''}${percentual}%`;
 }
 
 // ---------- Equipe ----------

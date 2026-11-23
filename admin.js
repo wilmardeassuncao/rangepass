@@ -5,6 +5,7 @@ import {
     NOMES_DIAS, abasVisiveis, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, numeroDoCampo,
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
     consultaDosFiltros, descreverEvento, dataHoraNoFuso, CAMPOS_FORMULARIO,
+    precoDoCampo, textoDoPreco, AVISO_SEM_PRECO, regraDoFormulario, formularioDaRegra, diasDaRegra, textoDoPercentual,
 } from './admin-regras.mjs';
 import { formatarCpf, formatarTelefone } from './conta-regras.mjs';
 import { descreverSessao, TEXTO_SITUACAO, somarDias } from './agendar-regras.mjs';
@@ -12,6 +13,7 @@ import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 import { PAPEIS } from './supabase/functions/_shared/papeis.mjs';
 import { CHAVES_CONFIGURACAO, validarConfiguracao } from './supabase/functions/_shared/configuracoes.mjs';
 import { SITUACOES_UNIDADE, validarCadastroCatalogo } from './supabase/functions/_shared/catalogo.mjs';
+import { validarRegra } from './supabase/functions/_shared/precos.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ERRO_CARREGAR = 'Não foi possível carregar agora. Verifique a internet e tente de novo.';
@@ -111,6 +113,7 @@ const ABRIR_ABA = {
     configuracoes: abrirAbaConfiguracoes,
     catalogo: abrirAbaCadastros,
     pistas: abrirAbaCadastros,
+    precos: abrirAbaPrecos,
     equipe: abrirAbaEquipe,
     agendamentos: abrirAbaAgendamentos,
 };
@@ -404,6 +407,7 @@ montarDias();
 
 let catalogo = null;            // { categorias, calibres, modelos, tipos_municao, unidades, pistas }
 let catalogoEmCarga = null;     // a primeira carga em andamento (as duas abas não pedem duas vezes)
+let versaoCatalogo = 0;         // soma 1 a cada carga (a aba Preços sabe quando remontar as listas dela)
 
 // campos: o que o formulário mostra (CAMPOS_FORMULARIO, em admin-regras.mjs: rótulos, listas de
 // escolha e o fixo/soAoCriar, este tirado das regras do servidor).
@@ -673,6 +677,7 @@ async function buscarCatalogo() {
     }
     if (r.status !== 200 || !Array.isArray(r.dados?.categorias)) return { erro: r.dados?.erro ?? ERRO_CARREGAR };
     catalogo = r.dados;
+    versaoCatalogo += 1;
     mostrarCadastros();
     return {};
 }
@@ -814,6 +819,344 @@ function abrirAbaCadastros() {
         catalogoEmCarga = carregarCatalogo().finally(() => { catalogoEmCarga = null; });
     }
 }
+
+// ---------- Aba Preços ----------
+// Hora de pista (PUT configuracoes, chave precos), o preço de cada modelo e de cada munição (PUT catalogo,
+// cada um na sua linha) e as regras por dia e horário (POST/PUT precos). Usa o GET precos e o mesmo
+// GET catalogo das abas Catálogo e Pistas. As promoções (campanhas, classes, pacotes) não ficam aqui.
+
+let precos = null;              // GET precos: { hora_pista_centavos, regras, campanhas, classes, pacotes }
+let precosEmCarga = null;
+let versaoNasListasDePreco = -1; // versão do catálogo com que as listas de armas e munições foram montadas
+
+const formHoraPista = document.getElementById('form-hora-pista');
+const formRegra = document.getElementById('form-regra');
+const linhasRegra = document.getElementById('linhas-regra');
+
+// Preço de cada tipo do catálogo: a lista do GET catalogo, o campo e o rótulo.
+const PRECOS_CATALOGO = {
+    modelo: { lista: 'modelos', campo: 'preco_hora_centavos', rotulo: 'Preço por hora' },
+    tipo_municao: { lista: 'tipos_municao', campo: 'preco_unidade_centavos', rotulo: 'Preço por unidade' },
+};
+
+// ----- Hora de pista -----
+
+function preencherHoraPista() {
+    formHoraPista.elements.hora_pista_centavos.value = textoDoPreco(precos.hora_pista_centavos);
+    const aviso = document.getElementById('sem-preco-hora-pista');
+    aviso.textContent = AVISO_SEM_PRECO.hora_pista;
+    aviso.hidden = Number.isInteger(precos.hora_pista_centavos);
+}
+
+function salvarHoraPista(form) {
+    limparErros(form);
+    avisar(null);
+    const lido = precoDoCampo(form.elements.hora_pista_centavos.value);
+    if (lido.erro) return mostrarErros(form, { hora_pista_centavos: lido.erro });
+    const valor = { hora_pista_centavos: lido.valor };
+    const campos = validarConfiguracao('precos', valor);
+    if (Object.keys(campos).length) return mostrarErros(form, campos);
+
+    return ocupado(form, async () => {
+        const r = await chamarFuncao('configuracoes', { metodo: 'PUT', corpo: { chave: 'precos', valor } });
+        if (r.status === 200) {
+            precos.hora_pista_centavos = r.dados.valor.hora_pista_centavos;
+            if (configuracoes) configuracoes.precos = r.dados.valor;
+            preencherHoraPista();
+            avisar('Hora de pista salva.', { sucesso: true });
+        } else if (precisaEntrar(r)) {
+            await irParaEntrar();
+        } else if (r.status === 400 && r.dados?.campos) {
+            mostrarErros(form, r.dados.campos);
+        } else {
+            mostrarErroGeral(form, r.dados?.erro ?? ERRO_PADRAO);
+        }
+    });
+}
+
+formHoraPista.addEventListener('submit', (evento) => {
+    evento.preventDefault();
+    salvarHoraPista(formHoraPista);
+});
+
+// ----- Armas e munições -----
+
+function nomeComPreco(tipo, item) {
+    if (tipo === 'modelo') return nomeDoModelo(item);
+    return `${item.nome} (${nomeNaLista('calibres', item.calibre_id)})`;
+}
+
+// O campo mostra o preço salvo; sem preço, o campo fica vazio e aparece o aviso.
+function preencherPreco(li, tipo, item) {
+    const { campo } = PRECOS_CATALOGO[tipo];
+    const temPreco = Number.isInteger(item[campo]);
+    li.querySelector('[data-campo-preco]').value = textoDoPreco(item[campo]);
+    const aviso = li.querySelector('[data-sem-preco]');
+    aviso.textContent = AVISO_SEM_PRECO[tipo];
+    aviso.hidden = temPreco;
+}
+
+function itemDePreco(tipo, item) {
+    const { campo, rotulo } = PRECOS_CATALOGO[tipo];
+    const nome = `${nomeComPreco(tipo, item)}${item.ativo ? '' : ' (desativado)'}`;
+    const li = copiarMolde('molde-preco');
+    li.dataset.id = String(item.id);
+    li.classList.toggle('inativo', !item.ativo);
+    li.querySelector('[data-nome]').textContent = nome;
+    li.querySelector('[data-rotulo]').textContent = rotulo;
+    const entrada = li.querySelector('[data-campo-preco]');
+    entrada.name = campo;
+    entrada.setAttribute('aria-label', `${rotulo}: ${nome}`);
+    li.querySelector('[data-erro-preco]').dataset.erroPara = campo;
+    const form = li.querySelector('form');
+    form.dataset.tipo = tipo;
+    form.dataset.id = String(item.id);
+    preencherPreco(li, tipo, item);
+    return li;
+}
+
+function mostrarPrecosDoCatalogo() {
+    for (const [tipo, { lista }] of Object.entries(PRECOS_CATALOGO)) {
+        const itens = catalogo[lista] ?? [];
+        document.getElementById(`lista-precos-${tipo}`).replaceChildren(...itens.map((item) => itemDePreco(tipo, item)));
+        document.getElementById(`vazio-precos-${tipo}`).hidden = itens.length > 0;
+    }
+    versaoNasListasDePreco = versaoCatalogo;
+}
+
+function salvarPreco(form) {
+    const tipo = form.dataset.tipo;
+    const id = Number(form.dataset.id);
+    const { lista, campo } = PRECOS_CATALOGO[tipo];
+    limparErros(form);
+    avisar(null);
+    const lido = precoDoCampo(form.elements[campo].value);
+    if (lido.erro) return mostrarErros(form, { [campo]: lido.erro });
+    const { campos, valores } = validarCadastroCatalogo(tipo, { [campo]: lido.valor }, { criando: false });
+    if (Object.keys(campos).length) return mostrarErros(form, campos);
+
+    return ocupado(form, async () => {
+        const r = await chamarFuncao('catalogo', { metodo: 'PUT', corpo: { tipo, id, dados: valores } });
+        if (r.status === 200) {
+            const item = itemDaLista(lista, id);
+            if (item) {
+                Object.assign(item, valores);
+                preencherPreco(form.closest('li'), tipo, item);
+            }
+            avisar(valores[campo] === null ? 'Preço retirado.' : 'Preço salvo.', { sucesso: true });
+        } else if (precisaEntrar(r)) {
+            await irParaEntrar();
+        } else if ((r.status === 400 || r.status === 409) && r.dados?.campos) {
+            mostrarErros(form, r.dados.campos);
+        } else {
+            mostrarErroGeral(form, r.dados?.erro ?? ERRO_PADRAO);
+        }
+    });
+}
+
+for (const tipo of Object.keys(PRECOS_CATALOGO)) {
+    document.getElementById(`lista-precos-${tipo}`).addEventListener('submit', (evento) => {
+        evento.preventDefault();
+        salvarPreco(evento.target);
+    });
+}
+
+// ----- Regras por dia e horário -----
+
+// Uma caixa por dia da semana, de domingo (0) a sábado (6). Montadas uma vez só.
+function montarDiasDaRegra() {
+    const lugar = document.getElementById('dias-regra');
+    NOMES_DIAS.forEach((nome, dia) => {
+        const rotulo = document.createElement('label');
+        rotulo.className = 'caixa';
+        const caixa = document.createElement('input');
+        caixa.type = 'checkbox';
+        caixa.name = 'dias';
+        caixa.value = String(dia);
+        rotulo.append(caixa, ` ${nome}`);
+        lugar.append(rotulo);
+    });
+}
+
+function regraDaLista(id) {
+    return (precos?.regras ?? []).find((regra) => regra.id === id);
+}
+
+function linhaDaRegra(regra) {
+    const linha = document.createElement('tr');
+    linha.dataset.id = String(regra.id);
+    linha.classList.toggle('inativo', !regra.ativo);
+    linha.append(
+        celula('Nome', regra.nome),
+        celula('Dias', diasDaRegra(regra.dias)),
+        celula('Horário', `${regra.hora_inicio} às ${regra.hora_fim}`),
+        celula('Ajuste', textoDoPercentual(regra.percentual)),
+        celula('Prioridade', String(regra.prioridade)),
+        celula('Situação', rotuloSituacao(regra.ativo ? 'Ativa' : 'Desativada', regra.ativo)),
+    );
+    const acoes = document.createElement('div');
+    acoes.className = 'acoes';
+    acoes.append(
+        botaoDaLinha('Editar', 'editar', regra, regra.nome),
+        botaoDaLinha(regra.ativo ? 'Desativar' : 'Reativar', 'alternar', regra, regra.nome, { perigo: regra.ativo }),
+    );
+    const celulaAcoes = celula('', acoes);
+    celulaAcoes.className = 'celula-acoes';
+    linha.append(celulaAcoes);
+    return linha;
+}
+
+function mostrarRegras() {
+    const regras = precos.regras;
+    linhasRegra.replaceChildren(...regras.map(linhaDaRegra));
+    linhasRegra.closest('table').hidden = regras.length === 0;
+    document.getElementById('vazio-regra').hidden = regras.length > 0;
+}
+
+function abrirFormularioRegra(regra = null) {
+    const valores = formularioDaRegra(regra);
+    formRegra.dataset.id = regra ? String(regra.id) : '';
+    document.getElementById('titulo-form-regra').textContent = regra ? 'Editar regra' : 'Adicionar regra';
+    for (const nome of ['nome', 'hora_inicio', 'hora_fim', 'percentual', 'prioridade']) formRegra.elements[nome].value = valores[nome];
+    for (const caixa of formRegra.querySelectorAll('input[name="dias"]')) caixa.checked = valores.dias.includes(Number(caixa.value));
+    formRegra.elements.ativo.checked = valores.ativo;
+    limparErros(formRegra);
+    formRegra.hidden = false;
+    formRegra.scrollIntoView?.({ block: 'nearest' });
+    formRegra.elements.nome.focus({ preventScroll: true });
+}
+
+function fecharFormularioRegra() {
+    formRegra.hidden = true;
+    formRegra.dataset.id = '';
+}
+
+function dadosDaRegra(form) {
+    return regraDoFormulario({
+        nome: form.elements.nome.value,
+        dias: [...form.querySelectorAll('input[name="dias"]:checked')].map((caixa) => caixa.value),
+        hora_inicio: form.elements.hora_inicio.value,
+        hora_fim: form.elements.hora_fim.value,
+        percentual: form.elements.percentual.value,
+        prioridade: form.elements.prioridade.value,
+        ativo: form.elements.ativo.checked,
+    });
+}
+
+// Confere no navegador (as mesmas regras do servidor) e envia. Erros vão para os campos do
+// formulário ou, sem formulário (Desativar/Reativar da lista), para o aviso.
+async function enviarRegra(id, dados, form = null) {
+    const criando = id === null;
+    const mostrarProblema = (campos) => {
+        if (form) mostrarErros(form, campos);
+        else avisar(Object.values(campos)[0]);
+    };
+    const { campos, valores } = validarRegra(dados, { criando });
+    if (Object.keys(campos).length) return mostrarProblema(campos);
+
+    const corpo = criando ? { tipo: 'regra', dados: valores } : { tipo: 'regra', id, dados: valores };
+    const r = await chamarFuncao('precos', { metodo: criando ? 'POST' : 'PUT', corpo });
+    if ((r.status === 200 || r.status === 201) && r.dados?.item) {
+        const item = r.dados.item;
+        const outras = precos.regras.filter((regra) => regra.id !== item.id);
+        precos.regras = [...outras, item].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id - b.id);
+        mostrarRegras();
+        if (form) {
+            fecharFormularioRegra();
+        } else if (!formRegra.hidden && formRegra.dataset.id === String(item.id)) {
+            // Desativar/Reativar com o formulário desta regra aberto: a caixa "Ativa" acompanha
+            // (o resto do que foi digitado fica), para o Salvar não desfazer a mudança.
+            formRegra.elements.ativo.checked = item.ativo;
+        }
+        avisar('Regra salva.', { sucesso: true });
+    } else if (precisaEntrar(r)) {
+        await irParaEntrar();
+    } else if ((r.status === 400 || r.status === 409) && r.dados?.campos) {
+        mostrarProblema(r.dados.campos);
+    } else if (form) {
+        mostrarErroGeral(form, r.dados?.erro ?? ERRO_PADRAO);
+    } else {
+        avisar(r.dados?.erro ?? ERRO_PADRAO);
+    }
+}
+
+document.getElementById('botao-adicionar-regra').addEventListener('click', () => {
+    if (!formRegra.hidden && formRegra.dataset.id === '') {
+        formRegra.elements.nome.focus();
+        return;
+    }
+    abrirFormularioRegra();
+});
+
+formRegra.addEventListener('submit', (evento) => {
+    evento.preventDefault();
+    limparErros(formRegra);
+    avisar(null);
+    const id = formRegra.dataset.id ? Number(formRegra.dataset.id) : null;
+    ocupado(formRegra, () => enviarRegra(id, dadosDaRegra(formRegra), formRegra));
+});
+
+formRegra.addEventListener('click', (evento) => {
+    if (evento.target.closest('[data-cancelar]')) fecharFormularioRegra();
+});
+
+linhasRegra.addEventListener('click', (evento) => {
+    const alvo = evento.target.closest('button[data-acao]');
+    const regra = alvo && regraDaLista(Number(alvo.dataset.id));
+    if (!regra) return;
+    if (alvo.dataset.acao === 'editar') {
+        abrirFormularioRegra(regra);
+        return;
+    }
+    avisar(null);
+    ocupado(alvo.closest('tr'), () => enviarRegra(regra.id, { ativo: !regra.ativo }));
+});
+
+// ----- Carga -----
+
+function mostrarEstadoPrecos(estado, mensagem) {
+    document.getElementById('precos-carregando').hidden = estado !== 'carregando';
+    document.getElementById('precos-erro').hidden = estado !== 'erro';
+    document.getElementById('precos-conteudo').hidden = estado !== 'pronto';
+    document.getElementById('precos-erro-mensagem').textContent = mensagem ?? '';
+}
+
+// O GET precos e o catálogo (pela mesma carga das abas Catálogo e Pistas), ao mesmo tempo.
+async function carregarPrecos() {
+    mostrarEstadoPrecos('carregando');
+    try {
+        abrirAbaCadastros();
+        const [r] = await Promise.all([chamarFuncao('precos'), catalogoEmCarga]);
+        if (precisaEntrar(r)) return irParaEntrar();
+        if (r.status !== 200 || !Array.isArray(r.dados?.regras)) return mostrarEstadoPrecos('erro', r.dados?.erro ?? ERRO_CARREGAR);
+        if (!catalogo) return mostrarEstadoPrecos('erro', ERRO_CARREGAR);
+        precos = r.dados;
+        limparErros(formHoraPista);
+        preencherHoraPista();
+        mostrarRegras();
+        mostrarPrecosDoCatalogo();
+        mostrarEstadoPrecos('pronto');
+    } catch (erro) {
+        console.error(erro);
+        mostrarEstadoPrecos('erro', ERRO_CARREGAR);
+    }
+}
+
+document.getElementById('botao-recarregar-precos').addEventListener('click', (evento) => {
+    ocupado(evento.currentTarget.parentElement, carregarPrecos);
+});
+
+// Carrega uma vez; voltar para a aba não apaga o que foi digitado. Se o catálogo foi recarregado
+// (ex.: modelo novo na aba Catálogo), as listas de armas e munições são montadas de novo.
+function abrirAbaPrecos() {
+    if (!precos) {
+        if (!precosEmCarga) precosEmCarga = carregarPrecos().finally(() => { precosEmCarga = null; });
+        return;
+    }
+    if (versaoNasListasDePreco !== versaoCatalogo) mostrarPrecosDoCatalogo();
+}
+
+montarDiasDaRegra();
 
 // ---------- Aba Equipe ----------
 // A lista de quem tem papel de equipe e a busca por outras pessoas (nome, e-mail ou CPF, a partir de
