@@ -337,3 +337,7 @@ verify_jwt = false
 [functions.painel-agendamentos]
 entrypoint = "./functions/painel-agendamentos/index.js"
 verify_jwt = false
+
+[functions.precos]
+entrypoint = "./functions/precos/index.js"
+verify_jwt = false
