@@ -427,6 +427,16 @@ a.botao { display: block; text-align: center; text-decoration: none; }
 
 .link.voltar { align-self: flex-start; min-height: 48px; }
 
+/* Valor do detalhe (como na revisão do cliente): cada item, o desconto e o total, em destaque. */
+.valor-detalhe { display: flex; flex-direction: column; gap: 10px; }
+.valor-detalhe div { display: flex; gap: 12px; justify-content: space-between; }
+.valor-detalhe dt { color: var(--cor-texto-secundario); font-size: 14px; overflow-wrap: anywhere; }
+.valor-detalhe dd { flex-shrink: 0; font-size: 14px; text-align: right; }
+.valor-detalhe .desconto dd { color: var(--cor-sucesso); }
+.valor-detalhe .total { border-top: 1px solid var(--cor-borda); padding-top: 10px; }
+.valor-detalhe .total dt, .valor-detalhe .total dd { color: var(--cor-texto); font-size: 16px; font-weight: 700; }
+.tabela-agendamentos td[data-coluna="Total"] { white-space: nowrap; }
+
 /* Pares nome → valor do detalhe. */
 .dados { display: grid; gap: 10px 16px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .dados dt { color: var(--cor-texto-secundario); font-size: 13px; }

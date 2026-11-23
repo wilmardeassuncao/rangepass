@@ -10,12 +10,12 @@ import {
     pacoteDoFormulario, formularioDoPacote, textoDoPacote,
 } from './admin-regras.mjs';
 import { formatarCpf, formatarTelefone } from './conta-regras.mjs';
-import { descreverSessao, TEXTO_SITUACAO, somarDias } from './agendar-regras.mjs';
+import { descreverSessao, TEXTO_SITUACAO, somarDias, linhasDoPreco } from './agendar-regras.mjs';
 import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 import { PAPEIS } from './supabase/functions/_shared/papeis.mjs';
 import { CHAVES_CONFIGURACAO, validarConfiguracao } from './supabase/functions/_shared/configuracoes.mjs';
 import { SITUACOES_UNIDADE, validarCadastroCatalogo } from './supabase/functions/_shared/catalogo.mjs';
-import { validarRegra, validarCampanha, validarClasse, validarPacote } from './supabase/functions/_shared/precos.mjs';
+import { validarRegra, validarCampanha, validarClasse, validarPacote, formatarReais } from './supabase/functions/_shared/precos.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ERRO_CARREGAR = 'Não foi possível carregar agora. Verifique a internet e tente de novo.';
@@ -1669,6 +1669,8 @@ function linhaDoAgendamento(a) {
         celulaDeTextos('Instrutores', listaOuTraco(a.instrutores ?? [])),
         celulaDeTextos('Pistas', listaOuTraco(textoDasPistas(a.pistas))),
         celulaDeTextos('Armas', listaOuTraco(textoDasArmas(a.armas))),
+        // Vazio nos agendamentos feitos antes dos preços.
+        celula('Total', Number.isInteger(a.preco_total_centavos) ? formatarReais(a.preco_total_centavos) : SEM_VALOR),
     );
     return linha;
 }
@@ -1789,7 +1791,31 @@ function cartaoDoParticipante(p) {
     return cartao;
 }
 
+// O preço congelado (preco_detalhe), como na revisão do cliente: cada item, o desconto e o total.
+// Os agendamentos feitos antes dos preços não têm preço: mostra o aviso no lugar.
+function preencherValor(preco) {
+    const lista = document.getElementById('detalhe-valor');
+    const temPreco = Array.isArray(preco?.itens) && Number.isInteger(preco.total_centavos);
+    const linhas = temPreco ? linhasDoPreco(preco) : [];
+    lista.replaceChildren(...linhas.map(({ rotulo, valor }) => {
+        const par = document.createElement('div');
+        const dt = document.createElement('dt');
+        dt.textContent = rotulo;
+        const dd = document.createElement('dd');
+        dd.textContent = valor;
+        par.append(dt, dd);
+        return par;
+    }));
+    if (temPreco) {
+        lista.lastElementChild.classList.add('total');
+        if (preco.desconto) lista.lastElementChild.previousElementSibling.classList.add('desconto');
+    }
+    lista.hidden = !temPreco;
+    document.getElementById('detalhe-valor-vazio').hidden = temPreco;
+}
+
 function preencherDetalhe({ agendamento: a, historico }) {
+    preencherValor(a.preco_detalhe);
     document.getElementById('detalhe-sessao').textContent = descreverSessao(a.inicio, a.horas, fusoEstande);
     document.getElementById('detalhe-situacao').replaceChildren(rotuloDaSituacao(a.situacao));
     document.getElementById('detalhe-instrutores').textContent = listaOuTraco(a.instrutores ?? []).join(', ');
