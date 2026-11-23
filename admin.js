@@ -6,6 +6,8 @@ import {
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
     consultaDosFiltros, descreverEvento, dataHoraNoFuso, CAMPOS_FORMULARIO,
     precoDoCampo, textoDoPreco, AVISO_SEM_PRECO, regraDoFormulario, formularioDaRegra, diasDaRegra, textoDoPercentual,
+    situacaoDaCampanha, textoDoPeriodo, campanhaDoFormulario, formularioDaCampanha, classeDoFormulario, formularioDaClasse,
+    pacoteDoFormulario, formularioDoPacote, textoDoPacote,
 } from './admin-regras.mjs';
 import { formatarCpf, formatarTelefone } from './conta-regras.mjs';
 import { descreverSessao, TEXTO_SITUACAO, somarDias } from './agendar-regras.mjs';
@@ -13,7 +15,7 @@ import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 import { PAPEIS } from './supabase/functions/_shared/papeis.mjs';
 import { CHAVES_CONFIGURACAO, validarConfiguracao } from './supabase/functions/_shared/configuracoes.mjs';
 import { SITUACOES_UNIDADE, validarCadastroCatalogo } from './supabase/functions/_shared/catalogo.mjs';
-import { validarRegra } from './supabase/functions/_shared/precos.mjs';
+import { validarRegra, validarCampanha, validarClasse, validarPacote } from './supabase/functions/_shared/precos.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ERRO_CARREGAR = 'Não foi possível carregar agora. Verifique a internet e tente de novo.';
@@ -114,6 +116,7 @@ const ABRIR_ABA = {
     catalogo: abrirAbaCadastros,
     pistas: abrirAbaCadastros,
     precos: abrirAbaPrecos,
+    promocoes: abrirAbaPromocoes,
     equipe: abrirAbaEquipe,
     agendamentos: abrirAbaAgendamentos,
 };
@@ -502,13 +505,14 @@ function botaoDaLinha(texto, acao, item, descricao, { perigo = false } = {}) {
 }
 
 // Opções das listas de escolha. Situação: as três. Outras: só os itens ativos, mais o que já está
-// escolhido (se tiver sido desativado depois, para não sumir da edição).
+// escolhido (se tiver sido desativado depois, para não sumir da edição). campo.vazio: o texto da
+// opção sem escolha (padrão "Escolha…"; nas opcionais, "Nenhum").
 function preencherOpcoes(select, campo, valor) {
     let opcoes;
     if (campo.situacao) {
         opcoes = SITUACOES_UNIDADE.map((situacao) => [situacao, rotuloSituacaoArma(situacao)]);
     } else {
-        opcoes = [['', 'Escolha…']];
+        opcoes = [['', campo.vazio ?? 'Escolha…']];
         for (const item of catalogo?.[campo.escolha] ?? []) {
             if (!item.ativo && item.id !== valor) continue;
             opcoes.push([String(item.id), `${nomeDoItem(campo.escolha, item)}${item.ativo ? '' : ' (desativado)'}`]);
@@ -830,8 +834,6 @@ let precosEmCarga = null;
 let versaoNasListasDePreco = -1; // versão do catálogo com que as listas de armas e munições foram montadas
 
 const formHoraPista = document.getElementById('form-hora-pista');
-const formRegra = document.getElementById('form-regra');
-const linhasRegra = document.getElementById('linhas-regra');
 
 // Preço de cada tipo do catálogo: a lista do GET catalogo, o campo e o rótulo.
 const PRECOS_CATALOGO = {
@@ -978,27 +980,54 @@ function montarDiasDaRegra() {
     });
 }
 
-function regraDaLista(id) {
-    return (precos?.regras ?? []).find((regra) => regra.id === id);
+// ----- Promoções: o que as regras (aqui) e as campanhas, classes e pacotes (aba Promoções) têm igual -----
+// Cada tipo do POST/PUT precos tem, no admin.html, o formulário form-<tipo> (título titulo-form-<tipo>),
+// a lista linhas-<tipo>, o aviso vazio-<tipo> e o botão botao-adicionar-<tipo>. Nada é apagado:
+// "Desativar"/"Reativar" troca o ativo. PROMOCOES[tipo]:
+//   estado(): o objeto que guarda a lista; lista: o nome dela (como no GET precos);
+//   nomeItem, rotulos ([ativo, desativado]), salvo: textos da tela; validar: a conferência do servidor;
+//   ordem: a mesma ordem do GET; colunas(item): [coluna, texto ou elemento] antes da Situação;
+//   paraFormulario(item ou null): os valores dos campos; lerFormulario(campos lidos): { dados, erros? };
+//   aoAbrir(form, item): o que mais preparar no formulário depois de preenchido (opcional).
+
+const porNome = (a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id - b.id;
+
+const PROMOCOES = {
+    regra: {
+        estado: () => precos, lista: 'regras', nomeItem: 'regra', rotulos: ['Ativa', 'Desativada'], salvo: 'Regra salva.',
+        validar: validarRegra, ordem: porNome,
+        colunas: (regra) => [
+            ['Nome', regra.nome],
+            ['Dias', diasDaRegra(regra.dias)],
+            ['Horário', `${regra.hora_inicio} às ${regra.hora_fim}`],
+            ['Ajuste', textoDoPercentual(regra.percentual)],
+            ['Prioridade', String(regra.prioridade)],
+        ],
+        paraFormulario: formularioDaRegra,
+        lerFormulario: (campos) => ({ dados: regraDoFormulario(campos) }),
+    },
+};
+
+const formDaPromocao = (tipo) => document.getElementById(`form-${tipo}`);
+
+function promocaoDaLista(tipo, id) {
+    const { estado, lista } = PROMOCOES[tipo];
+    return (estado()?.[lista] ?? []).find((item) => item.id === id);
 }
 
-function linhaDaRegra(regra) {
+function linhaDaPromocao(tipo, item) {
+    const definicao = PROMOCOES[tipo];
     const linha = document.createElement('tr');
-    linha.dataset.id = String(regra.id);
-    linha.classList.toggle('inativo', !regra.ativo);
-    linha.append(
-        celula('Nome', regra.nome),
-        celula('Dias', diasDaRegra(regra.dias)),
-        celula('Horário', `${regra.hora_inicio} às ${regra.hora_fim}`),
-        celula('Ajuste', textoDoPercentual(regra.percentual)),
-        celula('Prioridade', String(regra.prioridade)),
-        celula('Situação', rotuloSituacao(regra.ativo ? 'Ativa' : 'Desativada', regra.ativo)),
-    );
+    linha.dataset.id = String(item.id);
+    linha.classList.toggle('inativo', !item.ativo);
+    for (const [coluna, conteudo] of definicao.colunas(item)) linha.append(celula(coluna, conteudo));
+    const [textoAtivo, textoInativo] = definicao.rotulos;
+    linha.append(celula('Situação', rotuloSituacao(item.ativo ? textoAtivo : textoInativo, item.ativo)));
     const acoes = document.createElement('div');
     acoes.className = 'acoes';
     acoes.append(
-        botaoDaLinha('Editar', 'editar', regra, regra.nome),
-        botaoDaLinha(regra.ativo ? 'Desativar' : 'Reativar', 'alternar', regra, regra.nome, { perigo: regra.ativo }),
+        botaoDaLinha('Editar', 'editar', item, item.nome),
+        botaoDaLinha(item.ativo ? 'Desativar' : 'Reativar', 'alternar', item, item.nome, { perigo: item.ativo }),
     );
     const celulaAcoes = celula('', acoes);
     celulaAcoes.className = 'celula-acoes';
@@ -1006,69 +1035,93 @@ function linhaDaRegra(regra) {
     return linha;
 }
 
-function mostrarRegras() {
-    const regras = precos.regras;
-    linhasRegra.replaceChildren(...regras.map(linhaDaRegra));
-    linhasRegra.closest('table').hidden = regras.length === 0;
-    document.getElementById('vazio-regra').hidden = regras.length > 0;
+function mostrarPromocoes(tipo) {
+    const { estado, lista } = PROMOCOES[tipo];
+    const itens = estado()[lista];
+    const corpo = document.getElementById(`linhas-${tipo}`);
+    corpo.replaceChildren(...itens.map((item) => linhaDaPromocao(tipo, item)));
+    corpo.closest('table').hidden = itens.length === 0;
+    document.getElementById(`vazio-${tipo}`).hidden = itens.length > 0;
 }
 
-function abrirFormularioRegra(regra = null) {
-    const valores = formularioDaRegra(regra);
-    formRegra.dataset.id = regra ? String(regra.id) : '';
-    document.getElementById('titulo-form-regra').textContent = regra ? 'Editar regra' : 'Adicionar regra';
-    for (const nome of ['nome', 'hora_inicio', 'hora_fim', 'percentual', 'prioridade']) formRegra.elements[nome].value = valores[nome];
-    for (const caixa of formRegra.querySelectorAll('input[name="dias"]')) caixa.checked = valores.dias.includes(Number(caixa.value));
-    formRegra.elements.ativo.checked = valores.ativo;
-    limparErros(formRegra);
-    formRegra.hidden = false;
-    formRegra.scrollIntoView?.({ block: 'nearest' });
-    formRegra.elements.nome.focus({ preventScroll: true });
+// Valores → campos. Lista (ex.: dias) marca as caixas de mesmo nome; sim/não marca a caixa.
+function preencherCampos(form, valores) {
+    for (const [nome, valor] of Object.entries(valores)) {
+        if (Array.isArray(valor)) {
+            for (const caixa of form.querySelectorAll(`input[name="${nome}"]`)) caixa.checked = valor.includes(Number(caixa.value));
+        } else if (typeof valor === 'boolean') {
+            form.elements[nome].checked = valor;
+        } else {
+            form.elements[nome].value = valor;
+        }
+    }
 }
 
-function fecharFormularioRegra() {
-    formRegra.hidden = true;
-    formRegra.dataset.id = '';
+// Campos → valores (texto). A caixa "ativo" vira sim/não; outras caixas de mesmo nome, a lista das marcadas.
+function lerCampos(form) {
+    const campos = {};
+    for (const el of form.elements) {
+        if (!el.name) continue;
+        if (el.type !== 'checkbox') campos[el.name] = el.value;
+        else if (el.name === 'ativo') campos.ativo = el.checked;
+        else {
+            campos[el.name] ??= [];
+            if (el.checked) campos[el.name].push(el.value);
+        }
+    }
+    return campos;
 }
 
-function dadosDaRegra(form) {
-    return regraDoFormulario({
-        nome: form.elements.nome.value,
-        dias: [...form.querySelectorAll('input[name="dias"]:checked')].map((caixa) => caixa.value),
-        hora_inicio: form.elements.hora_inicio.value,
-        hora_fim: form.elements.hora_fim.value,
-        percentual: form.elements.percentual.value,
-        prioridade: form.elements.prioridade.value,
-        ativo: form.elements.ativo.checked,
-    });
+function abrirFormularioPromocao(tipo, item = null) {
+    const definicao = PROMOCOES[tipo];
+    const form = formDaPromocao(tipo);
+    form.dataset.id = item ? String(item.id) : '';
+    document.getElementById(`titulo-form-${tipo}`).textContent = `${item ? 'Editar' : 'Adicionar'} ${definicao.nomeItem}`;
+    preencherCampos(form, definicao.paraFormulario(item));
+    definicao.aoAbrir?.(form, item);
+    limparErros(form);
+    form.hidden = false;
+    form.scrollIntoView?.({ block: 'nearest' });
+    form.elements.nome.focus({ preventScroll: true });
+}
+
+function fecharFormularioPromocao(tipo) {
+    const form = formDaPromocao(tipo);
+    form.hidden = true;
+    form.dataset.id = '';
 }
 
 // Confere no navegador (as mesmas regras do servidor) e envia. Erros vão para os campos do
-// formulário ou, sem formulário (Desativar/Reativar da lista), para o aviso.
-async function enviarRegra(id, dados, form = null) {
+// formulário ou, sem formulário (Desativar/Reativar da lista), para o aviso. errosDaTela: os que
+// a leitura do formulário já achou (ex.: preço digitado errado); valem mais que os da conferência.
+async function enviarPromocao(tipo, id, dados, form = null, errosDaTela = {}) {
+    const definicao = PROMOCOES[tipo];
     const criando = id === null;
     const mostrarProblema = (campos) => {
         if (form) mostrarErros(form, campos);
         else avisar(Object.values(campos)[0]);
     };
-    const { campos, valores } = validarRegra(dados, { criando });
-    if (Object.keys(campos).length) return mostrarProblema(campos);
+    const { campos, valores } = definicao.validar(dados, { criando });
+    const erros = { ...campos, ...errosDaTela };
+    if (Object.keys(erros).length) return mostrarProblema(erros);
 
-    const corpo = criando ? { tipo: 'regra', dados: valores } : { tipo: 'regra', id, dados: valores };
+    const corpo = criando ? { tipo, dados: valores } : { tipo, id, dados: valores };
     const r = await chamarFuncao('precos', { metodo: criando ? 'POST' : 'PUT', corpo });
     if ((r.status === 200 || r.status === 201) && r.dados?.item) {
         const item = r.dados.item;
-        const outras = precos.regras.filter((regra) => regra.id !== item.id);
-        precos.regras = [...outras, item].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR') || a.id - b.id);
-        mostrarRegras();
+        const estado = definicao.estado();
+        const outras = estado[definicao.lista].filter((outro) => outro.id !== item.id);
+        estado[definicao.lista] = [...outras, item].sort(definicao.ordem);
+        mostrarPromocoes(tipo);
+        const aberto = formDaPromocao(tipo);
         if (form) {
-            fecharFormularioRegra();
-        } else if (!formRegra.hidden && formRegra.dataset.id === String(item.id)) {
-            // Desativar/Reativar com o formulário desta regra aberto: a caixa "Ativa" acompanha
+            fecharFormularioPromocao(tipo);
+        } else if (!aberto.hidden && aberto.dataset.id === String(item.id)) {
+            // Desativar/Reativar com o formulário deste item aberto: a caixa "Ativa" acompanha
             // (o resto do que foi digitado fica), para o Salvar não desfazer a mudança.
-            formRegra.elements.ativo.checked = item.ativo;
+            aberto.elements.ativo.checked = item.ativo;
         }
-        avisar('Regra salva.', { sucesso: true });
+        avisar(definicao.salvo, { sucesso: true });
     } else if (precisaEntrar(r)) {
         await irParaEntrar();
     } else if ((r.status === 400 || r.status === 409) && r.dados?.campos) {
@@ -1080,37 +1133,44 @@ async function enviarRegra(id, dados, form = null) {
     }
 }
 
-document.getElementById('botao-adicionar-regra').addEventListener('click', () => {
-    if (!formRegra.hidden && formRegra.dataset.id === '') {
-        formRegra.elements.nome.focus();
-        return;
-    }
-    abrirFormularioRegra();
-});
+// Liga o botão "Adicionar", o formulário e os botões da lista de um tipo.
+function ligarPromocao(tipo) {
+    const form = formDaPromocao(tipo);
+    document.getElementById(`botao-adicionar-${tipo}`).addEventListener('click', () => {
+        if (!form.hidden && form.dataset.id === '') {
+            form.elements.nome.focus();
+            return;
+        }
+        abrirFormularioPromocao(tipo);
+    });
 
-formRegra.addEventListener('submit', (evento) => {
-    evento.preventDefault();
-    limparErros(formRegra);
-    avisar(null);
-    const id = formRegra.dataset.id ? Number(formRegra.dataset.id) : null;
-    ocupado(formRegra, () => enviarRegra(id, dadosDaRegra(formRegra), formRegra));
-});
+    form.addEventListener('submit', (evento) => {
+        evento.preventDefault();
+        limparErros(form);
+        avisar(null);
+        const id = form.dataset.id ? Number(form.dataset.id) : null;
+        const { dados, erros } = PROMOCOES[tipo].lerFormulario(lerCampos(form));
+        ocupado(form, () => enviarPromocao(tipo, id, dados, form, erros));
+    });
 
-formRegra.addEventListener('click', (evento) => {
-    if (evento.target.closest('[data-cancelar]')) fecharFormularioRegra();
-});
+    form.addEventListener('click', (evento) => {
+        if (evento.target.closest('[data-cancelar]')) fecharFormularioPromocao(tipo);
+    });
 
-linhasRegra.addEventListener('click', (evento) => {
-    const alvo = evento.target.closest('button[data-acao]');
-    const regra = alvo && regraDaLista(Number(alvo.dataset.id));
-    if (!regra) return;
-    if (alvo.dataset.acao === 'editar') {
-        abrirFormularioRegra(regra);
-        return;
-    }
-    avisar(null);
-    ocupado(alvo.closest('tr'), () => enviarRegra(regra.id, { ativo: !regra.ativo }));
-});
+    document.getElementById(`linhas-${tipo}`).addEventListener('click', (evento) => {
+        const alvo = evento.target.closest('button[data-acao]');
+        const item = alvo && promocaoDaLista(tipo, Number(alvo.dataset.id));
+        if (!item) return;
+        if (alvo.dataset.acao === 'editar') {
+            abrirFormularioPromocao(tipo, item);
+            return;
+        }
+        avisar(null);
+        ocupado(alvo.closest('tr'), () => enviarPromocao(tipo, item.id, { ativo: !item.ativo }));
+    });
+}
+
+ligarPromocao('regra');
 
 // ----- Carga -----
 
@@ -1133,7 +1193,7 @@ async function carregarPrecos() {
         precos = r.dados;
         limparErros(formHoraPista);
         preencherHoraPista();
-        mostrarRegras();
+        mostrarPromocoes('regra');
         mostrarPrecosDoCatalogo();
         mostrarEstadoPrecos('pronto');
     } catch (erro) {
@@ -1157,6 +1217,146 @@ function abrirAbaPrecos() {
 }
 
 montarDiasDaRegra();
+
+// ---------- Aba Promoções ----------
+// Campanhas, classes de desconto e pacotes (POST/PUT precos, pelo mesmo código das regras da aba
+// Preços). Usa o seu próprio GET precos, o GET catalogo (nomes e opções de arma e munição do pacote)
+// e o fuso do estande (a vigência da campanha é pela data de hoje no fuso).
+
+let promocoes = null;           // GET precos: { campanhas, classes, pacotes, ... }
+let promocoesEmCarga = null;
+let versaoNasPromocoes = -1;    // versão do catálogo com que as listas foram montadas
+
+const porInicio = (a, b) => a.inicio.localeCompare(b.inicio) || porNome(a, b);
+const CLASSE_VIGENCIA = { Vigente: 'ativo', Agendada: 'agendada', Encerrada: 'inativo' };
+const OPCAO_MODELO = { escolha: 'modelos', vazio: 'Nenhum' };
+const OPCAO_MUNICAO = { escolha: 'tipos_municao', vazio: 'Nenhum' };
+
+function rotuloVigencia(campanha) {
+    const situacao = situacaoDaCampanha(campanha, dataNoFuso(new Date(), fusoEstande));
+    const rotulo = document.createElement('span');
+    rotulo.className = `rotulo ${CLASSE_VIGENCIA[situacao]}`;
+    rotulo.textContent = situacao;
+    return rotulo;
+}
+
+// A quantidade de munição só vale com uma munição escolhida; sem munição, o campo fica vazio e desligado.
+function atualizarQuantidadeDoPacote(form) {
+    const quantidade = form.elements.municao_qtd;
+    quantidade.disabled = form.elements.tipo_municao_id.value === '';
+    if (quantidade.disabled) quantidade.value = '';
+}
+
+// As listas de arma e munição: os itens ativos do catálogo, mais o já escolhido.
+function preencherOpcoesDoPacote(form, modeloId, municaoId) {
+    preencherOpcoes(form.elements.modelo_id, OPCAO_MODELO, modeloId);
+    preencherOpcoes(form.elements.tipo_municao_id, OPCAO_MUNICAO, municaoId);
+    atualizarQuantidadeDoPacote(form);
+}
+
+Object.assign(PROMOCOES, {
+    campanha: {
+        estado: () => promocoes, lista: 'campanhas', nomeItem: 'campanha', rotulos: ['Ativa', 'Desativada'],
+        salvo: 'Campanha salva.', validar: validarCampanha, ordem: porInicio,
+        colunas: (campanha) => [
+            ['Nome', campanha.nome],
+            ['Desconto', `${campanha.percentual}%`],
+            ['Período', textoDoPeriodo(campanha.inicio, campanha.fim)],
+            ['Vigência', rotuloVigencia(campanha)],
+        ],
+        paraFormulario: formularioDaCampanha,
+        lerFormulario: (campos) => ({ dados: campanhaDoFormulario(campos) }),
+    },
+    classe: {
+        estado: () => promocoes, lista: 'classes', nomeItem: 'classe', rotulos: ['Ativa', 'Desativada'],
+        salvo: 'Classe salva.', validar: validarClasse, ordem: porNome,
+        colunas: (classe) => [['Nome', classe.nome], ['Desconto', `${classe.percentual}%`]],
+        paraFormulario: formularioDaClasse,
+        lerFormulario: (campos) => ({ dados: classeDoFormulario(campos) }),
+    },
+    pacote: {
+        estado: () => promocoes, lista: 'pacotes', nomeItem: 'pacote', rotulos: ['Ativo', 'Desativado'],
+        salvo: 'Pacote salvo.', validar: validarPacote, ordem: porInicio,
+        colunas: (pacote) => [
+            ['Nome', pacote.nome],
+            ['Período', textoDoPeriodo(pacote.inicio, pacote.fim)],
+            ['Preço', textoDoPreco(pacote.preco_centavos)],
+            ['Inclui', textoDoPacote(pacote, {
+                modelo: pacote.modelo_id == null ? null : nomeNaLista('modelos', pacote.modelo_id),
+                municao: pacote.tipo_municao_id == null ? null : nomeNaLista('tipos_municao', pacote.tipo_municao_id),
+            })],
+        ],
+        paraFormulario: formularioDoPacote,
+        lerFormulario: pacoteDoFormulario,
+        aoAbrir: (form, pacote) => preencherOpcoesDoPacote(form, pacote?.modelo_id ?? null, pacote?.tipo_municao_id ?? null),
+    },
+});
+
+const TIPOS_DA_ABA_PROMOCOES = ['campanha', 'classe', 'pacote'];
+for (const tipo of TIPOS_DA_ABA_PROMOCOES) ligarPromocao(tipo);
+
+formDaPromocao('pacote').elements.tipo_municao_id.addEventListener('change', (evento) => {
+    atualizarQuantidadeDoPacote(evento.target.form);
+});
+
+// As listas (e, com o formulário do pacote aberto, as opções dele, sem perder o escolhido).
+function mostrarTodasAsPromocoes() {
+    for (const tipo of TIPOS_DA_ABA_PROMOCOES) mostrarPromocoes(tipo);
+    const form = formDaPromocao('pacote');
+    if (!form.hidden) {
+        preencherOpcoesDoPacote(form, numeroDoCampo(form.elements.modelo_id.value), numeroDoCampo(form.elements.tipo_municao_id.value));
+    }
+    versaoNasPromocoes = versaoCatalogo;
+}
+
+function mostrarEstadoPromocoes(estado, mensagem) {
+    document.getElementById('promocoes-carregando').hidden = estado !== 'carregando';
+    document.getElementById('promocoes-erro').hidden = estado !== 'erro';
+    document.getElementById('promocoes-conteudo').hidden = estado !== 'pronto';
+    document.getElementById('promocoes-erro-mensagem').textContent = mensagem ?? '';
+}
+
+// O GET precos, o catálogo (pela mesma carga das abas Catálogo e Pistas) e o fuso, ao mesmo tempo.
+async function carregarPromocoes() {
+    mostrarEstadoPromocoes('carregando');
+    try {
+        abrirAbaCadastros();
+        let erroDoFuso = null;
+        const [r, , fuso] = await Promise.all([
+            chamarFuncao('precos'),
+            catalogoEmCarga,
+            obterFuso((mensagem) => { erroDoFuso = mensagem; }),
+        ]);
+        if (precisaEntrar(r)) return irParaEntrar();
+        if (r.status !== 200 || !Array.isArray(r.dados?.campanhas)) {
+            return mostrarEstadoPromocoes('erro', r.dados?.erro ?? ERRO_CARREGAR);
+        }
+        // Sem fuso e sem erro: a pessoa já foi mandada para entrar.
+        if (!fuso) return erroDoFuso ? mostrarEstadoPromocoes('erro', erroDoFuso) : undefined;
+        if (!catalogo) return mostrarEstadoPromocoes('erro', ERRO_CARREGAR);
+        promocoes = r.dados;
+        mostrarTodasAsPromocoes();
+        mostrarEstadoPromocoes('pronto');
+    } catch (erro) {
+        console.error(erro);
+        mostrarEstadoPromocoes('erro', ERRO_CARREGAR);
+    }
+}
+
+document.getElementById('botao-recarregar-promocoes').addEventListener('click', (evento) => {
+    ocupado(evento.currentTarget.parentElement, carregarPromocoes);
+});
+
+// Carrega uma vez; voltar para a aba não apaga o que foi digitado. A vigência das campanhas é
+// conferida de novo, e o catálogo recarregado (ex.: arma nova) entra nos nomes e nas opções.
+function abrirAbaPromocoes() {
+    if (!promocoes) {
+        if (!promocoesEmCarga) promocoesEmCarga = carregarPromocoes().finally(() => { promocoesEmCarga = null; });
+        return;
+    }
+    if (versaoNasPromocoes !== versaoCatalogo) mostrarTodasAsPromocoes();
+    else mostrarPromocoes('campanha');
+}
 
 // ---------- Aba Equipe ----------
 // A lista de quem tem papel de equipe e a busca por outras pessoas (nome, e-mail ou CPF, a partir de
@@ -1376,9 +1576,9 @@ function preencherInstrutores(instrutores) {
 }
 
 // O fuso do estande: o da aba Configurações, se já foi carregado; senão, GET configuracoes
-// (qualquer pessoa logada pode ler). Devolve o fuso, ou null (o erro já foi mostrado ou a pessoa
-// foi mandada para entrar).
-async function obterFuso() {
+// (qualquer pessoa logada pode ler). Devolve o fuso, ou null (o erro já foi entregue a aoFalhar,
+// que por padrão o mostra nos filtros dos agendamentos, ou a pessoa foi mandada para entrar).
+async function obterFuso(aoFalhar = (mensagem) => mostrarErroGeral(formFiltros, mensagem)) {
     if (fusoEstande) return fusoEstande;
     if (configuracoes?.estande?.fuso) {
         fusoEstande = configuracoes.estande.fuso;
@@ -1391,7 +1591,7 @@ async function obterFuso() {
     }
     const fuso = r.dados?.configuracoes?.estande?.fuso;
     if (r.status !== 200 || !fuso) {
-        mostrarErroGeral(formFiltros, r.dados?.erro ?? ERRO_CARREGAR);
+        aoFalhar(r.dados?.erro ?? ERRO_CARREGAR);
         return null;
     }
     fusoEstande = fuso;

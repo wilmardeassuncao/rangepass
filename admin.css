@@ -368,6 +368,12 @@ a.botao { display: block; text-align: center; text-decoration: none; }
 
 .caixas-dias { display: grid; gap: 0 16px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 
+/* ---------- Promoções ---------- */
+
+/* Vigência da campanha: Vigente usa .rotulo.ativo, Encerrada .rotulo.inativo; Agendada fica aqui. */
+.rotulo.agendada { border-color: var(--cor-marca-clara); color: var(--cor-marca-clara); }
+.tabela td[data-coluna="Inclui"] { overflow-wrap: anywhere; }
+
 /* ---------- Equipe ---------- */
 
 .busca { align-items: end; display: flex; flex-wrap: wrap; gap: 10px; }

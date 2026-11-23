@@ -14,6 +14,7 @@ export const ABAS = [
     { id: 'catalogo', papeis: ['superadmin'] },
     { id: 'pistas', papeis: ['superadmin'] },
     { id: 'precos', papeis: ['superadmin'] },
+    { id: 'promocoes', papeis: ['superadmin'] },
     { id: 'equipe', papeis: ['superadmin'] },
     { id: 'agendamentos', papeis: ['administrativo'] },
 ];
@@ -143,6 +144,106 @@ export function diasDaRegra(dias) {
 
 export function textoDoPercentual(percentual) {
     return `${percentual > 0 ? '+' : ''}${percentual}%`;
+}
+
+// ---------- Promoções ----------
+
+// Campanha pela data de hoje ('AAAA-MM-DD', no fuso do estande): o início e o fim contam.
+export function situacaoDaCampanha(campanha, hoje) {
+    if (hoje < campanha.inicio) return 'Agendada';
+    if (hoje > campanha.fim) return 'Encerrada';
+    return 'Vigente';
+}
+
+function textoDaData(data) {
+    const [ano, mes, dia] = data.split('-');
+    return `${dia}/${mes}/${ano}`;
+}
+
+export function textoDoPeriodo(inicio, fim) {
+    return inicio === fim ? textoDaData(inicio) : `${textoDaData(inicio)} a ${textoDaData(fim)}`;
+}
+
+// Formulário da campanha → dados do POST/PUT precos (percentual vazio vai null: o servidor recusa).
+export function campanhaDoFormulario(campos) {
+    return {
+        nome: campos.nome,
+        percentual: numeroDoCampo(campos.percentual),
+        inicio: campos.inicio,
+        fim: campos.fim,
+        ativo: campos.ativo,
+    };
+}
+
+export function formularioDaCampanha(campanha) {
+    if (!campanha) return { nome: '', percentual: '', inicio: '', fim: '', ativo: true };
+    return {
+        nome: campanha.nome,
+        percentual: String(campanha.percentual),
+        inicio: campanha.inicio,
+        fim: campanha.fim,
+        ativo: campanha.ativo,
+    };
+}
+
+export function classeDoFormulario(campos) {
+    return { nome: campos.nome, percentual: numeroDoCampo(campos.percentual), ativo: campos.ativo };
+}
+
+export function formularioDaClasse(classe) {
+    if (!classe) return { nome: '', percentual: '', ativo: true };
+    return { nome: classe.nome, percentual: String(classe.percentual), ativo: classe.ativo };
+}
+
+// Formulário do pacote → { dados, erros }. O preço vem em reais; "Nenhum" (vazio) vira null; sem
+// munição escolhida, a quantidade vai null. erros: só o do preço digitado errado (o resto é do validarPacote).
+export function pacoteDoFormulario(campos) {
+    const preco = precoDoCampo(campos.preco_centavos);
+    const tipoMunicao = numeroDoCampo(campos.tipo_municao_id);
+    return {
+        dados: {
+            nome: campos.nome,
+            inicio: campos.inicio,
+            fim: campos.fim,
+            preco_centavos: preco.erro ? null : preco.valor,
+            horas: numeroDoCampo(campos.horas),
+            modelo_id: numeroDoCampo(campos.modelo_id),
+            tipo_municao_id: tipoMunicao,
+            municao_qtd: tipoMunicao === null ? null : numeroDoCampo(campos.municao_qtd),
+            ativo: campos.ativo,
+        },
+        erros: preco.erro ? { preco_centavos: preco.erro } : {},
+    };
+}
+
+const textoOuVazio = (valor) => (valor === null || valor === undefined ? '' : String(valor));
+
+export function formularioDoPacote(pacote) {
+    if (!pacote) {
+        return {
+            nome: '', inicio: '', fim: '', preco_centavos: '', horas: '1',
+            modelo_id: '', tipo_municao_id: '', municao_qtd: '', ativo: true,
+        };
+    }
+    return {
+        nome: pacote.nome,
+        inicio: pacote.inicio,
+        fim: pacote.fim,
+        preco_centavos: textoDoPreco(pacote.preco_centavos),
+        horas: String(pacote.horas),
+        modelo_id: textoOuVazio(pacote.modelo_id),
+        tipo_municao_id: textoOuVazio(pacote.tipo_municao_id),
+        municao_qtd: textoOuVazio(pacote.municao_qtd),
+        ativo: pacote.ativo,
+    };
+}
+
+// O que o pacote inclui. nomes: { modelo, municao } (null quando o pacote não tem).
+export function textoDoPacote(pacote, nomes) {
+    const partes = [`${pacote.horas} hora${pacote.horas > 1 ? 's' : ''} de pista`];
+    if (nomes.modelo) partes.push(`aluguel de ${nomes.modelo}`);
+    if (nomes.municao) partes.push(`${pacote.municao_qtd} muniç${pacote.municao_qtd > 1 ? 'ões' : 'ão'} ${nomes.municao}`);
+    return partes.join(' + ');
 }
 
 // ---------- Equipe ----------

@@ -6,6 +6,8 @@ import {
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
     consultaDosFiltros, descreverEvento, dataHoraNoFuso,
     precoDoCampo, textoDoPreco, AVISO_SEM_PRECO, regraDoFormulario, formularioDaRegra, diasDaRegra, textoDoPercentual,
+    situacaoDaCampanha, textoDoPeriodo, campanhaDoFormulario, formularioDaCampanha, classeDoFormulario, formularioDaClasse,
+    pacoteDoFormulario, formularioDoPacote, textoDoPacote,
 } from '../../admin-regras.mjs';
 import { PAPEIS } from '../../supabase/functions/_shared/papeis.mjs';
 
@@ -50,7 +52,7 @@ test('proximaVersao: texto igual mantém a versão; texto novo soma 1', () => {
 });
 
 test('abasVisiveis: o superadmin vê todas, na ordem', () => {
-    assert.deepStrictEqual(abasVisiveis(['superadmin']), ['configuracoes', 'catalogo', 'pistas', 'precos', 'equipe', 'agendamentos']);
+    assert.deepStrictEqual(abasVisiveis(['superadmin']), ['configuracoes', 'catalogo', 'pistas', 'precos', 'promocoes', 'equipe', 'agendamentos']);
 });
 test('abasVisiveis: o administrativo vê só Agendamentos', () => {
     assert.deepStrictEqual(abasVisiveis(['cliente', 'administrativo']), ['agendamentos']);
@@ -261,4 +263,99 @@ test('diasDaRegra: os dias abreviados, de domingo a sábado; todos = Todos os di
 test('textoDoPercentual: aumento com +, desconto com -', () => {
     assert.strictEqual(textoDoPercentual(20), '+20%');
     assert.strictEqual(textoDoPercentual(-10), '-10%');
+});
+
+// ---------- Promoções ----------
+
+test('abasVisiveis: a aba Promoções é só do superadmin e vem logo depois de Preços', () => {
+    assert.ok(!abasVisiveis(['administrativo']).includes('promocoes'));
+    const abas = abasVisiveis(['superadmin']);
+    assert.strictEqual(abas.indexOf('promocoes'), abas.indexOf('precos') + 1);
+});
+
+test('situacaoDaCampanha: Agendada antes do início, Vigente do início ao fim (inclusive), Encerrada depois', () => {
+    const campanha = { inicio: '2026-12-01', fim: '2026-12-10' };
+    assert.strictEqual(situacaoDaCampanha(campanha, '2026-11-30'), 'Agendada');
+    assert.strictEqual(situacaoDaCampanha(campanha, '2026-12-01'), 'Vigente');
+    assert.strictEqual(situacaoDaCampanha(campanha, '2026-12-05'), 'Vigente');
+    assert.strictEqual(situacaoDaCampanha(campanha, '2026-12-10'), 'Vigente');
+    assert.strictEqual(situacaoDaCampanha(campanha, '2026-12-11'), 'Encerrada');
+    assert.strictEqual(situacaoDaCampanha({ inicio: '2026-12-01', fim: '2026-12-01' }, '2026-12-01'), 'Vigente');
+});
+
+test('textoDoPeriodo: as datas no formato DD/MM/AAAA; um dia só aparece uma vez', () => {
+    assert.strictEqual(textoDoPeriodo('2026-12-01', '2026-12-10'), '01/12/2026 a 10/12/2026');
+    assert.strictEqual(textoDoPeriodo('2026-12-25', '2026-12-25'), '25/12/2026');
+});
+
+test('campanhaDoFormulario e formularioDaCampanha: ida e volta', () => {
+    assert.deepStrictEqual(campanhaDoFormulario({
+        nome: ' Natal ', percentual: '15', inicio: '2026-12-01', fim: '2026-12-25', ativo: true,
+    }), { nome: ' Natal ', percentual: 15, inicio: '2026-12-01', fim: '2026-12-25', ativo: true });
+    assert.strictEqual(campanhaDoFormulario({ nome: '', percentual: '', inicio: '', fim: '', ativo: false }).percentual, null);
+    assert.deepStrictEqual(formularioDaCampanha({ id: 1, nome: 'Natal', percentual: 15, inicio: '2026-12-01', fim: '2026-12-25', ativo: false }),
+        { nome: 'Natal', percentual: '15', inicio: '2026-12-01', fim: '2026-12-25', ativo: false });
+    assert.deepStrictEqual(formularioDaCampanha(null), { nome: '', percentual: '', inicio: '', fim: '', ativo: true });
+});
+
+test('classeDoFormulario e formularioDaClasse: ida e volta', () => {
+    assert.deepStrictEqual(classeDoFormulario({ nome: 'Policial', percentual: '10', ativo: true }),
+        { nome: 'Policial', percentual: 10, ativo: true });
+    assert.deepStrictEqual(formularioDaClasse({ id: 2, nome: 'Policial', percentual: 10, ativo: true }),
+        { nome: 'Policial', percentual: '10', ativo: true });
+    assert.deepStrictEqual(formularioDaClasse(null), { nome: '', percentual: '', ativo: true });
+});
+
+const CAMPOS_PACOTE = {
+    nome: 'Iniciante', inicio: '2026-12-01', fim: '2026-12-31', preco_centavos: '250,00', horas: '2',
+    modelo_id: '3', tipo_municao_id: '4', municao_qtd: '50', ativo: true,
+};
+
+test('pacoteDoFormulario: os campos da tela viram os dados do pacote (preço em centavos)', () => {
+    assert.deepStrictEqual(pacoteDoFormulario(CAMPOS_PACOTE), {
+        dados: {
+            nome: 'Iniciante', inicio: '2026-12-01', fim: '2026-12-31', preco_centavos: 25000, horas: 2,
+            modelo_id: 3, tipo_municao_id: 4, municao_qtd: 50, ativo: true,
+        },
+        erros: {},
+    });
+});
+
+test('pacoteDoFormulario: "Nenhum" vira null, e sem munição a quantidade vai null', () => {
+    const { dados } = pacoteDoFormulario({ ...CAMPOS_PACOTE, modelo_id: '', tipo_municao_id: '', municao_qtd: '50' });
+    assert.strictEqual(dados.modelo_id, null);
+    assert.strictEqual(dados.tipo_municao_id, null);
+    assert.strictEqual(dados.municao_qtd, null);
+});
+
+test('pacoteDoFormulario: preço que não é valor em reais vira erro do campo; vazio vai null', () => {
+    assert.deepStrictEqual(pacoteDoFormulario({ ...CAMPOS_PACOTE, preco_centavos: 'abc' }).erros,
+        { preco_centavos: 'Use um valor em reais, por exemplo 120,00.' });
+    const vazio = pacoteDoFormulario({ ...CAMPOS_PACOTE, preco_centavos: '' });
+    assert.strictEqual(vazio.dados.preco_centavos, null);
+    assert.deepStrictEqual(vazio.erros, {});
+});
+
+test('formularioDoPacote: pacote salvo → campos da tela; sem pacote, o formulário vazio', () => {
+    assert.deepStrictEqual(formularioDoPacote({
+        id: 9, nome: 'Iniciante', inicio: '2026-12-01', fim: '2026-12-31', preco_centavos: 25000, horas: 2,
+        modelo_id: null, tipo_municao_id: 4, municao_qtd: 50, ativo: true,
+    }), {
+        nome: 'Iniciante', inicio: '2026-12-01', fim: '2026-12-31', preco_centavos: 'R$ 250,00', horas: '2',
+        modelo_id: '', tipo_municao_id: '4', municao_qtd: '50', ativo: true,
+    });
+    assert.deepStrictEqual(formularioDoPacote(null), {
+        nome: '', inicio: '', fim: '', preco_centavos: '', horas: '1',
+        modelo_id: '', tipo_municao_id: '', municao_qtd: '', ativo: true,
+    });
+    // O preço mostrado é aceito de novo.
+    assert.strictEqual(pacoteDoFormulario({ ...CAMPOS_PACOTE, preco_centavos: 'R$ 250,00' }).dados.preco_centavos, 25000);
+});
+
+test('textoDoPacote: o que o pacote inclui', () => {
+    assert.strictEqual(textoDoPacote({ horas: 2, municao_qtd: null }, { modelo: null, municao: null }), '2 horas de pista');
+    assert.strictEqual(textoDoPacote({ horas: 1, municao_qtd: 50 }, { modelo: 'Glock G17', municao: '9mm FMJ' }),
+        '1 hora de pista + aluguel de Glock G17 + 50 munições 9mm FMJ');
+    assert.strictEqual(textoDoPacote({ horas: 3, municao_qtd: 1 }, { modelo: null, municao: '9mm FMJ' }),
+        '3 horas de pista + 1 munição 9mm FMJ');
 });

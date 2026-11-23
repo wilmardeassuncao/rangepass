@@ -48,6 +48,7 @@
                 <button type="button" role="tab" id="aba-catalogo" data-aba="catalogo" aria-controls="painel-catalogo" hidden>Catálogo</button>
                 <button type="button" role="tab" id="aba-pistas" data-aba="pistas" aria-controls="painel-pistas" hidden>Pistas</button>
                 <button type="button" role="tab" id="aba-precos" data-aba="precos" aria-controls="painel-precos" hidden>Preços</button>
+                <button type="button" role="tab" id="aba-promocoes" data-aba="promocoes" aria-controls="painel-promocoes" hidden>Promoções</button>
                 <button type="button" role="tab" id="aba-equipe" data-aba="equipe" aria-controls="painel-equipe" hidden>Equipe</button>
                 <button type="button" role="tab" id="aba-agendamentos" data-aba="agendamentos" aria-controls="painel-agendamentos" hidden>Agendamentos</button>
             </nav>
@@ -411,6 +412,149 @@
                             <tbody id="linhas-regra"></tbody>
                         </table>
                         <p id="vazio-regra" class="subtitulo" hidden>Nenhuma regra cadastrada. Sem regras, a hora de pista vale o mesmo em todos os horários.</p>
+                    </section>
+                </div>
+            </section>
+
+            <!-- ---------- Promoções ----------
+                 Campanhas, classes de desconto e pacotes, do GET precos (nomes das armas e munições: GET catalogo). -->
+            <section id="painel-promocoes" class="painel" role="tabpanel" aria-labelledby="aba-promocoes" hidden>
+                <header class="cabecalho">
+                    <h1>Promoções</h1>
+                    <p class="subtitulo">Nada é apagado: a promoção que não for mais usada fica desativada.</p>
+                </header>
+                <p id="promocoes-carregando" class="subtitulo">Carregando…</p>
+                <div id="promocoes-erro" class="bloco" hidden>
+                    <p id="promocoes-erro-mensagem" class="erro" role="alert"></p>
+                    <button type="button" id="botao-recarregar-promocoes" class="botao secundario">Tentar de novo</button>
+                </div>
+                <div id="promocoes-conteudo" class="formularios" hidden>
+                    <section id="secao-campanhas" class="bloco">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Campanhas</h2>
+                            <button type="button" id="botao-adicionar-campanha" class="botao secundario pequeno">Adicionar</button>
+                        </div>
+                        <p class="subtitulo">Desconto no total do agendamento, entre as datas de início e fim. O cliente fica com o maior desconto entre a campanha e o pacote.</p>
+                        <form id="form-campanha" class="formulario-cadastro" novalidate hidden>
+                            <h3 id="titulo-form-campanha" class="formulario-titulo">Adicionar campanha</h3>
+                            <div class="grade">
+                                <label class="campo">Nome
+                                    <input name="nome" autocomplete="off">
+                                    <span class="erro" data-erro-para="nome"></span>
+                                </label>
+                                <label class="campo">Percentual de desconto <small>(de 1 a 90)</small>
+                                    <input name="percentual" type="number" min="1" max="90" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="percentual"></span>
+                                </label>
+                                <label class="campo">Início
+                                    <input name="inicio" type="date">
+                                    <span class="erro" data-erro-para="inicio"></span>
+                                </label>
+                                <label class="campo">Fim
+                                    <input name="fim" type="date">
+                                    <span class="erro" data-erro-para="fim"></span>
+                                </label>
+                            </div>
+                            <label class="caixa"><input type="checkbox" name="ativo"> Ativa</label>
+                            <p class="erro" data-erro-geral hidden></p>
+                            <div class="botoes">
+                                <button type="submit" class="botao">Salvar</button>
+                                <button type="button" class="botao secundario" data-cancelar>Cancelar</button>
+                            </div>
+                        </form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Desconto</th><th scope="col">Período</th><th scope="col">Vigência</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-campanha"></tbody>
+                        </table>
+                        <p id="vazio-campanha" class="subtitulo" hidden>Nenhuma campanha cadastrada.</p>
+                    </section>
+
+                    <section id="secao-classes" class="bloco">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Classes de desconto</h2>
+                            <button type="button" id="botao-adicionar-classe" class="botao secundario pequeno">Adicionar</button>
+                        </div>
+                        <p class="subtitulo">Aplicadas pelo atendente no balcão.</p>
+                        <form id="form-classe" class="formulario-cadastro" novalidate hidden>
+                            <h3 id="titulo-form-classe" class="formulario-titulo">Adicionar classe</h3>
+                            <div class="grade">
+                                <label class="campo">Nome
+                                    <input name="nome" autocomplete="off">
+                                    <span class="erro" data-erro-para="nome"></span>
+                                </label>
+                                <label class="campo">Percentual de desconto <small>(de 1 a 90)</small>
+                                    <input name="percentual" type="number" min="1" max="90" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="percentual"></span>
+                                </label>
+                            </div>
+                            <label class="caixa"><input type="checkbox" name="ativo"> Ativa</label>
+                            <p class="erro" data-erro-geral hidden></p>
+                            <div class="botoes">
+                                <button type="submit" class="botao">Salvar</button>
+                                <button type="button" class="botao secundario" data-cancelar>Cancelar</button>
+                            </div>
+                        </form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Desconto</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-classe"></tbody>
+                        </table>
+                        <p id="vazio-classe" class="subtitulo" hidden>Nenhuma classe cadastrada.</p>
+                    </section>
+
+                    <section id="secao-pacotes" class="bloco">
+                        <div class="bloco-topo">
+                            <h2 class="bloco-titulo">Pacotes</h2>
+                            <button type="button" id="botao-adicionar-pacote" class="botao secundario pequeno">Adicionar</button>
+                        </div>
+                        <p class="subtitulo">Um preço fechado para as horas de pista e, se quiser, o aluguel de uma arma e uma quantidade de munição.</p>
+                        <form id="form-pacote" class="formulario-cadastro" novalidate hidden>
+                            <h3 id="titulo-form-pacote" class="formulario-titulo">Adicionar pacote</h3>
+                            <div class="grade">
+                                <label class="campo">Nome
+                                    <input name="nome" autocomplete="off">
+                                    <span class="erro" data-erro-para="nome"></span>
+                                </label>
+                                <label class="campo">Preço do pacote <small>(em reais)</small>
+                                    <input name="preco_centavos" inputmode="decimal" autocomplete="off" placeholder="250,00">
+                                    <span class="erro" data-erro-para="preco_centavos"></span>
+                                </label>
+                                <label class="campo">Início
+                                    <input name="inicio" type="date">
+                                    <span class="erro" data-erro-para="inicio"></span>
+                                </label>
+                                <label class="campo">Fim
+                                    <input name="fim" type="date">
+                                    <span class="erro" data-erro-para="fim"></span>
+                                </label>
+                                <label class="campo">Horas de pista <small>(de 1 a 6)</small>
+                                    <input name="horas" type="number" min="1" max="6" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="horas"></span>
+                                </label>
+                                <label class="campo">Arma <small>(opcional)</small>
+                                    <select name="modelo_id"></select>
+                                    <span class="erro" data-erro-para="modelo_id"></span>
+                                </label>
+                                <label class="campo">Munição <small>(opcional)</small>
+                                    <select name="tipo_municao_id"></select>
+                                    <span class="erro" data-erro-para="tipo_municao_id"></span>
+                                </label>
+                                <label class="campo">Quantidade de munição <small>(unidades)</small>
+                                    <input name="municao_qtd" type="number" min="1" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="municao_qtd"></span>
+                                </label>
+                            </div>
+                            <label class="caixa"><input type="checkbox" name="ativo"> Ativo</label>
+                            <p class="erro" data-erro-geral hidden></p>
+                            <div class="botoes">
+                                <button type="submit" class="botao">Salvar</button>
+                                <button type="button" class="botao secundario" data-cancelar>Cancelar</button>
+                            </div>
+                        </form>
+                        <table class="tabela">
+                            <thead><tr><th scope="col">Nome</th><th scope="col">Período</th><th scope="col">Preço</th><th scope="col">Inclui</th><th scope="col">Situação</th><th scope="col"><span class="sr-only">Ações</span></th></tr></thead>
+                            <tbody id="linhas-pacote"></tbody>
+                        </table>
+                        <p id="vazio-pacote" class="subtitulo" hidden>Nenhum pacote cadastrado.</p>
                     </section>
                 </div>
             </section>
