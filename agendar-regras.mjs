@@ -21,11 +21,7 @@ const ATIVAS = ['aguardando_pagamento', 'pago'];
 export const doisDigitos = (n) => String(n).padStart(2, '0');
 
 // Soma `n` dias a uma data 'AAAA-MM-DD' (conta no calendário, sem fuso).
-export function somarDias(data, n) {
-    const d = new Date(`${data}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + n);
-    return d.toISOString().slice(0, 10);
-}
+export { somarDias } from './supabase/functions/_shared/agendamento.mjs';
 
 // 'Quarta, 18/11 · das 10:00 às 12:00', no relógio do fuso do estande.
 export function descreverSessao(inicio, horas, fuso) {

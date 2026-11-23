@@ -170,6 +170,7 @@ test('opções trazem o termo, os instrutores e só modelos com arma disponível
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     assert.strictEqual(r.dados.termo.versao, 1);
     assert.ok(r.dados.termo.texto, JSON.stringify(r.dados.termo));
+    assert.ok(Number.isInteger(r.dados.agenda.poucas_vagas), JSON.stringify(r.dados.agenda));
     const ids = r.dados.catalogo.modelos.map(m => m.id);
     assert.ok(ids.includes(modelo.id), JSON.stringify(ids));
     assert.ok(!ids.includes(modeloManutencao.id), JSON.stringify(ids));

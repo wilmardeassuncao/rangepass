@@ -114,6 +114,7 @@ async function montarOpcoes(contexto, { comInstrutores = true } = {}) {
             duracao_maxima_grupo: c.agenda.duracao_maxima_grupo,
             grupo_maximo: c.agenda.grupo_maximo,
             faixas_instrutores: c.agenda.faixas_instrutores,
+            poucas_vagas: c.agenda.poucas_vagas,
         },
         funcionamento: c.funcionamento,
         municao: { minima_por_participante: c.municao.minima_por_participante },
