@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Minha conta · RangePass</title>
+    <meta name="theme-color" content="#101012">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="base.css">
     <link rel="stylesheet" href="conta.css">
 </head>
-<body>
-    <main class="pagina">
+<body class="sem-moldura">
+    <main class="moldura-conteudo moldura-cartao">
         <p class="marca">RANGE<span>PASS</span></p>
         <p id="aviso" class="aviso" role="status" hidden></p>
 
@@ -140,36 +143,37 @@
                 <h1>Meu perfil</h1>
                 <p id="perfil-email" class="subtitulo"></p>
             </header>
-            <dl class="bloco dados">
-                <div><dt>CPF</dt><dd id="perfil-cpf"></dd></div>
-                <div><dt>Nascimento</dt><dd id="perfil-nascimento"></dd></div>
-                <div><dt>Telefone</dt><dd id="perfil-telefone"></dd></div>
-            </dl>
-            <p class="subtitulo">Para mudar o CPF ou a data de nascimento, procure o atendimento do estande.</p>
-            <form id="form-perfil" class="bloco" novalidate>
-                <p class="bloco-titulo">Editar dados</p>
-                <label class="campo">Nome completo
-                    <input name="nome_completo" autocomplete="name">
-                    <span class="erro" data-erro-para="nome_completo"></span>
-                </label>
-                <label class="campo">Telefone com DDD
-                    <input name="telefone" type="tel" autocomplete="tel">
-                    <span class="erro" data-erro-para="telefone"></span>
-                </label>
-                <label class="campo">CR
-                    <input name="cr">
-                    <span class="erro" data-erro-para="cr"></span>
-                </label>
-                <label class="campo">Órgão expedidor
-                    <input name="orgao_expedidor">
-                    <span class="erro" data-erro-para="orgao_expedidor"></span>
-                </label>
-                <p class="erro" data-erro-geral hidden></p>
-                <button type="submit" class="botao">Salvar</button>
-            </form>
-            <a href="index.html" class="botao">Meus agendamentos</a>
-            <a href="admin.html" id="botao-equipe" class="botao secundario" hidden>Área da equipe</a>
-            <button type="button" id="botao-sair" class="botao secundario">Sair</button>
+            <div class="perfil-grade">
+                <div class="perfil-coluna">
+                    <dl class="bloco dados">
+                        <div><dt>CPF</dt><dd id="perfil-cpf"></dd></div>
+                        <div><dt>Nascimento</dt><dd id="perfil-nascimento"></dd></div>
+                        <div><dt>Telefone</dt><dd id="perfil-telefone"></dd></div>
+                    </dl>
+                    <p class="subtitulo">Para mudar o CPF ou a data de nascimento, procure o atendimento do estande.</p>
+                </div>
+                <form id="form-perfil" class="bloco" novalidate>
+                    <p class="bloco-titulo">Editar dados</p>
+                    <label class="campo">Nome completo
+                        <input name="nome_completo" autocomplete="name">
+                        <span class="erro" data-erro-para="nome_completo"></span>
+                    </label>
+                    <label class="campo">Telefone com DDD
+                        <input name="telefone" type="tel" autocomplete="tel">
+                        <span class="erro" data-erro-para="telefone"></span>
+                    </label>
+                    <label class="campo">CR
+                        <input name="cr">
+                        <span class="erro" data-erro-para="cr"></span>
+                    </label>
+                    <label class="campo">Órgão expedidor
+                        <input name="orgao_expedidor">
+                        <span class="erro" data-erro-para="orgao_expedidor"></span>
+                    </label>
+                    <p class="erro" data-erro-geral hidden></p>
+                    <button type="submit" class="botao">Salvar</button>
+                </form>
+            </div>
         </section>
     </main>
     <script type="module" src="conta.js"></script>

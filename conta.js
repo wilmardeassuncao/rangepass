@@ -1,5 +1,6 @@
 // Página da conta: liga as telas ao Supabase Auth (entrar, sair, senha) e às Edge Functions (cadastro e perfil).
 import { supabase, chamarFuncao } from './api.mjs';
+import { montarMoldura, tirarMoldura } from './moldura.mjs';
 import { mensagemDoErroDeLogin, formatarCpf, formatarTelefone } from './conta-regras.mjs';
 import { validarCadastro, validarEdicaoPerfil, dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 
@@ -20,7 +21,9 @@ let perfilAtual = null;
 
 // ---------- Ajudantes de tela ----------
 
+// Só "Meu perfil" fica com o menu; as telas de antes de entrar voltam ao cartão centralizado.
 function mostrarTela(id) {
+    if (id !== 'tela-perfil') tirarMoldura();
     for (const tela of document.querySelectorAll('.tela')) tela.classList.toggle('ativa', tela.id === id);
     window.scrollTo(0, 0);
 }
@@ -107,8 +110,8 @@ async function abrirPerfil({ podeVoltar = false } = {}) {
         return;
     }
     mostrarPerfil(r.dados.email, perfilAtual);
-    // "Área da equipe" só para quem tem algum papel além de cliente.
-    document.getElementById('botao-equipe').hidden = !(r.dados.papeis ?? []).some((papel) => papel !== 'cliente');
+    // O menu mostra só o que a pessoa pode usar (agendamentos, área da equipe), a partir dos papéis já lidos aqui.
+    montarMoldura({ papeis: r.dados.papeis ?? [], ativo: 'perfil' });
     mostrarTela('tela-perfil');
 }
 
@@ -144,13 +147,6 @@ document.getElementById('form-perfil').addEventListener('submit', (evento) => {
             mostrarErroGeral(form, r.dados?.erro ?? ERRO_PADRAO);
         }
     });
-});
-
-document.getElementById('botao-sair').addEventListener('click', async () => {
-    await supabase.auth.signOut();
-    perfilAtual = null;
-    avisar(null);
-    mostrarTela('tela-entrar');
 });
 
 // ---------- Entrar ----------

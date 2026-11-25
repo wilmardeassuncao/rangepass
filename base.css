@@ -1,0 +1,381 @@
+/* Estilo comum das três páginas: cores, fonte, botões, campos, cartões, mensagens e a moldura
+   (menu lateral no computador, barra com ☰ no celular, cartão centralizado antes de entrar). */
+:root {
+    color-scheme: dark;
+    --cor-fundo-externo: #09090a;
+    --cor-fundo: #101012;
+    --cor-superficie: #1a1a1d;
+    --cor-campo: #232327;
+    --cor-borda: #34343a;
+    --cor-texto: #f4f4f5;
+    --cor-texto-secundario: #a9a9b0;
+    --cor-texto-apagado: #75757d;
+    --cor-marca: #e65100;
+    --cor-marca-clara: #ff9a5c;
+    --cor-sobre-marca: #ffffff;
+    --cor-erro: #ffb4ab;
+    --cor-erro-fundo: #3a1614;
+    --cor-sucesso: #6fcf97;
+    --raio-pequeno: 12px;
+    --raio-medio: 18px;
+    --espaco-tela: 20px;
+
+    /* Moldura */
+    --cor-menu-fundo: #0c0c0e;
+    --cor-menu-realce: #19191c;
+    --cor-ativo-fundo: #2a1a10;
+    --largura-menu: 224px;      /* menu lateral no computador */
+    --largura-max: 1040px;      /* largura máxima do conteúdo em telas muito largas */
+    --altura-barra: 56px;       /* barra do topo no celular */
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+    background-color: var(--cor-fundo-externo);
+    color: var(--cor-texto);
+    font-family: 'Roboto', Arial, sans-serif;
+    margin: 0;
+}
+
+h1, h2, p, dl, dd { margin: 0; }
+
+/* Texto só para leitor de tela. */
+.so-leitor {
+    border: 0;
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
+
+/* ---------- Marca, títulos e telas ---------- */
+
+.marca { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+.marca span { color: var(--cor-marca-clara); }
+
+.tela { display: none; flex-direction: column; gap: 14px; }
+.tela.ativa { display: flex; }
+
+.cabecalho h1 { font-size: 24px; font-weight: 700; line-height: 1.2; }
+
+.subtitulo {
+    color: var(--cor-texto-secundario);
+    font-size: 14px;
+    line-height: 1.4;
+    margin-top: 4px;
+}
+
+/* ---------- Cartões, campos e mensagens ---------- */
+
+.bloco {
+    background-color: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-medio);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 16px;
+}
+
+.campo {
+    display: flex;
+    flex-direction: column;
+    font-size: 14px;
+    font-weight: 500;
+    gap: 6px;
+}
+
+.campo small { color: var(--cor-texto-secundario); font-weight: 400; }
+
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+    background-color: var(--cor-campo);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-texto);
+    font: inherit;
+    font-weight: 400;
+    min-height: 48px;
+    padding: 12px 14px;
+    width: 100%;
+}
+
+input:focus, select:focus, textarea:focus { border-color: var(--cor-marca-clara); outline: none; }
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--cor-erro); }
+
+.erro { color: var(--cor-erro); font-size: 13px; font-weight: 400; }
+.erro:empty { display: none; }
+
+.aviso {
+    background-color: var(--cor-erro-fundo);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-erro);
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 12px 14px;
+}
+
+.aviso.sucesso { background-color: var(--cor-superficie); color: var(--cor-sucesso); }
+
+/* ---------- Botões e links ---------- */
+
+.botao {
+    background-color: var(--cor-marca);
+    border: 0;
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-sobre-marca);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 700;
+    min-height: 48px;
+    padding: 12px;
+    width: 100%;
+}
+
+a.botao { display: block; text-align: center; text-decoration: none; }
+.botao:disabled { cursor: wait; opacity: 0.6; }
+.botao.secundario { background-color: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto); }
+.botao:focus-visible, .link:focus-visible { outline: 2px solid var(--cor-marca-clara); outline-offset: 2px; }
+
+.link {
+    background: none;
+    border: 0;
+    color: var(--cor-marca-clara);
+    cursor: pointer;
+    font: inherit;
+    font-size: 14px;
+    padding: 8px 0;
+}
+
+/* ---------- Antes de entrar: cartão centralizado, sem menu ---------- */
+
+body.sem-moldura {
+    display: flex;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 40px 16px;
+}
+
+/* margin: auto centraliza sem cortar o topo quando o cartão é mais alto que a tela. */
+body.sem-moldura .moldura-cartao {
+    background-color: var(--cor-fundo);
+    border: 1px solid var(--cor-borda);
+    border-radius: 24px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: auto;
+    max-width: 460px;
+    padding: 32px 28px;
+    width: 100%;
+}
+
+body.sem-moldura .moldura-cartao > .marca { font-size: 17px; letter-spacing: 0.06em; margin-bottom: 4px; text-align: center; }
+
+@media (max-width: 480px) {
+    body.sem-moldura { padding: 20px 16px; }
+    body.sem-moldura .moldura-cartao { border-radius: 20px; padding: 24px 18px; }
+}
+
+/* ---------- Com a moldura: menu e conteúdo ---------- */
+
+body:not(.com-moldura) .moldura-menu,
+body:not(.com-moldura) .moldura-barra,
+body:not(.com-moldura) .moldura-fundo { display: none; }
+
+body.com-moldura { background-color: var(--cor-fundo); }
+
+/* A marca de dentro do conteúdo só aparece no cartão; com a moldura ela fica no menu. */
+body.com-moldura .moldura-conteudo > .marca { display: none; }
+
+.moldura-conteudo {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.moldura-menu {
+    background-color: var(--cor-menu-fundo);
+    border-right: 1px solid var(--cor-borda);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0 12px 16px;
+}
+
+.moldura-menu .marca { font-size: 17px; letter-spacing: 0.06em; padding: 26px 12px 22px; }
+
+.moldura-grupo { display: flex; flex-direction: column; gap: 2px; }
+.moldura-grupo + .moldura-grupo { margin-top: 18px; }
+
+.moldura-grupo-titulo {
+    color: var(--cor-texto-apagado);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    padding: 0 12px 6px;
+    text-transform: uppercase;
+}
+
+.moldura-grupo ul { display: flex; flex-direction: column; gap: 2px; list-style: none; margin: 0; padding: 0; }
+
+.moldura-item {
+    align-items: center;
+    background: none;
+    border: 0;
+    border-radius: 10px;
+    color: var(--cor-texto-secundario);
+    cursor: pointer;
+    display: flex;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 44px;
+    padding: 10px 12px;
+    text-align: left;
+    text-decoration: none;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    width: 100%;
+}
+
+.moldura-item:hover { background-color: var(--cor-menu-realce); color: var(--cor-texto); }
+.moldura-item:focus-visible { outline: 2px solid var(--cor-marca-clara); outline-offset: -2px; }
+
+.moldura-item[aria-current="page"] {
+    background-color: var(--cor-ativo-fundo);
+    color: var(--cor-marca-clara);
+    font-weight: 700;
+}
+
+.moldura-rodape {
+    border-top: 1px solid var(--cor-borda);
+    margin-top: auto;
+    padding-top: 12px;
+}
+
+/* Espaço mínimo entre o último grupo e o Sair quando o menu é comprido. */
+.moldura-grupo:has(+ .moldura-rodape) { margin-bottom: 20px; }
+
+.moldura-abrir {
+    align-items: center;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--cor-texto);
+    cursor: pointer;
+    display: inline-flex;
+    height: 44px;
+    justify-content: center;
+    margin-right: -6px;
+    padding: 0;
+    width: 44px;
+}
+
+.moldura-abrir:hover { background-color: var(--cor-menu-realce); }
+.moldura-abrir:focus-visible { outline: 2px solid var(--cor-marca-clara); outline-offset: 0; }
+.moldura-abrir svg { height: 24px; width: 24px; }
+.moldura-abrir .icone-fechar { display: none; }
+body.menu-aberto .moldura-abrir .icone-abrir { display: none; }
+body.menu-aberto .moldura-abrir .icone-fechar { display: block; }
+
+/* Computador: menu fixo à esquerda, conteúdo largo com margem à direita parecida com o menu. */
+@media (min-width: 900px) {
+    .moldura-barra, .moldura-fundo { display: none; }
+
+    body.com-moldura .moldura-menu {
+        bottom: 0;
+        left: 0;
+        position: fixed;
+        top: 0;
+        width: var(--largura-menu);
+    }
+
+    /* A margem à direita cresce com a tela até a largura do menu (32px em 900px, 224px a partir de ~1220px). */
+    body.com-moldura .moldura-conteudo {
+        --margem-direita: clamp(32px, calc((100vw - 900px) * 0.6 + 32px), var(--largura-menu));
+        margin-left: var(--largura-menu);
+        min-height: 100vh;
+        padding: 40px var(--margem-direita) 64px 48px;
+    }
+
+    body.com-moldura .moldura-conteudo > * {
+        margin-left: auto;
+        margin-right: auto;
+        max-width: var(--largura-max);
+        width: 100%;
+    }
+
+    body.com-moldura .cabecalho h1 { font-size: 28px; }
+}
+
+/* Celular: barra no topo com ☰; o menu abre por cima do conteúdo. */
+@media (max-width: 899.98px) {
+    .moldura-barra {
+        align-items: center;
+        background-color: var(--cor-menu-fundo);
+        border-bottom: 1px solid var(--cor-borda);
+        display: flex;
+        height: var(--altura-barra);
+        justify-content: space-between;
+        padding: 0 16px;
+        position: sticky;
+        top: 0;
+        z-index: 30;
+    }
+
+    .moldura-barra .marca { font-size: 16px; letter-spacing: 0.06em; }
+
+    body.com-moldura .moldura-menu {
+        bottom: 0;
+        box-shadow: 16px 0 40px rgba(0, 0, 0, 0.5);
+        left: 0;
+        padding-top: 12px;
+        position: fixed;
+        top: var(--altura-barra);
+        transform: translateX(-100%);
+        transition: transform 0.22s ease, visibility 0s linear 0.22s;
+        visibility: hidden;
+        width: min(300px, 86vw);
+        z-index: 25;
+    }
+
+    body.com-moldura .moldura-menu > .marca { display: none; }
+
+    body.menu-aberto .moldura-menu {
+        transform: none;
+        transition: transform 0.22s ease;
+        visibility: visible;
+    }
+
+    .moldura-fundo {
+        background-color: rgba(0, 0, 0, 0.6);
+        inset: var(--altura-barra) 0 0 0;
+        opacity: 0;
+        pointer-events: none;
+        position: fixed;
+        transition: opacity 0.22s ease;
+        z-index: 20;
+    }
+
+    body.menu-aberto .moldura-fundo { opacity: 1; pointer-events: auto; }
+
+    /* Com o menu aberto, a página de trás não rola. */
+    html:has(body.menu-aberto), body.menu-aberto { overflow: hidden; }
+
+    body.com-moldura .moldura-conteudo { padding: 20px 16px 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .moldura-menu, .moldura-fundo, .moldura-item { transition: none !important; }
+}
