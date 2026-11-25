@@ -8,14 +8,12 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="base.css">
     <link rel="stylesheet" href="agendar.css">
 </head>
-<body>
-    <main class="pagina">
-        <div class="topo">
-            <p class="marca">RANGE<span>PASS</span></p>
-            <a href="conta.html" class="link">Meu perfil</a>
-        </div>
+<body class="sem-moldura">
+    <main class="moldura-conteudo moldura-cartao">
+        <p class="marca">RANGE<span>PASS</span></p>
         <p id="aviso" class="aviso" role="status" hidden></p>
 
         <section id="tela-carregando" class="tela ativa">
@@ -29,6 +27,8 @@
                 <p id="erro-carregar-mensagem" class="subtitulo" role="alert"></p>
             </div>
             <button type="button" id="botao-tentar-de-novo" class="botao">Tentar de novo</button>
+            <!-- Para ninguém ficar preso quando ainda não se sabe quem é a pessoa (sem menu). Com o menu, o Sair é o dele. -->
+            <button type="button" id="botao-erro-sair" class="botao secundario">Sair</button>
         </section>
 
         <section id="tela-lista" class="tela">
@@ -146,7 +146,14 @@
                     </div>
                 </fieldset>
 
-                <fieldset class="bloco">
+                <fieldset class="bloco bloco-participantes">
+                    <legend class="bloco-titulo">Participantes</legend>
+                    <div id="participantes" class="participantes"></div>
+                    <span class="erro" data-erro-para="participantes"></span>
+                    <button type="button" id="botao-adicionar" class="botao secundario">Adicionar participante</button>
+                </fieldset>
+
+                <fieldset class="bloco bloco-instrutor">
                     <legend class="bloco-titulo">Instrutor</legend>
                     <label class="campo">Instrutor
                         <select name="instrutor_id"></select>
@@ -154,16 +161,9 @@
                     </label>
                 </fieldset>
 
-                <fieldset class="bloco">
-                    <legend class="bloco-titulo">Participantes</legend>
-                    <div id="participantes" class="participantes"></div>
-                    <span class="erro" data-erro-para="participantes"></span>
-                    <button type="button" id="botao-adicionar" class="botao secundario">Adicionar participante</button>
-                </fieldset>
-
                 <p id="ocupacao" class="subtitulo"></p>
                 <p class="erro" data-erro-geral hidden></p>
-                <button type="submit" class="botao">Revisar agendamento</button>
+                <button type="submit" class="botao">Concluir agendamento</button>
                 <button type="button" id="botao-novo-voltar" class="botao secundario">Voltar para meus agendamentos</button>
             </form>
         </section>
@@ -171,7 +171,7 @@
         <section id="tela-revisar" class="tela">
             <header class="cabecalho">
                 <h1>Revise o agendamento</h1>
-                <p class="subtitulo">Confira os dados antes de confirmar.</p>
+                <p class="subtitulo">Falta só confirmar: confira os dados e clique em Confirmar agendamento.</p>
             </header>
             <div id="revisao" class="revisao">
                 <dl class="bloco dados">

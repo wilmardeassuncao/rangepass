@@ -1,124 +1,24 @@
-/* Visual da tela de agendamento: as mesmas cores da conta (escuro com laranja), pensado para o celular. */
-:root {
-    color-scheme: dark;
-    --cor-fundo-externo: #09090a;
-    --cor-fundo: #101012;
-    --cor-superficie: #1a1a1d;
-    --cor-campo: #232327;
-    --cor-borda: #34343a;
-    --cor-texto: #f4f4f5;
-    --cor-texto-secundario: #a9a9b0;
-    --cor-marca: #e65100;
-    --cor-marca-clara: #ff9a5c;
-    --cor-sobre-marca: #ffffff;
-    --cor-erro: #ffb4ab;
-    --cor-erro-fundo: #3a1614;
-    --cor-sucesso: #6fcf97;
-    --raio-pequeno: 12px;
-    --raio-medio: 18px;
-    --espaco-tela: 20px;
-}
-
-* { box-sizing: border-box; }
-
-[hidden] { display: none !important; }
-
-body {
-    background-color: var(--cor-fundo-externo);
-    color: var(--cor-texto);
-    font-family: 'Roboto', Arial, sans-serif;
-    margin: 0;
-}
-
-h1, p, dl, dd { margin: 0; }
+/* Visual que é só da página do cliente (agendamentos). O comum (cores, fonte, botões, campos, cartões,
+   mensagens e a moldura com o menu) está em base.css, que é carregado antes deste arquivo. */
 
 fieldset { margin: 0; min-width: 0; }
 legend { float: left; padding: 0; width: 100%; }
 
-.pagina {
-    background-color: var(--cor-fundo);
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin: 0 auto;
-    max-width: 480px;
-    min-height: 100vh;
-    min-height: 100dvh;
-    padding: 24px var(--espaco-tela);
-}
-
-.marca { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
-.marca span { color: var(--cor-marca-clara); }
-
-.tela { display: none; flex-direction: column; gap: 14px; }
-.tela.ativa { display: flex; }
-
-.cabecalho h1 { font-size: 24px; font-weight: 700; line-height: 1.2; }
-
-.subtitulo {
-    color: var(--cor-texto-secundario);
-    font-size: 14px;
-    line-height: 1.4;
-    margin-top: 4px;
-}
-
-.bloco {
-    background-color: var(--cor-superficie);
-    border: 1px solid var(--cor-borda);
-    border-radius: var(--raio-medio);
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 16px;
-}
-
 .bloco-titulo { color: var(--cor-marca-clara); font-size: 13px; font-weight: 500; }
 
-.campo {
-    display: flex;
-    flex-direction: column;
-    font-size: 14px;
-    font-weight: 500;
-    gap: 6px;
-}
-
-.campo small { color: var(--cor-texto-secundario); font-weight: 400; }
-
-input:not([type="checkbox"]) {
-    background-color: var(--cor-campo);
-    border: 1px solid var(--cor-borda);
-    border-radius: var(--raio-pequeno);
-    color: var(--cor-texto);
-    font: inherit;
-    font-weight: 400;
-    min-height: 48px;
-    padding: 12px 14px;
-    width: 100%;
-}
-
+/* O select daqui tem a setinha própria (o resto do campo vem de base.css). */
 select {
     appearance: none;
-    background-color: var(--cor-campo);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23a9a9b0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
     background-position: right 14px center;
     background-repeat: no-repeat;
-    border: 1px solid var(--cor-borda);
-    border-radius: var(--raio-pequeno);
-    color: var(--cor-texto);
-    font: inherit;
-    font-weight: 400;
-    min-height: 48px;
-    padding: 12px 36px 12px 14px;
-    width: 100%;
+    padding-right: 36px;
 }
 
 select option { background-color: var(--cor-superficie); }
 select:disabled { cursor: not-allowed; opacity: 0.5; }
 input[type="date"] { color-scheme: dark; }
 input[readonly] { color: var(--cor-texto-secundario); }
-
-input:focus, select:focus { border-color: var(--cor-marca-clara); outline: none; }
-input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--cor-erro); }
 
 .caixa { align-items: center; display: flex; font-size: 14px; gap: 10px; }
 .caixa input { accent-color: var(--cor-marca); height: 20px; width: 20px; }
@@ -135,57 +35,12 @@ input[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--co
     white-space: pre-line;
 }
 
-.erro { color: var(--cor-erro); font-size: 13px; font-weight: 400; }
-.erro:empty { display: none; }
-
-.aviso {
-    background-color: var(--cor-erro-fundo);
-    border-radius: var(--raio-pequeno);
-    color: var(--cor-erro);
-    font-size: 14px;
-    line-height: 1.4;
-    padding: 12px 14px;
-}
-
-.aviso.sucesso { background-color: var(--cor-superficie); color: var(--cor-sucesso); }
-
-.botao {
-    background-color: var(--cor-marca);
-    border: 0;
-    border-radius: var(--raio-pequeno);
-    color: var(--cor-sobre-marca);
-    cursor: pointer;
-    font: inherit;
-    font-weight: 700;
-    min-height: 48px;
-    padding: 12px;
-    width: 100%;
-}
-
-a.botao { display: block; text-align: center; text-decoration: none; }
-.botao:disabled { cursor: wait; opacity: 0.6; }
 /* Travado por falta de preços (não é "carregando"). */
 [data-sem-precos]:not([hidden]) ~ .botao[type="submit"]:disabled { cursor: not-allowed; }
-.botao.secundario { background-color: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto); }
-
-.links { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: center; }
-
-.link {
-    background: none;
-    border: 0;
-    color: var(--cor-marca-clara);
-    cursor: pointer;
-    font: inherit;
-    font-size: 14px;
-    padding: 8px 0;
-}
 
 .dados div { display: flex; justify-content: space-between; gap: 12px; }
 .dados dt { color: var(--cor-texto-secundario); font-size: 14px; }
 .dados dd { font-size: 14px; text-align: right; }
-
-.topo { align-items: center; display: flex; justify-content: space-between; }
-.topo .link { text-decoration: none; }
 
 form { display: flex; flex-direction: column; gap: 14px; }
 
@@ -289,8 +144,8 @@ form { display: flex; flex-direction: column; gap: 14px; }
 .botao.perigo { border-color: var(--cor-erro); color: var(--cor-erro); }
 
 /* ---------- Agenda visual (novo agendamento e alterar horário) ---------- */
-/* Celular: uma coluna. Computador (900px ou mais): a agenda sai da coluna de 480px e fica com até
-   960px, em duas colunas (dias e horas | duração e resumo). A cor nunca é o único sinal. */
+/* Celular: uma coluna. Computador (900px ou mais): duas colunas, "Dia e horário" ao lado de "Duração",
+   cada uma no seu cartão. A faixa de dias rola por dentro em qualquer largura. A cor nunca é o único sinal. */
 
 :root {
     --cor-livre: #6fcf97;
@@ -422,16 +277,61 @@ form { display: flex; flex-direction: column; gap: 14px; }
     padding: 4px 0 4px 12px;
 }
 
+/* ---------- Computador: blocos em grade, na largura do conteúdo ---------- */
+/* As colunas são 3fr | 2fr em toda parte, para os cartões de cima e de baixo ficarem alinhados. */
+
 @media (min-width: 900px) {
-    /* Só a agenda fica larga; o resto do formulário continua com 480px, no centro. */
-    .bloco-agenda {
-        align-self: center;
-        width: min(960px, calc(100vw - 2 * var(--espaco-tela)));
-    }
     .agenda {
         display: grid;
-        gap: 18px 28px;
+        gap: 16px 20px;
         grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     }
     .agenda-falha { grid-column: 1 / -1; }
+
+    /* O bloco da agenda vira só o título; cada coluna (dia e horário | duração) é um cartão. */
+    .bloco-agenda { background: none; border: 0; border-radius: 0; padding: 0; }
+    .bloco-agenda > .bloco-titulo { padding: 0 4px; }
+    .agenda-coluna {
+        background-color: var(--cor-superficie);
+        border: 1px solid var(--cor-borda);
+        border-radius: var(--raio-medio);
+        padding: 20px;
+    }
+
+    /* Novo agendamento: Participantes ao lado de Instrutor; o resto ocupa a linha toda. */
+    #form-agendar {
+        align-items: start;
+        display: grid;
+        gap: 16px 20px;
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    }
+    #form-agendar > * { grid-column: 1 / -1; }
+    #form-agendar > .bloco-participantes { grid-column: 1; }
+    #form-agendar > .bloco-instrutor { grid-column: 2; }
+    #form-agendar > .bloco:not(.bloco-agenda), #form-alterar > .bloco:not(.bloco-agenda), .revisao .bloco { padding: 20px; }
+
+    /* Botões de ação: do tamanho do texto, alinhados à esquerda (não uma faixa laranja de lado a lado). */
+    #botao-novo,
+    #form-agendar > .botao,
+    #form-alterar > .botao,
+    .revisao > .botao {
+        align-self: flex-start;
+        justify-self: start;
+        min-width: 280px;
+        padding: 12px 28px;
+        width: auto;
+    }
+    #tela-sucesso > .botao,
+    body.com-moldura #tela-erro > .botao { align-self: center; min-width: 280px; padding: 12px 28px; width: auto; }
+
+    /* Meus agendamentos: os cartões em grade. */
+    .lista-agendamentos {
+        align-items: start;
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    }
 }
+
+/* O "Sair" da tela de erro só aparece quando ainda não há o menu (que tem o próprio Sair). */
+body.com-moldura #botao-erro-sair { display: none; }

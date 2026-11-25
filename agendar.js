@@ -13,6 +13,7 @@ import {
 import { calcularPreco, formatarReais } from './supabase/functions/_shared/precos.mjs';
 import { montarAgenda } from './agenda-regras.mjs';
 import { criarAgenda } from './agenda-tela.mjs';
+import { montarMoldura } from './moldura.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ENTRAR = 'conta.html?voltar=index.html';
@@ -58,12 +59,28 @@ let precoAlterar = null;
 // O preço que o servidor devolveu num 409 do "Alterar", com o horário a que ele se refere ('data|hora|horas').
 // Enquanto a escolha for esse horário, a prévia mostra esse preço, não a estimativa daqui.
 let precoDoServidor = null;
+// O menu (moldura), montado depois de ler os papéis de quem entrou (GET minha-conta).
+let moldura = null;
+
+// O endereço index.html#novo abre direto o "Novo agendamento" (é o link do menu).
+const ENDERECO_NOVO = '#novo';
+const TELAS_DO_NOVO = ['tela-novo', 'tela-revisar'];
+// Telas em que o endereço volta a ser só index.html (sem o #).
+const TELAS_SEM_ENDERECO = ['tela-lista', 'tela-alterar', 'tela-sucesso'];
 
 // ---------- Ajudantes de tela ----------
 
 function mostrarTela(id) {
     for (const tela of document.querySelectorAll('.tela')) tela.classList.toggle('ativa', tela.id === id);
+    // O endereço e o item do menu acompanham a tela: #novo no novo agendamento (e no resumo dele), sem # na lista.
+    if (id === 'tela-novo' && location.hash !== ENDERECO_NOVO) history.pushState(null, '', ENDERECO_NOVO);
+    if (TELAS_SEM_ENDERECO.includes(id) && location.hash) history.replaceState(null, '', location.pathname + location.search);
+    moldura?.marcarAtivo(TELAS_DO_NOVO.includes(id) ? 'novo' : 'agendamentos-cliente');
     window.scrollTo(0, 0);
+}
+
+function telaAtiva() {
+    return document.querySelector('.tela.ativa')?.id ?? null;
 }
 
 // Aviso no alto da página: vermelho para problema, verde (sucesso) para "deu certo".
@@ -679,12 +696,40 @@ async function recarregarDepoisDe(sucesso) {
     avisar(`${sucesso} Não foi possível atualizar a lista; recarregue a página.`);
 }
 
-document.getElementById('botao-novo').addEventListener('click', () => {
+// Abre o "Novo agendamento" limpo (o botão da lista, o item do menu e o endereço index.html#novo).
+async function abrirNovo(lugar = document.getElementById(telaAtiva())) {
     avisar(null);
-    ocupado(document.getElementById('tela-lista'), async () => {
+    await ocupado(lugar, async () => {
         await montarFormulario();
         mostrarTela('tela-novo');
     });
+    // Se não deu para abrir, o endereço não fica dizendo "#novo".
+    if (!TELAS_DO_NOVO.includes(telaAtiva()) && location.hash) history.replaceState(null, '', location.pathname + location.search);
+}
+
+document.getElementById('botao-novo').addEventListener('click', () => abrirNovo(document.getElementById('tela-lista')));
+
+// O endereço mudou sem a página recarregar (item "Novo agendamento" do menu, botões voltar/avançar do navegador).
+window.addEventListener('hashchange', () => {
+    if (!opcoes) return;   // ainda carregando: o carregar() abre a tela certa no fim
+    const ativa = telaAtiva();
+    if (location.hash === ENDERECO_NOVO) {
+        if (!TELAS_DO_NOVO.includes(ativa)) abrirNovo();
+    } else if (TELAS_DO_NOVO.includes(ativa)) {
+        avisar(null);
+        chaveEnvio = null;
+        mostrarTela('tela-lista');
+    }
+});
+
+// "Novo agendamento" no menu com o resumo aberto (o endereço já é #novo, então ele não muda): volta ao formulário,
+// como o "Voltar e mudar".
+document.addEventListener('click', (evento) => {
+    if (!evento.target.closest?.('a.moldura-item[data-item="novo"]')) return;
+    if (location.hash === ENDERECO_NOVO && telaAtiva() === 'tela-revisar') {
+        chaveEnvio = null;
+        mostrarTela('tela-novo');
+    }
 });
 
 // ---------- Alterar horário ----------
@@ -871,20 +916,28 @@ function mostrarErroCarregar(mensagem) {
     mostrarTela('tela-erro');
 }
 
-// A carga da página: opções (fuso, horários, nome) e lista, juntas, em paralelo.
+// A carga da página: opções (fuso, horários, nome), lista e papéis (para o menu), juntas, em paralelo.
 async function carregar() {
     mostrarTela('tela-carregando');
-    const [r, lista] = await Promise.all([
+    const [r, lista, conta] = await Promise.all([
         chamarFuncao('agendamentos', { consulta: 'ver=opcoes' }),
         chamarFuncao('agendamentos'),
+        chamarFuncao('minha-conta'),
     ]);
-    if (precisaEntrar(r) || precisaEntrar(lista)) return irParaEntrar();
+    if (precisaEntrar(r) || precisaEntrar(lista) || precisaEntrar(conta)) return irParaEntrar();
+    // Sabendo quem é, o menu já aparece (também na tela de erro); sem isso, a tela de erro fica no cartão, com o "Sair".
+    if (conta.status !== 200) return mostrarErroCarregar(conta.dados?.erro);
+    moldura = montarMoldura({ papeis: conta.dados.papeis ?? [], ativo: null });
     if (r.status !== 200) return mostrarErroCarregar(r.dados?.erro);
     if (lista.status !== 200) return mostrarErroCarregar(lista.dados?.erro);
     opcoes = r.dados;
     document.getElementById('nome-estande').textContent = opcoes.estande.nome;
     document.getElementById('nome-cliente').textContent = opcoes.responsavel.nome_completo;
     mostrarLista(lista.dados.agendamentos);
+    if (location.hash === ENDERECO_NOVO) {
+        await montarFormulario();
+        return mostrarTela('tela-novo');
+    }
     mostrarTela('tela-lista');
 }
 
@@ -898,6 +951,18 @@ function carregarComErro() {
 
 document.getElementById('botao-tentar-de-novo').addEventListener('click', () => {
     ocupado(document.getElementById('tela-erro'), carregarComErro);
+});
+
+// Na tela de erro sem menu: sair e ir para a página de entrar.
+document.getElementById('botao-erro-sair').addEventListener('click', async (evento) => {
+    evento.currentTarget.disabled = true;
+    try {
+        await supabase.auth.signOut();
+    } catch (erro) {
+        console.error(erro);
+    } finally {
+        location.replace('conta.html');
+    }
 });
 
 async function iniciar() {
