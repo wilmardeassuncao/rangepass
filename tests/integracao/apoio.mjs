@@ -336,9 +336,10 @@ export async function definirPrecosDeTeste({ modelos = [], tiposMunicao = [] } =
     return restaurar;
 }
 
-// Primeiro dia, a partir de hoje (no fuso do estande) + dias, em que o estande abre.
+// Primeiro dia, a partir de hoje (no fuso do estande) + dias, em que o estande abre com pelo menos
+// minHoras horários de início (dias curtos, como o sábado, ficam de fora quando o teste precisa de mais).
 // Devolve a data (AAAA-MM-DD) e as horas de início possíveis nesse dia.
-export async function diaAbertoDeTeste(dias) {
+export async function diaAbertoDeTeste(dias, minHoras = 1) {
     const r = await rest('configuracoes?chave=in.(funcionamento,estande)&select=chave,valor');
     if (r.status !== 200) throw new Error(`Falha ao ler configuracoes: ${r.status} ${JSON.stringify(r.dados)}`);
     const config = Object.fromEntries(r.dados.map(l => [l.chave, l.valor]));
@@ -348,7 +349,7 @@ export async function diaAbertoDeTeste(dias) {
         d.setUTCDate(d.getUTCDate() + i);
         const data = d.toISOString().slice(0, 10);
         const horas = horariosDoDia(data, config.funcionamento);
-        if (horas.length) return { data, horas };
+        if (horas.length >= minHoras) return { data, horas };
     }
     throw new Error('O estande não abre em nenhum dia do próximo ano.');
 }

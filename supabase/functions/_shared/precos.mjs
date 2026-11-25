@@ -7,24 +7,29 @@ import { partesNoFuso } from './agendamento.mjs';
 const HORA_MS = 3600000;
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
 const RELOGIO = /^([01]\d|2[0-3]):[0-5]\d$/;
-// "120", "120,5", "1.234,56", "R$ 1.234,56" (pontos só como separador de milhar).
-const VALOR = /^(?:R\$\s*)?(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?$/;
+// "120", "120,5", "1.234,56", "R$ 1.234,56" (ponto seguido de exatamente 3 dígitos é milhar) e
+// "120.50", "120.5" (ponto final seguido de 1 ou 2 dígitos, sem vírgula, separa os centavos).
+const VALOR = /^(?:R\$\s*)?(?:(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?|(\d+)\.(\d{1,2}))$/;
 
 // --- Dinheiro ---
 
 export function formatarReais(centavos) {
-    const reais = Math.floor(centavos / 100);
-    const resto = String(centavos % 100).padStart(2, '0');
+    const sinal = centavos < 0 ? '-' : '';
+    const abs = Math.abs(centavos);
+    const reais = Math.floor(abs / 100);
+    const resto = String(abs % 100).padStart(2, '0');
     const milhar = String(reais).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return `R$ ${milhar},${resto}`;
+    return `${sinal}R$ ${milhar},${resto}`;
 }
 
 export function centavosDoTexto(texto) {
     if (typeof texto !== 'string') return null;
     const m = VALOR.exec(texto.trim());
     if (!m) return null;
-    const reais = Number(m[1].replace(/\./g, ''));
-    const centavos = m[2] === undefined ? 0 : Number(m[2].padEnd(2, '0'));
+    const inteiro = m[1] ?? m[3];
+    const decimais = m[1] !== undefined ? m[2] : m[4];
+    const reais = Number(inteiro.replace(/\./g, ''));
+    const centavos = decimais === undefined ? 0 : Number(decimais.padEnd(2, '0'));
     return reais * 100 + centavos;
 }
 
@@ -72,17 +77,21 @@ function economiaDoPacote(pacote, pedido, tabela, valoresHoras, hoje) {
     if (!vigente(pacote, hoje) || pacote.horas > pedido.horas) return 0;
     const { participantes } = pedido;
     let coberto = soma(valoresHoras.slice(0, pacote.horas));
-    if (pacote.modelo_id != null) {
+    const temModelo = pacote.modelo_id != null;
+    const temMunicao = pacote.tipo_municao_id != null;
+    const serveMunicao = (p) => p.tipo_municao_id === pacote.tipo_municao_id
+        && (p.modalidade === 'estande' || p.modalidade === 'arma_propria')
+        && p.municao_qtd >= pacote.municao_qtd;
+    if (temModelo && temMunicao) {
+        // Arma e munição do pacote precisam estar no mesmo participante.
+        if (!participantes.some((p) => p.modalidade === 'estande' && p.modelo_id === pacote.modelo_id && serveMunicao(p))) return 0;
+    } else if (temModelo) {
         if (!participantes.some((p) => p.modalidade === 'estande' && p.modelo_id === pacote.modelo_id)) return 0;
-        coberto += pacote.horas * preco(tabela.modelos, pacote.modelo_id);
+    } else if (temMunicao) {
+        if (!participantes.some(serveMunicao)) return 0;
     }
-    if (pacote.tipo_municao_id != null) {
-        const usa = participantes.some((p) => p.tipo_municao_id === pacote.tipo_municao_id
-            && (p.modalidade === 'estande' || p.modalidade === 'arma_propria')
-            && p.municao_qtd >= pacote.municao_qtd);
-        if (!usa) return 0;
-        coberto += pacote.municao_qtd * preco(tabela.tipos_municao, pacote.tipo_municao_id);
-    }
+    if (temModelo) coberto += pacote.horas * preco(tabela.modelos, pacote.modelo_id);
+    if (temMunicao) coberto += pacote.municao_qtd * preco(tabela.tipos_municao, pacote.tipo_municao_id);
     return Math.max(0, coberto - pacote.preco_centavos);
 }
 
@@ -271,4 +280,20 @@ export function validarPacote(dados, { criando }) {
         conferirPeriodo(valores, erros);
         conferirMunicao(valores, erros, enviados, cr);
     });
+}
+
+// Confere os itens escolhidos num pacote. `modelo` e `tipoMunicao` são os cadastros já buscados
+// ({ preco_hora_centavos, calibre_id } e { preco_unidade_centavos, calibre_id }), ou null quando
+// o pacote não usa aquele item. Devolve um objeto de erros por campo (vazio quando está tudo certo).
+export function conferirItensDoPacote(valores, { modelo, tipoMunicao }) {
+    const campos = {};
+    if (modelo && modelo.preco_hora_centavos == null) {
+        campos.modelo_id = 'Este modelo está sem preço. Defina o preço na aba Preços antes de usá-lo num pacote.';
+    }
+    if (tipoMunicao && tipoMunicao.preco_unidade_centavos == null) {
+        campos.tipo_municao_id = 'Esta munição está sem preço. Defina o preço na aba Preços antes de usá-la num pacote.';
+    } else if (modelo && tipoMunicao && modelo.calibre_id !== tipoMunicao.calibre_id) {
+        campos.tipo_municao_id = 'Esta munição não é do calibre do modelo escolhido.';
+    }
+    return campos;
 }

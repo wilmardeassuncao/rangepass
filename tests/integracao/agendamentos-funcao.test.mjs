@@ -53,11 +53,11 @@ before(async () => {
         tiposMunicao: [{ id: tipoMunicao.id, preco: PRECO_MUNICAO }],
     });
 
-    dia = await diaAbertoDeTeste(3);
+    dia = await diaAbertoDeTeste(3, 9);
     assert.ok(dia.horas.length >= 9, `o dia de teste precisa de pelo menos 9 horários: ${JSON.stringify(dia)}`);
     // Um segundo dia, para os testes de preço (o modelo de teste tem uma única arma).
     for (let n = 4; !dia2; n++) {
-        const d = await diaAbertoDeTeste(n);
+        const d = await diaAbertoDeTeste(n, 12);
         if (d.data !== dia.data && d.horas.length >= 12) dia2 = d;
     }
     const opcoes = await funcao('agendamentos?ver=opcoes', { token: cliente.token });

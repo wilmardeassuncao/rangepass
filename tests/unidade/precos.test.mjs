@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import {
     formatarReais, centavosDoTexto, calcularPreco,
-    validarRegra, validarCampanha, validarClasse, validarPacote,
+    validarRegra, validarCampanha, validarClasse, validarPacote, conferirItensDoPacote,
 } from '../../supabase/functions/_shared/precos.mjs';
 
 const FUSO = 'America/Sao_Paulo'; // UTC-3, sem horário de verão
@@ -343,4 +343,48 @@ test('pacote: ativo não booleano', () => {
 });
 test('pacote: edição sem campos', () => {
     assert.strictEqual(validarPacote({}, EDITAR).campos.geral, 'Nada para alterar.');
+});
+
+// --- Pendências da Task 6 ---
+
+test('pacote com arma e munição só vale quando o mesmo participante tem as duas', () => {
+    const tabela = tabelaBase({ pacotes: [INICIANTE], modelos: { 1: 3000, 2: 3500 }, tipos_municao: { 5: 250, 6: 300 } });
+    const dividido = [
+        { ...estande(50), modelo_id: 1, tipo_municao_id: 6 },
+        { ...estande(50), modelo_id: 2, tipo_municao_id: 5 },
+    ];
+    assert.strictEqual(calcularPreco(pedido(QUARTA_10H, 2, dividido), tabela, CTX).desconto, null);
+    const junto = [{ ...estande(50), modelo_id: 1, tipo_municao_id: 5 }, { ...estande(50), modelo_id: 2, tipo_municao_id: 6 }];
+    assert.strictEqual(calcularPreco(pedido(QUARTA_10H, 2, junto), tabela, CTX).desconto.tipo, 'pacote');
+});
+
+test('centavosDoTexto aceita ponto como separador decimal', () => {
+    assert.strictEqual(centavosDoTexto('120.50'), 12050);
+    assert.strictEqual(centavosDoTexto('120.5'), 12050);
+    assert.strictEqual(centavosDoTexto('1.234'), 123400);
+    assert.strictEqual(centavosDoTexto('1.234,56'), 123456);
+    assert.strictEqual(centavosDoTexto('1.234.56'), null);
+    assert.strictEqual(centavosDoTexto('12.345.678'), 1234567800);
+});
+
+test('formatarReais com valor negativo', () => {
+    assert.strictEqual(formatarReais(-150), '-R$ 1,50');
+    assert.strictEqual(formatarReais(-123456), '-R$ 1.234,56');
+    assert.strictEqual(formatarReais(0), 'R$ 0,00');
+});
+
+test('conferirItensDoPacote', () => {
+    const SEM_MODELO = 'Este modelo está sem preço. Defina o preço na aba Preços antes de usá-lo num pacote.';
+    const SEM_MUNICAO = 'Esta munição está sem preço. Defina o preço na aba Preços antes de usá-la num pacote.';
+    const CALIBRE = 'Esta munição não é do calibre do modelo escolhido.';
+    const m = { preco_hora_centavos: 3000, calibre_id: 1 };
+    const t = { preco_unidade_centavos: 250, calibre_id: 1 };
+    assert.deepStrictEqual(conferirItensDoPacote({}, { modelo: { ...m, preco_hora_centavos: null }, tipoMunicao: null }),
+        { modelo_id: SEM_MODELO });
+    assert.deepStrictEqual(conferirItensDoPacote({}, { modelo: null, tipoMunicao: { ...t, preco_unidade_centavos: null } }),
+        { tipo_municao_id: SEM_MUNICAO });
+    assert.deepStrictEqual(conferirItensDoPacote({}, { modelo: m, tipoMunicao: { ...t, calibre_id: 2 } }),
+        { tipo_municao_id: CALIBRE });
+    assert.deepStrictEqual(conferirItensDoPacote({}, { modelo: m, tipoMunicao: t }), {});
+    assert.deepStrictEqual(conferirItensDoPacote({}, { modelo: null, tipoMunicao: null }), {});
 });

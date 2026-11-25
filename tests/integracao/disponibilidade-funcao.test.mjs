@@ -36,7 +36,7 @@ before(async () => {
         modelos: [{ id: modelo.id, preco: 3000 }],
         tiposMunicao: [{ id: tipoMunicao.id, preco: 250 }],
     });
-    dia = await diaAbertoDeTeste(3);
+    dia = await diaAbertoDeTeste(3, 8);
     // Cada reserva dos testes usa 2 horas do dia (4 reservas = 8 horas).
     assert.ok(dia.horas.length >= 8, `o dia de teste precisa de pelo menos 8 horários: ${JSON.stringify(dia)}`);
     const r = await funcao('agendamentos?ver=opcoes', { token: cliente.token });
