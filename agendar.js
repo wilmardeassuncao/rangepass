@@ -5,12 +5,11 @@ import { supabase, chamarFuncao } from './api.mjs';
 import {
     descreverSessao, modelosDaCategoria, municoesDoModelo, nomeDoCalibre,
     TEXTO_SITUACAO, separarAgendamentos, armaDoParticipante, municaoDoParticipante,
-    textoSemAlteracao, somarDias, doisDigitos, linhasDoPreco, textoSemPrecos,
+    textoSemAlteracao, linhasDoPreco, textoSemPrecos,
 } from './agendar-regras.mjs';
 import {
-    validarPedido, validarNovoHorario, horariosDoDia, duracoesPossiveis, instrutoresNecessarios, partesNoFuso,
+    validarPedido, validarNovoHorario, instrutoresNecessarios, partesNoFuso,
 } from './supabase/functions/_shared/agendamento.mjs';
-import { dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 import { calcularPreco, formatarReais } from './supabase/functions/_shared/precos.mjs';
 import { montarAgenda } from './agenda-regras.mjs';
 import { criarAgenda } from './agenda-tela.mjs';
@@ -30,10 +29,23 @@ const listaParticipantes = document.getElementById('participantes');
 const botaoAdicionar = document.getElementById('botao-adicionar');
 const revisao = document.getElementById('revisao');
 const formAlterar = document.getElementById('form-alterar');
-const agendaVisual = criarAgenda(form.querySelector('[data-agenda]'), { aoMudar: () => redesenhar() });
+const agendaVisual = criarAgenda(form.querySelector('[data-agenda]'), {
+    aoMudar: () => {
+        limparErrosDaAgenda(form);
+        redesenhar();
+    },
+});
+const agendaAlterar = criarAgenda(formAlterar.querySelector('[data-agenda]'), {
+    aoMudar: () => {
+        limparErrosDaAgenda(formAlterar);
+        redesenharAlterar();
+    },
+});
 
 let opcoes = null;          // resposta do GET ?ver=opcoes
 let disponibilidade = null; // resposta do GET ?ver=disponibilidade (pistas e instrutores livres por hora)
+// A mesma resposta, com ?agendamento=<id>: o horário do agendamento aberto no "Alterar" aparece livre.
+let disponibilidadeAlterar = null;
 let pedidoAtual = null;     // o que vai no POST, montado ao revisar
 // Identifica um envio: a mesma chave em "Confirmar" repetidos faz o servidor devolver o agendamento
 // já criado em vez de criar outro. Nasce ao abrir a revisão e é trocada ao voltar para o formulário.
@@ -43,6 +55,9 @@ let itemAlterando = null;   // o agendamento (Item do servidor) aberto em "Alter
 // (preco_esperado_centavos), para o servidor conferir. null quando não deu para calcular aqui.
 let precoAtual = null;
 let precoAlterar = null;
+// O preço que o servidor devolveu num 409 do "Alterar", com o horário a que ele se refere ('data|hora|horas').
+// Enquanto a escolha for esse horário, a prévia mostra esse preço, não a estimativa daqui.
+let precoDoServidor = null;
 
 // ---------- Ajudantes de tela ----------
 
@@ -148,26 +163,44 @@ function idDe(lista, valor) {
 
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
-// ---------- Quando, no novo agendamento: a agenda visual ----------
-// As cores dizem se ainda há pista e instrutor livres. A falta de arma e o CPF repetido só aparecem no Confirmar.
+// ---------- Quando: a agenda visual (no novo agendamento e no "Alterar horário") ----------
+// As cores dizem se ainda há pista e instrutor livres. A falta de arma e o CPF repetido só aparecem no Confirmar/Salvar.
 
 const AGENDA_VAZIA = { dias: [], horas: [], duracoes: [], escolha: { data: null, hora: null, horas: null }, aviso: null, resumo: null };
 
-// Busca a disponibilidade. Se não vier, a agenda fica vazia, com a mensagem e o "Tentar de novo".
-async function carregarDisponibilidade() {
-    agendaVisual.mostrarErro(null);
+// Ao mexer na agenda, os erros antigos de dia, horário e duração saem.
+function limparErrosDaAgenda(f) {
+    for (const el of f.querySelectorAll('[data-erro-para="data"], [data-erro-para="hora"], [data-erro-para="horas"]')) {
+        el.textContent = '';
+    }
+}
+
+// Busca a disponibilidade. Devolve { dados } (null se não vierem) ou { sair: true } quando a pessoa
+// precisa entrar de novo (a página já está indo para o "entrar").
+async function buscarDisponibilidade(consulta) {
     let r = null;
     try {
-        r = await chamarFuncao('agendamentos', { consulta: 'ver=disponibilidade' });
+        r = await chamarFuncao('agendamentos', { consulta });
     } catch (erro) {
         console.error(erro);
     }
-    if (r && precisaEntrar(r)) return irParaEntrar();
-    if (r?.status === 200 && r.dados?.dias) {
-        disponibilidade = r.dados;
+    if (r && precisaEntrar(r)) {
+        await irParaEntrar();
+        return { sair: true };
+    }
+    return { dados: r?.status === 200 && r.dados?.dias ? r.dados : null };
+}
+
+// No novo agendamento. Se não vier, a mensagem com o "Tentar de novo" aparece; a disponibilidade de antes
+// (se havia) fica, com a escolha da pessoa, em vez de a agenda ser apagada.
+async function carregarDisponibilidade() {
+    agendaVisual.mostrarErro(null);
+    const { dados, sair } = await buscarDisponibilidade('ver=disponibilidade');
+    if (sair) return;
+    if (dados) {
+        disponibilidade = dados;
         return;
     }
-    disponibilidade = null;
     agendaVisual.mostrarErro(ERRO_DISPONIBILIDADE, async () => {
         await carregarDisponibilidade();
         redesenhar();
@@ -188,41 +221,39 @@ function redesenhar() {
     agendaVisual.desenhar(montarAgenda(contexto, agendaVisual.escolha()));
 }
 
-// ---------- Quando, no "Alterar horário" (dia, horário e duração em campos comuns) ----------
-// `maximo` é uma função que diz a duração máxima: depende de quantas pessoas vão.
-
-function duracaoMaxima(quantidade) {
-    const { agenda } = opcoes;
-    return quantidade > 1 ? agenda.duracao_maxima_grupo : agenda.duracao_maxima_individual;
+// No "Alterar horário": o mesmo, para o agendamento aberto. `escolha` é a de começar (o horário atual).
+async function carregarDisponibilidadeAlterar(escolha) {
+    agendaAlterar.mostrarErro(null);
+    const { dados, sair } = await buscarDisponibilidade(`ver=disponibilidade&agendamento=${itemAlterando.id}`);
+    if (sair) return;
+    if (dados) {
+        disponibilidadeAlterar = dados;
+        return;
+    }
+    agendaAlterar.mostrarErro(ERRO_DISPONIBILIDADE, async () => {
+        const antes = agendaAlterar.escolha();
+        await carregarDisponibilidadeAlterar(escolha);
+        // Se a agenda estava vazia (a primeira busca falhou), volta a começar pelo horário atual.
+        redesenharAlterar(antes.data === null ? escolha : antes);
+    });
 }
 
-const maximoAlterar = () => duracaoMaxima(itemAlterando.participantes.length);
-
-// O dia vai de hoje (no fuso do estande) até a antecedência máxima.
-function limitarDatas(f) {
-    const hoje = dataNoFuso(new Date(), opcoes.estande.fuso);
-    f.elements.data.min = hoje;
-    f.elements.data.max = somarDias(hoje, opcoes.agenda.antecedencia_maxima_dias);
-}
-
-function atualizarHorarios(f, maximo) {
-    const data = f.elements.data.value;
-    const seletor = f.elements.hora;
-    const erroData = f.querySelector('[data-erro-para="data"]');
-    const horarios = data ? horariosDoDia(data, opcoes.funcionamento) : [];
-    erroData.textContent = data && horarios.length === 0 ? 'O estande não abre neste dia. Escolha outro.' : '';
-    preencherSelect(seletor, horarios.map((h) => [h, `${doisDigitos(h)}:00`]), { vazio: 'Escolha o horário' });
-    seletor.disabled = horarios.length === 0;
-    atualizarDuracoes(f, maximo);
-}
-
-function atualizarDuracoes(f, maximo) {
-    const data = f.elements.data.value;
-    const hora = f.elements.hora.value === '' ? null : Number(f.elements.hora.value);
-    const seletor = f.elements.horas;
-    const duracoes = hora === null ? [] : duracoesPossiveis(data, hora, opcoes.funcionamento, maximo());
-    preencherSelect(seletor, duracoes.map((k) => [k, `${plural(k, 'hora', 'horas')} (até ${doisDigitos(hora + k)}:00)`]));
-    seletor.disabled = duracoes.length === 0;
+// O grupo e o instrutor são os do agendamento (o servidor manda); só o horário muda.
+function redesenharAlterar(escolha = agendaAlterar.escolha()) {
+    if (!disponibilidadeAlterar) {
+        agendaAlterar.desenhar(AGENDA_VAZIA);
+    } else {
+        const { agendamento } = disponibilidadeAlterar;
+        const contexto = {
+            disponibilidade: disponibilidadeAlterar,
+            opcoes,
+            agora: new Date(),
+            quantidade: agendamento.participantes,
+            instrutorId: agendamento.instrutor_escolhido_id,
+        };
+        agendaAlterar.desenhar(montarAgenda(contexto, escolha));
+    }
+    atualizarValorAlterar();
 }
 
 // ---------- Participantes ----------
@@ -593,7 +624,7 @@ function cartaoDoAgendamento(a, agora) {
     // Quem decide se ainda dá para mexer é o servidor (pode_alterar); a tela não recalcula o prazo.
     if (a.pode_alterar) {
         cartao.querySelector('[data-acoes]').hidden = false;
-        cartao.querySelector('[data-alterar]').addEventListener('click', () => abrirAlterar(a));
+        cartao.querySelector('[data-alterar]').addEventListener('click', () => ocupado(cartao, () => abrirAlterar(a)));
         cartao.querySelector('[data-cancelar]').addEventListener('click', () => cancelar(a, sessao, cartao));
     } else {
         const texto = textoSemAlteracao(a, agora);
@@ -658,33 +689,42 @@ document.getElementById('botao-novo').addEventListener('click', () => {
 
 // ---------- Alterar horário ----------
 
-function abrirAlterar(a) {
+// Abre com a disponibilidade buscada agora e o horário atual marcado (ele aparece livre: o servidor
+// não conta as reservas deste agendamento).
+async function abrirAlterar(a) {
     itemAlterando = a;
+    precoDoServidor = null;
+    disponibilidadeAlterar = null;
     avisar(null);
     formAlterar.reset();
     limparErros(formAlterar);
     document.getElementById('alterar-atual').textContent =
         `Agora: ${descreverSessao(a.inicio, a.horas, opcoes.estande.fuso)}`;
-    limitarDatas(formAlterar);
-    // Começa preenchido com o horário atual, no relógio do estande.
-    const atual = partesNoFuso(new Date(a.inicio), opcoes.estande.fuso);
-    formAlterar.elements.data.value = atual.data;
-    atualizarHorarios(formAlterar, maximoAlterar);
-    formAlterar.elements.hora.value = String(atual.hora);
-    atualizarDuracoes(formAlterar, maximoAlterar);
-    formAlterar.elements.horas.value = String(a.horas);
-    atualizarValorAlterar();
     avisarSemPrecos(formAlterar);
+    // O horário atual, no relógio do estande.
+    const atual = partesNoFuso(new Date(a.inicio), opcoes.estande.fuso);
+    const escolha = { data: atual.data, hora: atual.hora, horas: a.horas };
+    await carregarDisponibilidadeAlterar(escolha);
+    redesenharAlterar(escolha);
     mostrarTela('tela-alterar');
+    mostrarDiaMarcado(formAlterar);
+}
+
+// No celular o dia marcado pode ficar fora da vista na faixa de dias: rola só a faixa (não a página) até ele.
+function mostrarDiaMarcado(f) {
+    const faixa = f.querySelector('[data-dias]');
+    const dia = faixa.querySelector('input:checked')?.closest('label');
+    if (!dia) return;
+    const esquerda = dia.getBoundingClientRect().left - faixa.getBoundingClientRect().left;
+    faixa.scrollLeft += esquerda - (faixa.clientWidth - dia.offsetWidth) / 2;
 }
 
 function lerNovoHorario() {
-    return {
-        data: formAlterar.elements.data.value,
-        hora: numeroOuNulo(formAlterar.elements.hora.value),
-        horas: numeroOuNulo(formAlterar.elements.horas.value),
-    };
+    const { data, hora, horas } = agendaAlterar.escolha();
+    return { data: data ?? '', hora, horas };
 }
+
+const chaveDoHorario = ({ data, hora, horas }) => `${data}|${hora}|${horas}`;
 
 // O agendamento gravado com o horário novo, no formato que o cálculo usa. O Item não traz os ids:
 // o modelo e a munição são achados no catálogo pelo nome. Se algum não estiver lá (saiu do catálogo),
@@ -717,14 +757,16 @@ function pedidoDoAlterar(inicio, horas) {
     };
 }
 
-// "Novo valor" do horário escolhido. Mostra o preço dado (o que veio do servidor num 409) ou calcula aqui.
-function atualizarValorAlterar(preco) {
+// "Novo valor" do horário escolhido. Para o horário do último 409 de preço, vale o preço do servidor;
+// para os outros, calcula aqui.
+function atualizarValorAlterar() {
     const caixa = document.getElementById('alterar-valor');
     const valor = caixa.querySelector('[data-novo-valor]');
     const desconto = caixa.querySelector('[data-desconto]');
-    precoAlterar = preco ?? null;
-    if (!preco) {
-        const novo = lerNovoHorario();
+    const novo = lerNovoHorario();
+    const doServidor = precoDoServidor?.chave === chaveDoHorario(novo) ? precoDoServidor.preco : null;
+    precoAlterar = doServidor;
+    if (!doServidor) {
         const { campos, inicio, horas } = validarNovoHorario(novo, {
             agora: new Date(), opcoes, quantidade: itemAlterando.participantes.length,
         });
@@ -750,11 +792,6 @@ function atualizarValorAlterar(preco) {
         desconto.textContent = `Com desconto: ${precoAlterar.desconto.nome}, − ${formatarReais(precoAlterar.desconto.valor_centavos)}`;
     }
 }
-
-formAlterar.elements.data.addEventListener('change', () => atualizarHorarios(formAlterar, maximoAlterar));
-formAlterar.elements.hora.addEventListener('change', () => atualizarDuracoes(formAlterar, maximoAlterar));
-// Depois dos campos acima (o evento sobe do campo para o formulário): o valor segue a escolha.
-formAlterar.addEventListener('change', () => atualizarValorAlterar());
 
 document.getElementById('botao-alterar-voltar').addEventListener('click', () => {
     avisar(null);
@@ -782,11 +819,17 @@ formAlterar.addEventListener('submit', (evento) => {
         if (precisaEntrar(r)) return irParaEntrar();
         if (r.status === 400 && r.dados?.campos) return mostrarErros(r.dados.campos, formAlterar);
         if (r.status === 409 && r.dados?.preco) {
-            // O valor é outro: mostra o certo e espera a pessoa salvar de novo.
-            atualizarValorAlterar(r.dados.preco);
+            // O valor é outro: mostra o certo (guardado para este horário) e espera a pessoa salvar de novo.
+            precoDoServidor = { chave: chaveDoHorario(novo), preco: r.dados.preco };
+            atualizarValorAlterar();
             return avisar(PRECO_MUDOU);
         }
         avisar(r.dados?.erro ?? ERRO_PADRAO);   // 403 (prazo), 404, 409: aviso, e fica na tela
+        if (r.status === 409) {
+            // Recusa por vaga: a agenda é buscada de novo, para mostrar o que está livre agora.
+            await carregarDisponibilidadeAlterar(novo);
+            redesenharAlterar();
+        }
     });
 });
 

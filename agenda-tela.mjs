@@ -112,8 +112,8 @@ export function criarAgenda(raiz, { aoMudar }) {
 
         resumo.textContent = agenda.resumo ?? '';
         resumo.hidden = !agenda.resumo;
+        // O aviso nunca fica `hidden`: vazio, o CSS o tira da vista, e o leitor de tela anuncia a primeira mudança.
         aviso.textContent = agenda.aviso ?? '';
-        aviso.hidden = !agenda.aviso;
 
         lugarDias.scrollLeft = rolagem;
         if (foco) {

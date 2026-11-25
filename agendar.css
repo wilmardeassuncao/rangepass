@@ -288,7 +288,7 @@ form { display: flex; flex-direction: column; gap: 14px; }
 .acoes .botao { flex: 1; }
 .botao.perigo { border-color: var(--cor-erro); color: var(--cor-erro); }
 
-/* ---------- Agenda visual (novo agendamento) ---------- */
+/* ---------- Agenda visual (novo agendamento e alterar horário) ---------- */
 /* Celular: uma coluna. Computador (900px ou mais): a agenda sai da coluna de 480px e fica com até
    960px, em duas colunas (dias e horas | duração e resumo). A cor nunca é o único sinal. */
 
@@ -401,6 +401,18 @@ form { display: flex; flex-direction: column; gap: 14px; }
 .agenda-legenda [data-cor="poucas"]::before { background-color: var(--cor-poucas-fundo); border-color: var(--cor-poucas); }
 .agenda-legenda [data-cor="lotado"]::before { border-color: var(--cor-lotado); border-style: dashed; }
 .agenda-legenda [data-cor="lotado"] { text-decoration: line-through; }
+
+/* O aviso da agenda fica sempre na página (mesmo vazio), para o leitor de tela anunciar a primeira
+   mudança; vazio, some da vista sem sair da página. */
+.agenda [data-aviso-agenda]:empty {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    padding: 0;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
 
 .agenda-resumo {
     border-left: 3px solid var(--cor-marca);
