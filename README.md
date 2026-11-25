@@ -81,7 +81,7 @@ Os e-mails do login (confirmação de cadastro e nova senha) saem por um serviç
 <p>Recebemos um pedido para criar uma nova senha.</p><p><a href="{{ .ConfirmationURL }}">Criar nova senha</a></p><p>Se não foi você, ignore este e-mail: a senha atual continua valendo.</p>
 ```
 
-> Um remetente `@gmail.com` enviado pelo Brevo pode cair no spam. Isso se resolve com um domínio próprio, no deploy (etapa 7). Quando o site for para a Vercel, troque a Site URL e as Redirect URLs pelo endereço novo.
+> Um remetente `@gmail.com` enviado pelo Brevo pode cair no spam. Isso se resolve com um domínio próprio, no deploy (etapa 7). O site já está na Vercel: veja a seção "Site publicado (Vercel)" mais abaixo, que explica como acrescentar o endereço dele à Site URL e às Redirect URLs (sem tirar o `localhost`, que continua valendo para testar no computador).
 
 ### Abrir a página da conta no computador
 
@@ -94,6 +94,16 @@ npx.cmd --yes http-server@14.1.1 -p 5500 -c-1
 Depois abra `http://localhost:5500/conta.html` no navegador. Para ver como fica no celular, aperte F12 e clique no ícone de celular. Para parar o servidor, volte ao PowerShell e aperte Ctrl+C.
 
 O arquivo `config.js` tem o endereço do projeto e a chave **pública** (`sb_publishable_...`). Ela pode ir para o Git, porque não dá acesso a nenhuma tabela. A chave secreta nunca entra nesse arquivo.
+
+## Site publicado (Vercel)
+
+O site fica na **Vercel** (um serviço grátis que coloca os arquivos do projeto na internet). Endereço: `https://<nome>.vercel.app` (este endereço será preenchido aqui depois da primeira publicação).
+
+- **Ele usa o banco de testes** (o projeto de desenvolvimento do Supabase). Não há dados de clientes de verdade.
+- **Atualização automática:** cada vez que o branch `nova-arquitetura` é enviado ao GitHub (`git push origin nova-arquitetura`), a Vercel republica o site sozinha, em cerca de um minuto.
+- **O que vai para o ar:** as páginas, os estilos e os arquivos `.js`/`.mjs`. O arquivo `.vercelignore` deixa de fora `tests/`, `docs/`, `.env*` e quase tudo de `supabase/` (só `supabase/functions/_shared/` vai, porque o navegador usa os módulos de lá). Não há etapa de "build": os arquivos são servidos como estão.
+- **Login pelo endereço novo (Site URL):** no Supabase, em *Authentication → URL Configuration*, coloque *Site URL* = `https://<nome>.vercel.app/conta.html`. Em *Redirect URLs*, deixe `http://localhost:5500/conta.html` e acrescente `https://<nome>.vercel.app/conta.html`. Sem isso, o link do e-mail de confirmação leva ao endereço errado.
+- **Atenção:** o banco de testes pausa sozinho depois de cerca de uma semana sem uso (plano grátis). Para voltar: painel do Supabase → o projeto → *Restore*.
 
 ## Como testar o agendamento
 

@@ -1,0 +1,14 @@
+# Arquivos que NAO vao para o site publicado (sintaxe igual a do .gitignore)
+tests/
+docs/
+.superpowers/
+.serena/
+.env*
+
+# Da pasta supabase, o navegador so precisa de functions/_shared
+# (os arquivos .mjs que o site importa). Por isso a exclusao e feita
+# nivel por nivel: uma pasta excluida nao pode ser reincluida.
+/supabase/*
+!/supabase/functions
+/supabase/functions/*
+!/supabase/functions/_shared
