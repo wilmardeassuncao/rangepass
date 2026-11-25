@@ -97,12 +97,12 @@ O arquivo `config.js` tem o endereço do projeto e a chave **pública** (`sb_pub
 
 ## Site publicado (Vercel)
 
-O site fica na **Vercel** (um serviço grátis que coloca os arquivos do projeto na internet). Endereço: `https://<nome>.vercel.app` (este endereço será preenchido aqui depois da primeira publicação).
+O site fica na **Vercel** (um serviço grátis que coloca os arquivos do projeto na internet). Endereço: **https://rangepass.vercel.app**.
 
 - **Ele usa o banco de testes** (o projeto de desenvolvimento do Supabase). Não há dados de clientes de verdade.
 - **Atualização automática:** cada vez que o branch `nova-arquitetura` é enviado ao GitHub (`git push origin nova-arquitetura`), a Vercel republica o site sozinha, em cerca de um minuto.
 - **O que vai para o ar:** as páginas, os estilos e os arquivos `.js`/`.mjs`. O arquivo `.vercelignore` deixa de fora `tests/`, `docs/`, `.env*` e quase tudo de `supabase/` (só `supabase/functions/_shared/` vai, porque o navegador usa os módulos de lá). Não há etapa de "build": os arquivos são servidos como estão.
-- **Login pelo endereço novo (Site URL):** no Supabase, em *Authentication → URL Configuration*, coloque *Site URL* = `https://<nome>.vercel.app/conta.html`. Em *Redirect URLs*, deixe `http://localhost:5500/conta.html` e acrescente `https://<nome>.vercel.app/conta.html`. Sem isso, o link do e-mail de confirmação leva ao endereço errado.
+- **Login pelo endereço novo (Site URL):** no Supabase, em *Authentication → URL Configuration*, coloque *Site URL* = `https://rangepass.vercel.app/conta.html`. Em *Redirect URLs*, deixe `http://localhost:5500/conta.html` e acrescente `https://rangepass.vercel.app/conta.html`. Sem isso, o link do e-mail de confirmação leva ao endereço errado.
 - **Atenção:** o banco de testes pausa sozinho depois de cerca de uma semana sem uso (plano grátis). Para voltar: painel do Supabase → o projeto → *Restore*.
 
 ## Como testar o agendamento
