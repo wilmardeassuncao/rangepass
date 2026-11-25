@@ -1,0 +1,48 @@
+// Regras do menu lateral que não mexem na tela: dá para testar no Node.
+import { temAlgumPapel } from './supabase/functions/_shared/papeis.mjs';
+import { abasVisiveis } from './admin-regras.mjs';
+
+// Como as abas da equipe se agrupam no menu, na ordem em que aparecem.
+export const GRUPOS_EQUIPE = [
+    { titulo: 'Operação', abas: ['agendamentos'] },
+    { titulo: 'Cadastros', abas: ['catalogo', 'pistas', 'equipe'] },
+    { titulo: 'Vendas', abas: ['precos', 'promocoes'] },
+    { titulo: 'Sistema', abas: ['configuracoes'] },
+];
+
+export const ROTULO_ABA = {
+    agendamentos: 'Agendamentos',
+    catalogo: 'Catálogo',
+    pistas: 'Pistas',
+    equipe: 'Equipe',
+    precos: 'Preços',
+    promocoes: 'Promoções',
+    configuracoes: 'Configurações',
+};
+
+// O menu de quem tem esses papéis: primeiro a área pessoal (sem título), depois os grupos da equipe.
+// "Sair" não entra aqui: é um botão da moldura.
+export function menuDe(papeis) {
+    const proprios = [];
+    if (temAlgumPapel(papeis, ['cliente'])) {
+        proprios.push({ id: 'agendamentos-cliente', texto: 'Meus agendamentos', href: 'index.html' });
+        proprios.push({ id: 'novo', texto: 'Novo agendamento', href: 'index.html#novo' });
+    }
+    proprios.push({ id: 'perfil', texto: 'Meu perfil', href: 'conta.html' });
+    const menu = [{ titulo: null, itens: proprios }];
+
+    const visiveis = abasVisiveis(papeis);
+    for (const grupo of GRUPOS_EQUIPE) {
+        const itens = grupo.abas
+            .filter((aba) => visiveis.includes(aba))
+            .map((aba) => ({ id: `equipe-${aba}`, texto: ROTULO_ABA[aba], href: `admin.html#${aba}` }));
+        if (itens.length > 0) menu.push({ titulo: grupo.titulo, itens });
+    }
+    return menu;
+}
+
+// Qual aba abrir a partir do endereço (#aba): a pedida se for permitida, senão a primeira permitida.
+export function parteDoEndereco(hash, permitidas) {
+    const parte = String(hash ?? '').replace(/^#/, '');
+    return permitidas.includes(parte) ? parte : (permitidas[0] ?? null);
+}
