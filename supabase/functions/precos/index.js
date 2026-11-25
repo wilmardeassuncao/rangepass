@@ -4,7 +4,7 @@
 // A hora de pista não muda aqui: ela fica nas Configurações (PUT configuracoes, chave precos).
 import { tratar, respostaJson, ErroHttp } from '../_shared/http.mjs';
 import { obterContexto, exigirPapel, admin } from '../_shared/contexto.js';
-import { validarRegra, validarCampanha, validarClasse, validarPacote } from '../_shared/precos.mjs';
+import { validarRegra, validarCampanha, validarClasse, validarPacote, conferirItensDoPacote } from '../_shared/precos.mjs';
 
 const NAO_ENCONTRADO = 'Não encontramos este cadastro.';
 const REVISE = 'Revise os campos destacados.';
@@ -64,11 +64,16 @@ async function lerCorpo(req) {
 }
 
 // Traduz os erros do banco que a pessoa consegue resolver; o resto vira 500 em tratar().
-function erroDoBanco(tipo, error) {
+async function erroDoBanco(tipo, error, valores) {
     if (error.code === 'P0002') throw new ErroHttp(404, NAO_ENCONTRADO);
     if (error.code === '23503') throw new ErroHttp(400, 'Um dos itens escolhidos não existe mais. Recarregue a página.');
     if (error.code === '23505' && tipo === 'classe') {
-        return respostaJson(409, { erro: REVISE, campos: { nome: 'Já existe uma classe com este nome.' } });
+        // O índice único é sobre o nome: se a classe de mesmo nome está desativada, sugere reativar.
+        const { data } = await admin.from('classes_desconto').select('ativo').eq('nome', valores.nome).maybeSingle();
+        const nome = data && !data.ativo
+            ? 'Já existe uma classe desativada com este nome. Reative-a na lista em vez de criar outra.'
+            : 'Já existe uma classe com este nome.';
+        return respostaJson(409, { erro: REVISE, campos: { nome } });
     }
     // A conferência abaixo já pega estes casos; isto é só uma rede de segurança.
     if (error.code === '23502' || error.code === '23514') {
@@ -86,7 +91,22 @@ async function conferirLinhaFinal(tipo, id, valores) {
     if (!data) throw new ErroHttp(404, NAO_ENCONTRADO);
     const { id: _id, ...guardada } = normalizar(tipo, data);
     const { campos } = validar({ ...guardada, ...valores }, { criando: true });
-    return Object.keys(campos).length ? campos : null;
+    return { erros: Object.keys(campos).length ? campos : null, final: { ...guardada, ...valores } };
+}
+
+// Confere se o modelo e a munição do pacote têm preço e se são do mesmo calibre.
+async function conferirItens(final) {
+    const ler = async (tabela, colunas, itemId) => {
+        if (itemId == null) return null;
+        const { data, error } = await admin.from(tabela).select(colunas).eq('id', itemId).maybeSingle();
+        if (error) throw error;
+        return data; // null se não existe: o banco recusa depois (23503) com a mensagem própria
+    };
+    const [modelo, tipoMunicao] = await Promise.all([
+        ler('modelos', 'preco_hora_centavos, calibre_id', final.modelo_id),
+        ler('tipos_municao', 'preco_unidade_centavos, calibre_id', final.tipo_municao_id),
+    ]);
+    return conferirItensDoPacote(final, { modelo, tipoMunicao });
 }
 
 async function salvar(req, contexto, criando) {
@@ -98,16 +118,26 @@ async function salvar(req, contexto, criando) {
     const { campos, valores } = TIPOS[tipo].validar(dados, { criando });
     if (Object.keys(campos).length > 0) return respostaJson(400, { erro: REVISE, campos });
 
+    let linhaFinal = valores;
     if (!criando) {
         if (!Number.isInteger(id) || id < 1) throw new ErroHttp(404, NAO_ENCONTRADO);
-        const erros = await conferirLinhaFinal(tipo, id, valores);
+        const { erros, final } = await conferirLinhaFinal(tipo, id, valores);
         if (erros) return respostaJson(400, { erro: REVISE, campos: erros });
+        linhaFinal = final;
+    }
+
+    // Ao editar, só confere os itens se vieram itens: desativar ou renomear não pode travar por um
+    // preço que sumiu depois.
+    const mexeuNosItens = criando || 'modelo_id' in valores || 'tipo_municao_id' in valores;
+    if (tipo === 'pacote' && mexeuNosItens) {
+        const itens = await conferirItens(linhaFinal);
+        if (Object.keys(itens).length > 0) return respostaJson(400, { erro: REVISE, campos: itens });
     }
 
     const { data, error } = await admin.rpc('salvar_promocao', {
         p_tipo: tipo, p_id: criando ? null : id, p_dados: valores, p_autor: contexto.usuarioId,
     });
-    if (error) return erroDoBanco(tipo, error);
+    if (error) return erroDoBanco(tipo, error, valores);
 
     return respostaJson(criando ? 201 : 200, { item: normalizar(tipo, data) });
 }

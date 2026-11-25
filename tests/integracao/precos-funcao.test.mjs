@@ -11,7 +11,7 @@ const TABELAS = { regra: 'regras_preco', campanha: 'campanhas', classe: 'classes
 const LISTAS = { regra: 'regras', campanha: 'campanhas', classe: 'classes', pacote: 'pacotes' };
 
 let superadmin, administrativo, cliente, instrutor, atendente;
-let modelo, municao;
+let modelo, municao, calibre;
 
 before(async () => {
     superadmin = await criarUsuario({ papeis: ['superadmin'] });
@@ -21,9 +21,9 @@ before(async () => {
     atendente = await criarUsuario({ papeis: ['atendente'] });
     const m = marcador();
     const categoria = await criar('categorias', { nome: `Categoria ${m}` });
-    const calibre = await criar('calibres', { nome: `Calibre ${m}` });
-    modelo = await criar('modelos', { categoria_id: categoria.id, calibre_id: calibre.id, marca: `Marca ${m}`, nome: 'Modelo Teste' });
-    municao = await criar('tipos_municao', { calibre_id: calibre.id, nome: `Munição ${m}` });
+    calibre = await criar('calibres', { nome: `Calibre ${m}` });
+    modelo = await criar('modelos', { categoria_id: categoria.id, calibre_id: calibre.id, marca: `Marca ${m}`, nome: 'Modelo Teste', preco_hora_centavos: 3000 });
+    municao = await criar('tipos_municao', { calibre_id: calibre.id, nome: `Munição ${m}`, preco_unidade_centavos: 200 });
 });
 
 // Cria pela função; se der certo, anota a linha para apagar no fim (com o histórico).
@@ -169,6 +169,51 @@ test('nome de classe repetido dá 409', async () => {
     const r2 = await cadastrar('classe', { nome: d.classe.nome, percentual: 30 });
     assert.strictEqual(r2.status, 409, JSON.stringify(r2.dados));
     assert.deepStrictEqual(r2.dados.campos, { nome: 'Já existe uma classe com este nome.' });
+});
+
+test('classe com o nome de uma classe desativada dá 409 sugerindo reativar', async () => {
+    const d = exemplos();
+    const r1 = await cadastrar('classe', d.classe);
+    assert.strictEqual(r1.status, 201, JSON.stringify(r1.dados));
+    const off = await editar('classe', r1.dados.item.id, { ativo: false });
+    assert.strictEqual(off.status, 200, JSON.stringify(off.dados));
+    const r2 = await cadastrar('classe', { nome: d.classe.nome, percentual: 30 });
+    assert.strictEqual(r2.status, 409, JSON.stringify(r2.dados));
+    assert.deepStrictEqual(r2.dados.campos, {
+        nome: 'Já existe uma classe desativada com este nome. Reative-a na lista em vez de criar outra.',
+    });
+});
+
+test('pacote recusa modelo sem preço e munição sem preço ou de outro calibre', async () => {
+    const m = marcador();
+    const semPreco = await criar('modelos', { categoria_id: modelo.categoria_id, calibre_id: calibre.id, marca: `Marca ${m}`, nome: 'Sem preço' });
+    const outroCalibre = await criar('calibres', { nome: `Outro ${m}` });
+    const municaoOutra = await criar('tipos_municao', { calibre_id: outroCalibre.id, nome: `Outra ${m}`, preco_unidade_centavos: 200 });
+    const municaoSemPreco = await criar('tipos_municao', { calibre_id: calibre.id, nome: `Sem preço ${m}` });
+    const d = exemplos().pacote;
+
+    const a = await cadastrar('pacote', { ...d, modelo_id: semPreco.id });
+    assert.strictEqual(a.status, 400, JSON.stringify(a.dados));
+    assert.strictEqual(a.dados.campos.modelo_id, 'Este modelo está sem preço. Defina o preço na aba Preços antes de usá-lo num pacote.');
+
+    const b = await cadastrar('pacote', { ...d, tipo_municao_id: municaoOutra.id });
+    assert.strictEqual(b.status, 400, JSON.stringify(b.dados));
+    assert.strictEqual(b.dados.campos.tipo_municao_id, 'Esta munição não é do calibre do modelo escolhido.');
+
+    const c = await cadastrar('pacote', { ...d, tipo_municao_id: municaoSemPreco.id });
+    assert.strictEqual(c.status, 400, JSON.stringify(c.dados));
+    assert.strictEqual(c.dados.campos.tipo_municao_id, 'Esta munição está sem preço. Defina o preço na aba Preços antes de usá-la num pacote.');
+
+    // Ao editar um pacote existente, vale a linha final (o guardado + o que veio).
+    const ok = (await cadastrar('pacote', d)).dados.item;
+    const e1 = await editar('pacote', ok.id, { modelo_id: semPreco.id });
+    assert.strictEqual(e1.status, 400, JSON.stringify(e1.dados));
+    assert.strictEqual(e1.dados.campos.modelo_id, 'Este modelo está sem preço. Defina o preço na aba Preços antes de usá-lo num pacote.');
+    const e2 = await editar('pacote', ok.id, { tipo_municao_id: municaoOutra.id });
+    assert.strictEqual(e2.status, 400, JSON.stringify(e2.dados));
+    assert.strictEqual(e2.dados.campos.tipo_municao_id, 'Esta munição não é do calibre do modelo escolhido.');
+    const h = await rest(`historico_alteracoes?tabela=eq.pacotes&registro_id=eq.${ok.id}&select=acao`);
+    assert.deepStrictEqual(h.dados, [{ acao: 'insercao' }]);
 });
 
 test('item escolhido que não existe dá 400', async () => {
