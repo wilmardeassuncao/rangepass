@@ -11,6 +11,7 @@ import { linhasDoPreco } from './agendar-regras.mjs';
 import {
     areasVisiveis, ROTULO_SITUACAO, podeAbrirFicha, textoDoHorario, textoDasPistas, textoDaLista, textoDoValor,
     dataBrasileira, usoDoParticipante, contaDaFicha, valorACobrarCentavos, linhasDaConta, avisosDaConta, corpoDoCheckIn,
+    escolhasMantidas,
 } from './estande-regras.mjs';
 import { formatarReais } from './supabase/functions/_shared/precos.mjs';
 import { FORMAS_PAGAMENTO, ROTULO_FORMA } from './supabase/functions/_shared/operacao.mjs';
@@ -284,7 +285,8 @@ function abrirFicha(id) {
     carregarFicha();
 }
 
-async function carregarFicha() {
+// `escolhas` (opcional): o que a atendente tinha escolhido, para reaplicar na ficha recarregada.
+async function carregarFicha(escolhas = null) {
     const pedido = ++pedidoDaFicha;
     ficha = null;
     document.getElementById('ficha-sessao').textContent = '';
@@ -296,7 +298,7 @@ async function carregarFicha() {
         if (r.status !== 200) return mostrarEstadoFicha('erro', r.dados?.erro ?? ERRO_CARREGAR);
         ficha = r.dados;
         fuso = r.dados.fuso;
-        preencherFicha();
+        preencherFicha(escolhas);
         mostrarEstadoFicha('pronto');
     } catch (erro) {
         console.error(erro);
@@ -323,11 +325,12 @@ function cartaoDoParticipante(p) {
     ]);
 }
 
-function preencherFicha() {
+function preencherFicha(escolhas = null) {
     const { agendamento: a, classes } = ficha;
     form.reset();
     limparErros();
-    const responsavel = a.participantes?.[0]?.nome_completo;
+    // O servidor só entrega a ficha de uma sessão de hoje, por isso o "Hoje".
+    const responsavel = a.responsavel?.nome;
     document.getElementById('ficha-sessao').textContent = `Hoje, ${textoDoHorario(a.inicio, a.horas, fuso)}`
         + (responsavel ? ` · ${responsavel}` : '');
     document.getElementById('ficha-participantes').replaceChildren(...(a.participantes ?? []).map(cartaoDoParticipante));
@@ -362,7 +365,23 @@ function preencherFicha() {
         return opcao;
     }));
     selectClasse.value = '';
+    if (escolhas) reaplicarEscolhas(escolhasMantidas(escolhas, classes));
     atualizarConta();
+}
+
+function escolhasDoForm() {
+    return {
+        forma_pagamento: form.elements.forma_pagamento?.value ?? '',
+        classe_id: selectClasse.value,
+        documento: form.elements.documento.value,
+        valor_texto: form.elements.valor_centavos.value,
+    };
+}
+
+function reaplicarEscolhas({ forma_pagamento, classe_id, documento }) {
+    for (const radio of form.querySelectorAll('input[name="forma_pagamento"]')) radio.checked = radio.value === forma_pagamento;
+    selectClasse.value = classe_id;
+    form.elements.documento.value = documento;
 }
 
 // Mostra a conta da classe escolhida (ou o valor do agendamento, sem classe) e o valor a cobrar.
@@ -419,12 +438,8 @@ form.addEventListener('submit', async (evento) => {
     evento.preventDefault();
     if (!ficha) return;
     limparErros();
-    const { corpo, campos } = corpoDoCheckIn(ficha, {
-        forma_pagamento: form.elements.forma_pagamento?.value ?? '',
-        classe_id: selectClasse.value,
-        documento: form.elements.documento.value,
-        valor_texto: form.elements.valor_centavos.value,
-    });
+    const escolhas = escolhasDoForm();
+    const { corpo, campos } = corpoDoCheckIn(ficha, escolhas);
     if (Object.keys(campos).length) return mostrarErros(campos);
 
     const botoes = form.querySelectorAll('button, select, input');
@@ -442,10 +457,11 @@ form.addEventListener('submit', async (evento) => {
             return;
         }
         if (r.status === 409) {
-            // A situação, a classe ou o valor mudou: avisa e mostra a ficha como está agora.
+            // A situação, a classe ou o valor mudou: avisa e mostra a ficha como está agora, com as
+            // escolhas da atendente reaplicadas (a classe só se ainda estiver ativa).
             avisar(r.dados?.erro ?? ERRO_PADRAO);
             window.scrollTo(0, 0);
-            return carregarFicha();
+            return carregarFicha(escolhas);
         }
         if (r.status === 404) {
             avisar(r.dados?.erro ?? ERRO_PADRAO);

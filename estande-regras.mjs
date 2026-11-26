@@ -2,6 +2,7 @@
 // A conta do desconto de classe é feita aqui só para MOSTRAR; quem decide o valor é o servidor.
 import { partesNoFuso } from './supabase/functions/_shared/agendamento.mjs';
 import { descontoDeClasse, formatarReais, centavosDoTexto } from './supabase/functions/_shared/precos.mjs';
+import { FORMAS_PAGAMENTO } from './supabase/functions/_shared/operacao.mjs';
 
 const SEM_VALOR = '—';
 const HORA_MS = 3600000;
@@ -131,4 +132,13 @@ export function corpoDoCheckIn(ficha, escolhas) {
         corpo.valor_centavos = valor;
     }
     return { corpo, campos };
+}
+
+// O que a atendente tinha escolhido na ficha, para reaplicar quando a ficha é recarregada (depois de um
+// 409): a forma de pagamento, a classe (só se ainda estiver entre as ativas) e o documento.
+export function escolhasMantidas(escolhas, classes) {
+    const forma = FORMAS_PAGAMENTO.includes(escolhas.forma_pagamento) ? escolhas.forma_pagamento : '';
+    const classe = String(escolhas.classe_id ?? '');
+    const ativa = classe !== '' && classes.some((c) => String(c.id) === classe);
+    return { forma_pagamento: forma, classe_id: ativa ? classe : '', documento: String(escolhas.documento ?? '') };
 }

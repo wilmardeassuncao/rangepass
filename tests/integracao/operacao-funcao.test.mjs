@@ -138,6 +138,17 @@ test('instrutor e cliente recebem 403', async () => {
     }
 });
 
+test('a ficha exige atendente: instrutor e cliente recebem 403, sem registrar acesso', async () => {
+    const id = await agendamento();
+    for (const pessoa of [instrutor, cliente]) {
+        const r = await operacao(pessoa.token, { consulta: `id=${id}` });
+        assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
+        assert.ok(!JSON.stringify(r.dados).includes(cliente.cpf), 'o 403 não deveria conter CPF');
+        const acessos = await rest(`acessos_dados?usuario_id=eq.${pessoa.id}&recurso=eq.operacao.ficha`);
+        assert.strictEqual(acessos.dados.length, 0);
+    }
+});
+
 test('superadmin passa', async () => {
     const r = await operacao(superadmin.token, { consulta: 'area=recepcao' });
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
@@ -149,6 +160,13 @@ test('outros métodos dão 405 e área desconhecida dá 400', async () => {
     assert.strictEqual(r.status, 405, JSON.stringify(r.dados));
     const area = await operacao(atendente.token, { consulta: 'area=cozinha' });
     assert.strictEqual(area.status, 400, JSON.stringify(area.dados));
+    assert.strictEqual(area.dados.erro, 'Esta área da operação não existe.');
+    const semArea = await operacao(atendente.token);
+    assert.strictEqual(semArea.status, 400, JSON.stringify(semArea.dados));
+    assert.strictEqual(semArea.dados.erro, 'Escolha uma área da operação.');
+    const acao = await operacao(atendente.token, { metodo: 'POST', corpo: { acao: 'cozinhar' } });
+    assert.strictEqual(acao.status, 400, JSON.stringify(acao.dados));
+    assert.strictEqual(acao.dados.erro, 'Esta ação não existe.');
 });
 
 test('a lista da recepção traz só as sessões de hoje, sem canceladas, em ordem', async () => {
@@ -196,6 +214,7 @@ test('a ficha traz CPFs, classes ativas e registra o acesso', async () => {
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     const { agendamento: ficha, classes } = r.dados;
     assert.strictEqual(ficha.id, id);
+    assert.deepStrictEqual(ficha.responsavel, { nome: nomeDoCliente });
     assert.strictEqual(ficha.situacao, 'aguardando_pagamento');
     assert.strictEqual(ficha.preco_total_centavos, 25500);
     assert.deepStrictEqual(ficha.preco_detalhe, PRECO);
@@ -225,12 +244,24 @@ test('a ficha traz CPFs, classes ativas e registra o acesso', async () => {
     assert.strictEqual(nao.dados.erro, 'Não encontramos este agendamento.');
 });
 
-test('a ficha de uma sessão de amanhã diz o motivo de não poder fazer o check-in', async () => {
-    const id = await agendamento({ dias: 1 });
+// A ficha mostra CPFs: só abre para as sessões de hoje que não foram canceladas (spec 3).
+async function fichaNaoAbre(id) {
     const r = await operacao(atendente.token, { consulta: `id=${id}` });
-    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
-    assert.strictEqual(r.dados.pode_fazer_check_in, false);
-    assert.strictEqual(r.dados.motivo, 'O check-in só pode ser feito no dia da sessão.');
+    assert.strictEqual(r.status, 404, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.erro, 'Não encontramos este agendamento.');
+    assert.ok(!JSON.stringify(r.dados).includes(cliente.cpf), 'o 404 não deveria conter CPF');
+    const acessos = await rest(`acessos_dados?usuario_id=eq.${atendente.id}&recurso=eq.operacao.ficha&registro=eq.${id}`);
+    assert.strictEqual(acessos.dados.length, 0, 'a ficha recusada não deveria registrar acesso');
+}
+
+test('a ficha de uma sessão de amanhã responde 404', async () => {
+    await fichaNaoAbre(await agendamento({ dias: 1 }));
+});
+
+test('a ficha de um agendamento cancelado de hoje responde 404', async () => {
+    const id = await agendamento();
+    await mudar(id, { situacao: 'cancelado' });
+    await fichaNaoAbre(id);
 });
 
 test('check-in sem classe', async () => {

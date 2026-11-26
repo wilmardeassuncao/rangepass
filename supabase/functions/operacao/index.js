@@ -1,10 +1,13 @@
 // Edge Function operacao: a operação do estande no dia (por enquanto, a área Recepção).
 // GET ?area=recepcao: a lista das sessões de hoje (no fuso do estande, que vai junto), sem as canceladas.
-// GET ?id=: a ficha de check-in, com os participantes (CPFs), as classes de desconto ativas e o custo
-// da munição e o fuso do estande; cada ficha aberta fica registrada em acessos_dados.
+// GET ?id=: a ficha de check-in, com o responsável, os participantes (CPFs), as classes de desconto
+// ativas, o custo da munição e o fuso do estande; cada ficha aberta fica registrada em acessos_dados.
+// Para não mostrar CPF além do necessário (spec 3), a ficha só abre para as sessões de hoje (no fuso do
+// estande) que não foram canceladas; as outras respondem 404, como um agendamento que não existe.
 // POST { acao: 'check_in', ... }: o check-in com o pagamento do balcão. O servidor refaz a conta do
 // desconto de classe e grava o pagamento e a situação numa transação só (RPC fazer_check_in).
-// Só atendente e superadmin chegam aos dados: o papel é conferido antes de qualquer consulta.
+// O papel é conferido por rota (ROTAS_GET, FICHA e ACOES, no fim), antes de qualquer consulta aos dados;
+// o superadmin passa em todas.
 import { tratar, respostaJson, ErroHttp } from '../_shared/http.mjs';
 import { obterContexto, exigirPapel, admin } from '../_shared/contexto.js';
 import { dataNoFuso } from '../_shared/cadastro.mjs';
@@ -17,6 +20,7 @@ const NAO_ENCONTRADO = 'Não encontramos este agendamento.';
 const REVISE = 'Revise os campos destacados.';
 const CLASSE_INDISPONIVEL = 'Esta classe de desconto não está mais disponível. Escolha outra.';
 const VALOR_MUDOU = 'O valor mudou. Confira a ficha de novo.';
+const ERRO_PAGAMENTO = 'Não foi possível registrar o pagamento. Confira a ficha e tente de novo.';
 
 async function consulta(promessa) {
     const { data, error } = await promessa;
@@ -86,6 +90,7 @@ async function listarRecepcao() {
 // --- Ficha de check-in ---
 
 const CAMPOS_FICHA = `id, inicio, horas, situacao, forma_pagamento, responsavel_id, preco_detalhe, preco_total_centavos,
+    responsavel:perfis!agendamentos_responsavel_id_fkey(nome_completo),
     participantes(id, nome_completo, cpf, data_nascimento, perfil_id, modalidade,
         itens_participante(id, municao_qtd, modelos(marca, nome), tipos_municao(nome, custo_compra_centavos))),
     pagamentos(valor_centavos, forma, classe_id, documento, conta, desconto_centavos, registrado_em)`;
@@ -130,14 +135,16 @@ function montarParticipante(p) {
 }
 
 async function detalhar(id, contexto) {
-    const linha = await lerAgendamento(id);
-    const [fuso, classes] = await Promise.all([
-        fusoDoEstande(),
-        consulta(admin.from('classes_desconto')
-            .select('id, nome, percentual_pista, percentual_aluguel, percentual_municao')
-            .eq('ativo', true).order('nome')),
-    ]);
-    const motivo = motivoSemCheckIn(linha, { hoje: dataNoFuso(new Date(), fuso), fuso });
+    const [linha, fuso] = await Promise.all([lerAgendamento(id), fusoDoEstande()]);
+    const hoje = dataNoFuso(new Date(), fuso);
+    // Fora de hoje ou cancelada, a ficha (com os CPFs) não sai: 404, sem registrar acesso.
+    if (linha.situacao === 'cancelado' || dataNoFuso(new Date(linha.inicio), fuso) !== hoje) {
+        throw new ErroHttp(404, NAO_ENCONTRADO);
+    }
+    const classes = await consulta(admin.from('classes_desconto')
+        .select('id, nome, percentual_pista, percentual_aluguel, percentual_municao')
+        .eq('ativo', true).order('nome'));
+    const motivo = motivoSemCheckIn(linha, { hoje, fuso });
     const pagamento = umOuNulo(linha.pagamentos);
 
     const agendamento = {
@@ -145,6 +152,7 @@ async function detalhar(id, contexto) {
         inicio: linha.inicio,
         horas: linha.horas,
         situacao: linha.situacao,
+        responsavel: { nome: linha.responsavel?.nome_completo ?? null },
         forma_pagamento: linha.forma_pagamento,
         // Vazios nos agendamentos feitos antes dos preços.
         preco_detalhe: linha.preco_detalhe ?? null,
@@ -206,7 +214,7 @@ async function montarPagamento(linha, pedido) {
 function erroDoCheckIn(error) {
     if (error.code === 'P0001') throw new ErroHttp(409, error.message);
     if (error.code === 'P0002') throw new ErroHttp(404, NAO_ENCONTRADO);
-    if (error.code === '23514') throw new ErroHttp(400, REVISE);
+    if (error.code === '23514') throw new ErroHttp(400, ERRO_PAGAMENTO);
     throw error;
 }
 
@@ -231,23 +239,41 @@ async function fazerCheckIn(corpo, contexto) {
     return respostaJson(200, { agendamento: { id: data.id, situacao: data.situacao } });
 }
 
-Deno.serve(tratar(async (req) => {
-    if (req.method !== 'GET' && req.method !== 'POST') throw new ErroHttp(405, 'Esta ação não é permitida aqui.');
-    const contexto = await obterContexto(req);
-    exigirPapel(contexto, 'atendente');
+// --- Rotas e papéis ---
+// Cada rota diz quais papéis a usam (o superadmin passa em todas). O plano 8B acrescenta aqui as áreas e
+// as ações dos outros papéis; a ficha (com os CPFs) tem a rota dela, separada das áreas, e continua só
+// do atendente, seja qual for a área ou a ação acrescentada.
+const ROTAS_GET = {
+    recepcao: { papeis: ['atendente'], executar: () => listarRecepcao() },
+};
+const FICHA = { papeis: ['atendente'], executar: (id, contexto) => detalhar(id, contexto) };
+const ACOES = {
+    check_in: { papeis: ['atendente'], executar: (corpo, contexto) => fazerCheckIn(corpo, contexto) },
+};
 
+// Escolhe a rota pelo pedido, sem consultar o banco; área ou ação desconhecida dá 400.
+async function escolherRota(req) {
     if (req.method === 'POST') {
         const corpo = await lerCorpo(req);
-        if (typeof corpo !== 'object' || Array.isArray(corpo) || corpo.acao !== 'check_in') {
-            throw new ErroHttp(400, 'Esta ação não existe.');
-        }
-        return fazerCheckIn(corpo, contexto);
+        const acao = typeof corpo === 'object' && !Array.isArray(corpo) && Object.hasOwn(ACOES, corpo.acao)
+            ? ACOES[corpo.acao] : null;
+        if (!acao) throw new ErroHttp(400, 'Esta ação não existe.');
+        return { rota: acao, argumento: corpo };
     }
-
     const params = new URL(req.url).searchParams;
     // Um id vazio conta como ausente (?id=&area=recepcao devolve a lista).
     const id = (params.get('id') ?? '').trim();
-    if (id) return detalhar(id, contexto);
-    if (params.get('area') === 'recepcao') return listarRecepcao();
-    throw new ErroHttp(400, 'Escolha uma área da operação.');
+    if (id) return { rota: FICHA, argumento: id };
+    const area = params.get('area') ?? '';
+    if (!area) throw new ErroHttp(400, 'Escolha uma área da operação.');
+    if (!Object.hasOwn(ROTAS_GET, area)) throw new ErroHttp(400, 'Esta área da operação não existe.');
+    return { rota: ROTAS_GET[area], argumento: null };
+}
+
+Deno.serve(tratar(async (req) => {
+    if (req.method !== 'GET' && req.method !== 'POST') throw new ErroHttp(405, 'Esta ação não é permitida aqui.');
+    const contexto = await obterContexto(req);
+    const { rota, argumento } = await escolherRota(req);
+    exigirPapel(contexto, ...rota.papeis);
+    return rota.executar(argumento, contexto);
 }));

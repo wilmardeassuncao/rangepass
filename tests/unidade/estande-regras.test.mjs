@@ -188,3 +188,16 @@ test('corpoDoCheckIn: sem preço guardado manda o valor digitado (e nunca a clas
     assert.deepEqual(corpoDoCheckIn(ficha({ preco: null }), { forma_pagamento: 'pix', valor_texto: 'abc' }).campos,
         { valor_centavos: 'Use um valor em reais, por exemplo 120,00.' });
 });
+
+test('escolhasMantidas: guarda a forma, a classe ainda ativa e o documento para reaplicar na ficha recarregada', () => {
+    const classes = [{ id: 7 }, { id: 9 }];
+    assert.deepEqual(regras.escolhasMantidas({ forma_pagamento: 'pix', classe_id: '7', documento: 'CR 1' }, classes),
+        { forma_pagamento: 'pix', classe_id: '7', documento: 'CR 1' });
+    // A classe saiu da lista de ativas: volta para "Sem desconto"; a forma e o documento continuam.
+    assert.deepEqual(regras.escolhasMantidas({ forma_pagamento: 'dinheiro', classe_id: '8', documento: 'CR 2' }, classes),
+        { forma_pagamento: 'dinheiro', classe_id: '', documento: 'CR 2' });
+    // Nada escolhido (ou uma forma que não existe): nada para reaplicar.
+    assert.deepEqual(regras.escolhasMantidas({ forma_pagamento: 'cheque', classe_id: '', documento: '' }, classes),
+        { forma_pagamento: '', classe_id: '', documento: '' });
+    assert.deepEqual(regras.escolhasMantidas({}, []), { forma_pagamento: '', classe_id: '', documento: '' });
+});

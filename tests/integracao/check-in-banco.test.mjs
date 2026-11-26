@@ -9,8 +9,8 @@ import {
     criarUsuario, criar, tentarCriar, anotarRegistro, apagarTudoCriado, anotarAgendamento,
 } from './apoio.mjs';
 
-// Os testes apagam tudo o que criam: pagamentos e agendamentos (com reservas e histórico), catálogo,
-// classes de desconto e usuários (inclusive o instrutor de teste).
+// Os testes apagam tudo o que criam: pagamentos e agendamentos (com reservas e histórico), a pista de
+// teste, catálogo, classes de desconto e usuários (inclusive o instrutor de teste).
 after(apagarTudoCriado);
 
 let cliente, instrutor, atendente, modelo, tipoMunicao, classe;
@@ -19,6 +19,9 @@ before(async () => {
     cliente = await criarUsuario({ papeis: ['cliente'] });
     instrutor = await criarUsuario({ papeis: ['instrutor'] });
     atendente = await criarUsuario({ papeis: ['atendente'] });
+    // Uma pista a mais para os agendamentos de teste não dependerem das pistas livres do banco (os dados
+    // de demonstração podem ocupar as pistas de hoje).
+    await criar('pistas', { numero: 100000000 + Math.floor(Math.random() * 1000000000) });
     const categoria = await criar('categorias', { nome: `Categoria ${marcador()}` });
     const calibre = await criar('calibres', { nome: `Calibre ${marcador()}` });
     modelo = await criar('modelos', { categoria_id: categoria.id, calibre_id: calibre.id, marca: `Marca ${marcador()}`, nome: 'Modelo Teste' });
