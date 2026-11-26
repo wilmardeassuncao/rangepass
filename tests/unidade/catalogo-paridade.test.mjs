@@ -9,10 +9,10 @@ import { CAMPOS_FORMULARIO } from '../../admin-regras.mjs';
 
 // Campos do servidor que de propósito não aparecem no formulário: ativo/ativa mudam pelo botão
 // "Desativar"/"Reativar", o número da pista é escolhido sozinho (o próximo livre) e os preços da
-// arma e da munição mudam na aba Preços.
+// arma e da munição (e o custo de compra da munição) mudam na aba Preços.
 const FORA_DO_FORMULARIO = {
     categoria: ['ativo'], calibre: ['ativo'], modelo: ['ativo', 'preco_hora_centavos'],
-    tipo_municao: ['ativo', 'preco_unidade_centavos'], unidade: [], pista: ['numero', 'ativa'],
+    tipo_municao: ['ativo', 'preco_unidade_centavos', 'custo_compra_centavos'], unidade: [], pista: ['numero', 'ativa'],
 };
 
 test('CAMPOS_CADASTRO tem um mapa para cada tipo de cadastro e não pode ser mudado', () => {

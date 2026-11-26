@@ -42,7 +42,7 @@ function exemplos() {
     return {
         regra: { nome: ` Sábado à noite ${m} `, dias: [6], hora_inicio: '18:00', hora_fim: '23:00', percentual: 20 },
         campanha: { nome: `Black Friday ${m}`, percentual: 10, inicio: '2030-11-20', fim: '2030-11-30' },
-        classe: { nome: `Policiais ${m}`, percentual: 15 },
+        classe: { nome: `Policiais ${m}`, percentual_pista: 15, percentual_aluguel: 10, percentual_municao: 5 },
         pacote: {
             nome: `Iniciante ${m}`, inicio: '2030-01-01', fim: '2030-12-31', preco_centavos: 25000, horas: 1,
             modelo_id: modelo.id, tipo_municao_id: municao.id, municao_qtd: 50,
@@ -58,7 +58,7 @@ test('sem login dá 401', async () => {
 test('cliente, administrativo, instrutor e atendente recebem 403 em GET, POST e PUT', async () => {
     for (const pessoa of [cliente, administrativo, instrutor, atendente]) {
         const g = await funcao('precos', { token: pessoa.token });
-        const p = await cadastrar('classe', { nome: `Classe ${marcador()}`, percentual: 10 }, pessoa.token);
+        const p = await cadastrar('classe', { nome: `Classe ${marcador()}`, percentual_pista: 10, percentual_aluguel: 0, percentual_municao: 0 }, pessoa.token);
         const u = await editar('classe', 1, { ativo: true }, pessoa.token);
         for (const r of [g, p, u]) {
             assert.strictEqual(r.status, 403, JSON.stringify(r.dados));
@@ -78,7 +78,7 @@ test('superadmin cria e edita cada tipo; o GET traz tudo; o histórico tem o aut
     const edicoes = {
         regra: { percentual: -10, dias: [0, 6], hora_inicio: '19:00' },
         campanha: { fim: '2030-12-01', ativo: false },
-        classe: { percentual: 20, ativo: false },
+        classe: { percentual_pista: 20, ativo: false },
         pacote: { tipo_municao_id: null, municao_qtd: null, horas: 2 },
     };
     const criados = {};
@@ -117,7 +117,9 @@ test('campos inválidos ou faltando ao criar dão 400 com campos', async () => {
     const semPercentual = await cadastrar('classe', { nome: `Classe ${marcador()}` });
     assert.strictEqual(semPercentual.status, 400, JSON.stringify(semPercentual.dados));
     assert.strictEqual(semPercentual.dados.erro, 'Revise os campos destacados.');
-    assert.strictEqual(semPercentual.dados.campos.percentual, 'Informe um percentual entre 1 e 90.');
+    for (const campo of ['percentual_pista', 'percentual_aluguel', 'percentual_municao']) {
+        assert.strictEqual(semPercentual.dados.campos[campo], 'Informe um percentual entre 0 e 90.', campo);
+    }
 
     const regra = await cadastrar('regra', { ...exemplos().regra, percentual: 0, hora_fim: '17:00' });
     assert.strictEqual(regra.status, 400, JSON.stringify(regra.dados));
@@ -162,11 +164,43 @@ test('PUT confere a linha como ficará (o guardado + o que veio)', async () => {
     }
 });
 
+test('cria classe com os três percentuais', async () => {
+    const dados = { nome: `Classe ${marcador()}`, percentual_pista: 20, percentual_aluguel: 10, percentual_municao: 15 };
+    const r = await cadastrar('classe', dados);
+    assert.strictEqual(r.status, 201, JSON.stringify(r.dados));
+    assert.deepStrictEqual({ ...r.dados.item, id: undefined }, { ...dados, ativo: true, id: undefined });
+    assert.ok(!('percentual' in r.dados.item), 'a classe não traz mais o percentual único');
+
+    const g = await funcao('precos', { token: superadmin.token });
+    assert.deepStrictEqual(g.dados.classes.find(i => i.id === r.dados.item.id), r.dados.item);
+
+    // Editar uma parte só muda aquela parte.
+    const e = await editar('classe', r.dados.item.id, { percentual_aluguel: 0 });
+    assert.strictEqual(e.status, 200, JSON.stringify(e.dados));
+    assert.deepStrictEqual(e.dados.item, { ...r.dados.item, percentual_aluguel: 0 });
+});
+
+test('classe com os três em 0 é recusada', async () => {
+    const r = await cadastrar('classe', { nome: `Classe ${marcador()}`, percentual_pista: 0, percentual_aluguel: 0, percentual_municao: 0 });
+    assert.strictEqual(r.status, 400, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.erro, 'Revise os campos destacados.');
+    assert.deepStrictEqual(r.dados.campos, { percentual_pista: 'Informe pelo menos um percentual maior que 0.' });
+
+    // Numa edição, vale a linha como ficará: zerar a única parte com desconto também é recusado.
+    const ok = await cadastrar('classe', { nome: `Classe ${marcador()}`, percentual_pista: 0, percentual_aluguel: 0, percentual_municao: 10 });
+    assert.strictEqual(ok.status, 201, JSON.stringify(ok.dados));
+    const e = await editar('classe', ok.dados.item.id, { percentual_municao: 0 });
+    assert.strictEqual(e.status, 400, JSON.stringify(e.dados));
+    assert.deepStrictEqual(e.dados.campos, { percentual_pista: 'Informe pelo menos um percentual maior que 0.' });
+    const h = await rest(`historico_alteracoes?tabela=eq.classes_desconto&registro_id=eq.${ok.dados.item.id}&select=acao`);
+    assert.deepStrictEqual(h.dados, [{ acao: 'insercao' }]);
+});
+
 test('nome de classe repetido dá 409', async () => {
     const d = exemplos();
     const r1 = await cadastrar('classe', d.classe);
     assert.strictEqual(r1.status, 201, JSON.stringify(r1.dados));
-    const r2 = await cadastrar('classe', { nome: d.classe.nome, percentual: 30 });
+    const r2 = await cadastrar('classe', { nome: d.classe.nome, percentual_pista: 30, percentual_aluguel: 0, percentual_municao: 0 });
     assert.strictEqual(r2.status, 409, JSON.stringify(r2.dados));
     assert.deepStrictEqual(r2.dados.campos, { nome: 'Já existe uma classe com este nome.' });
 });
@@ -177,7 +211,7 @@ test('classe com o nome de uma classe desativada dá 409 sugerindo reativar', as
     assert.strictEqual(r1.status, 201, JSON.stringify(r1.dados));
     const off = await editar('classe', r1.dados.item.id, { ativo: false });
     assert.strictEqual(off.status, 200, JSON.stringify(off.dados));
-    const r2 = await cadastrar('classe', { nome: d.classe.nome, percentual: 30 });
+    const r2 = await cadastrar('classe', { nome: d.classe.nome, percentual_pista: 30, percentual_aluguel: 0, percentual_municao: 0 });
     assert.strictEqual(r2.status, 409, JSON.stringify(r2.dados));
     assert.deepStrictEqual(r2.dados.campos, {
         nome: 'Já existe uma classe desativada com este nome. Reative-a na lista em vez de criar outra.',
@@ -238,7 +272,7 @@ test('renomear classe para o nome de uma desativada sugere reativar ou escolher 
     assert.strictEqual(desativada.status, 201, JSON.stringify(desativada.dados));
     const off = await editar('classe', desativada.dados.item.id, { ativo: false });
     assert.strictEqual(off.status, 200, JSON.stringify(off.dados));
-    const outra = await cadastrar('classe', { nome: `Outra ${marcador()}`, percentual: 30 });
+    const outra = await cadastrar('classe', { nome: `Outra ${marcador()}`, percentual_pista: 30, percentual_aluguel: 0, percentual_municao: 0 });
     assert.strictEqual(outra.status, 201, JSON.stringify(outra.dados));
 
     const r = await editar('classe', outra.dados.item.id, { nome: d.classe.nome });

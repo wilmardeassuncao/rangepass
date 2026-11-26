@@ -29,6 +29,8 @@ const CAMPOS = {
         nome: { tipo: 'texto', obrigatorio: true, editavel: true },
         ativo: { tipo: 'booleano', editavel: true },
         preco_unidade_centavos: { tipo: 'centavos', editavel: true },
+        // Custo de compra por unidade (opcional): o desconto de classe na munição não desce abaixo dele.
+        custo_compra_centavos: { tipo: 'centavos', editavel: true },
     },
     unidade: {
         modelo_id: { tipo: 'id', obrigatorio: true, editavel: false },

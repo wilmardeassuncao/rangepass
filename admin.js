@@ -9,7 +9,7 @@ import {
     consultaDosFiltros, descreverEvento, dataHoraNoFuso, CAMPOS_FORMULARIO,
     precoDoCampo, textoDoPreco, AVISO_SEM_PRECO, regraDoFormulario, formularioDaRegra, diasDaRegra, textoDoPercentual,
     situacaoDaCampanha, textoDoPeriodo, campanhaDoFormulario, formularioDaCampanha, classeDoFormulario, formularioDaClasse,
-    pacoteDoFormulario, formularioDoPacote, textoDoPacote,
+    textoDoDescontoDaClasse, pacoteDoFormulario, formularioDoPacote, textoDoPacote,
 } from './admin-regras.mjs';
 import { formatarCpf, formatarTelefone } from './conta-regras.mjs';
 import { descreverSessao, TEXTO_SITUACAO, somarDias, linhasDoPreco } from './agendar-regras.mjs';
@@ -833,10 +833,14 @@ let versaoNasListasDePreco = -1; // versão do catálogo com que as listas de ar
 
 const formHoraPista = document.getElementById('form-hora-pista');
 
-// Preço de cada tipo do catálogo: a lista do GET catalogo, o campo e o rótulo.
+// Preço de cada tipo do catálogo: a lista do GET catalogo, o campo e o rótulo. A munição tem também
+// o custo de compra (opcional), salvo pelo mesmo botão: o desconto de classe não desce abaixo dele.
 const PRECOS_CATALOGO = {
     modelo: { lista: 'modelos', campo: 'preco_hora_centavos', rotulo: 'Preço por hora' },
-    tipo_municao: { lista: 'tipos_municao', campo: 'preco_unidade_centavos', rotulo: 'Preço por unidade' },
+    tipo_municao: {
+        lista: 'tipos_municao', campo: 'preco_unidade_centavos', rotulo: 'Preço por unidade',
+        custo: { campo: 'custo_compra_centavos', rotulo: 'Custo de compra' },
+    },
 };
 
 // ----- Hora de pista -----
@@ -888,16 +892,17 @@ function nomeComPreco(tipo, item) {
 
 // O campo mostra o preço salvo; sem preço, o campo fica vazio e aparece o aviso.
 function preencherPreco(li, tipo, item) {
-    const { campo } = PRECOS_CATALOGO[tipo];
+    const { campo, custo } = PRECOS_CATALOGO[tipo];
     const temPreco = Number.isInteger(item[campo]);
     li.querySelector('[data-campo-preco]').value = textoDoPreco(item[campo]);
+    if (custo) li.querySelector('[data-campo-custo]').value = textoDoPreco(item[custo.campo]);
     const aviso = li.querySelector('[data-sem-preco]');
     aviso.textContent = AVISO_SEM_PRECO[tipo];
     aviso.hidden = temPreco;
 }
 
 function itemDePreco(tipo, item) {
-    const { campo, rotulo } = PRECOS_CATALOGO[tipo];
+    const { campo, rotulo, custo } = PRECOS_CATALOGO[tipo];
     const nome = `${nomeComPreco(tipo, item)}${item.ativo ? '' : ' (desativado)'}`;
     const li = copiarMolde('molde-preco');
     li.dataset.id = String(item.id);
@@ -908,6 +913,14 @@ function itemDePreco(tipo, item) {
     entrada.name = campo;
     entrada.setAttribute('aria-label', `${rotulo}: ${nome}`);
     li.querySelector('[data-erro-preco]').dataset.erroPara = campo;
+    if (custo) {
+        li.querySelector('[data-bloco-custo]').hidden = false;
+        li.querySelector('[data-rotulo-custo]').textContent = custo.rotulo;
+        const entradaCusto = li.querySelector('[data-campo-custo]');
+        entradaCusto.name = custo.campo;
+        entradaCusto.setAttribute('aria-label', `${custo.rotulo}: ${nome}`);
+        li.querySelector('[data-erro-custo]').dataset.erroPara = custo.campo;
+    }
     const form = li.querySelector('form');
     form.dataset.tipo = tipo;
     form.dataset.id = String(item.id);
@@ -927,12 +940,20 @@ function mostrarPrecosDoCatalogo() {
 function salvarPreco(form) {
     const tipo = form.dataset.tipo;
     const id = Number(form.dataset.id);
-    const { lista, campo } = PRECOS_CATALOGO[tipo];
+    const { lista, campo, custo } = PRECOS_CATALOGO[tipo];
     limparErros(form);
     avisar(null);
-    const lido = precoDoCampo(form.elements[campo].value);
-    if (lido.erro) return mostrarErros(form, { [campo]: lido.erro });
-    const { campos, valores } = validarCadastroCatalogo(tipo, { [campo]: lido.valor }, { criando: false });
+    // O preço e, na munição, o custo de compra: os dois em reais, vazio = sem valor (null).
+    const nomes = custo ? [campo, custo.campo] : [campo];
+    const dados = {};
+    const errosDosCampos = {};
+    for (const nome of nomes) {
+        const lido = precoDoCampo(form.elements[nome].value);
+        if (lido.erro) errosDosCampos[nome] = lido.erro;
+        else dados[nome] = lido.valor;
+    }
+    if (Object.keys(errosDosCampos).length) return mostrarErros(form, errosDosCampos);
+    const { campos, valores } = validarCadastroCatalogo(tipo, dados, { criando: false });
     if (Object.keys(campos).length) return mostrarErros(form, campos);
 
     return ocupado(form, async () => {
@@ -943,7 +964,9 @@ function salvarPreco(form) {
                 Object.assign(item, valores);
                 preencherPreco(form.closest('li'), tipo, item);
             }
-            avisar(valores[campo] === null ? 'Preço retirado.' : 'Preço salvo.', { sucesso: true });
+            // Na munição vão o preço e o custo juntos: "Salvo." vale para qualquer mudança.
+            const mensagem = custo ? 'Salvo.' : (valores[campo] === null ? 'Preço retirado.' : 'Preço salvo.');
+            avisar(mensagem, { sucesso: true });
         } else if (precisaEntrar(r)) {
             await irParaEntrar();
         } else if ((r.status === 400 || r.status === 409) && r.dados?.campos) {
@@ -1268,7 +1291,7 @@ Object.assign(PROMOCOES, {
     classe: {
         estado: () => promocoes, lista: 'classes', nomeItem: 'classe', rotulos: ['Ativa', 'Desativada'],
         salvo: 'Classe salva.', validar: validarClasse, ordem: porNome,
-        colunas: (classe) => [['Nome', classe.nome], ['Desconto', `${classe.percentual}%`]],
+        colunas: (classe) => [['Nome', classe.nome], ['Desconto', textoDoDescontoDaClasse(classe)]],
         paraFormulario: formularioDaClasse,
         lerFormulario: (campos) => ({ dados: classeDoFormulario(campos) }),
     },

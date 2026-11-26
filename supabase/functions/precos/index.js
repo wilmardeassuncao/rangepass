@@ -21,7 +21,7 @@ const TIPOS = {
     },
     classe: {
         lista: 'classes', tabela: 'classes_desconto', ordem: ['nome'], validar: validarClasse,
-        colunas: 'id, nome, percentual, ativo',
+        colunas: 'id, nome, percentual_pista, percentual_aluguel, percentual_municao, ativo',
     },
     pacote: {
         lista: 'pacotes', tabela: 'pacotes', ordem: ['inicio', 'nome'], validar: validarPacote,

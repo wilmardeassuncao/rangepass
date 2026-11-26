@@ -206,6 +206,38 @@ test('PUT grava e tira o preço do modelo e da munição; o GET traz o preço', 
     }
 });
 
+test('salva e tira o custo de compra da munição', async () => {
+    const c = await criarTudo();
+    assert.strictEqual(c.tipo_municao.custo_compra_centavos, null);
+    try {
+        const r = await editar('tipo_municao', c.tipo_municao.id, { custo_compra_centavos: 1500 });
+        assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+        assert.strictEqual(r.dados.item.custo_compra_centavos, 1500);
+        const g = await funcao('catalogo', { token: superadmin.token });
+        assert.strictEqual(g.dados.tipos_municao.find(i => i.id === c.tipo_municao.id).custo_compra_centavos, 1500);
+        const banco = await rest(`tipos_municao?id=eq.${c.tipo_municao.id}&select=custo_compra_centavos`);
+        assert.deepStrictEqual(banco.dados, [{ custo_compra_centavos: 1500 }]);
+
+        // O preço e o custo vão juntos pelo mesmo PUT (o botão Salvar da aba Preços).
+        const juntos = await editar('tipo_municao', c.tipo_municao.id, { preco_unidade_centavos: 300, custo_compra_centavos: 120 });
+        assert.strictEqual(juntos.status, 200, JSON.stringify(juntos.dados));
+        assert.strictEqual(juntos.dados.item.preco_unidade_centavos, 300);
+        assert.strictEqual(juntos.dados.item.custo_compra_centavos, 120);
+
+        const ruim = await editar('tipo_municao', c.tipo_municao.id, { custo_compra_centavos: 0 });
+        assert.strictEqual(ruim.status, 400, JSON.stringify(ruim.dados));
+        assert.strictEqual(ruim.dados.campos.custo_compra_centavos, 'Informe um valor maior que zero.');
+
+        const tira = await editar('tipo_municao', c.tipo_municao.id, { custo_compra_centavos: null });
+        assert.strictEqual(tira.status, 200, JSON.stringify(tira.dados));
+        assert.strictEqual(tira.dados.item.custo_compra_centavos, null);
+    } finally {
+        // Volta a "sem preço e sem custo", como os outros testes esperam.
+        const volta = await editar('tipo_municao', c.tipo_municao.id, { preco_unidade_centavos: null, custo_compra_centavos: null });
+        assert.strictEqual(volta.status, 200, JSON.stringify(volta.dados));
+    }
+});
+
 test('o banco recusa preço 0 no modelo', async () => {
     const c = await criarTudo();
     const r = await rest(`modelos?id=eq.${c.modelo.id}`, { metodo: 'PATCH', corpo: { preco_hora_centavos: 0 } });
@@ -237,10 +269,10 @@ test('salvar_promocao cria e edita cada tipo, com o autor no histórico', async 
             { fim: '2030-12-01', ativo: false },
             { fim: '2030-12-01', ativo: false }],
         ['classe',
-            { nome: `Policiais ${m}`, percentual: 15 },
-            { percentual: 15, ativo: true },
-            { percentual: 20 },
-            { percentual: 20 }],
+            { nome: `Policiais ${m}`, percentual_pista: 15, percentual_aluguel: 10, percentual_municao: 5 },
+            { percentual_pista: 15, percentual_aluguel: 10, percentual_municao: 5, ativo: true },
+            { percentual_municao: 20 },
+            { percentual_pista: 15, percentual_aluguel: 10, percentual_municao: 20 }],
         ['pacote',
             { nome: `Iniciante ${m}`, inicio: '2030-01-01', fim: '2030-12-31', preco_centavos: 25000, horas: 1,
                 modelo_id: c.modelo.id, tipo_municao_id: c.tipo_municao.id, municao_qtd: 50 },
@@ -276,8 +308,8 @@ test('salvar_promocao: o banco recusa percentual 0 numa regra', async () => {
 
 test('salvar_promocao: tipo, campo ou id que não existe', async () => {
     assertCodigo(await promover('xyz', null, { nome: 'A' }), '22023');
-    assertCodigo(await promover('classe', null, { nome: `Classe ${marcador()}`, percentual: 10, cor: 'azul' }), '22023');
-    assertCodigo(await promover('classe', 2000000000, { percentual: 10 }), 'P0002');
+    assertCodigo(await promover('classe', null, { nome: `Classe ${marcador()}`, percentual_pista: 10, percentual_aluguel: 0, percentual_municao: 0, cor: 'azul' }), '22023');
+    assertCodigo(await promover('classe', 2000000000, { percentual_pista: 10 }), 'P0002');
 });
 
 function assertCodigo(r, codigo) {

@@ -186,13 +186,29 @@ export function formularioDaCampanha(campanha) {
     };
 }
 
+// A classe tem um percentual para cada parte do preço (pista, aluguel de armas e munição), na ordem da tela.
+const PARTES_DA_CLASSE = [['percentual_pista', 'Pista'], ['percentual_aluguel', 'Aluguel'], ['percentual_municao', 'Munição']];
+
+// Formulário da classe → dados do POST/PUT precos (percentual vazio vai null: o servidor recusa).
 export function classeDoFormulario(campos) {
-    return { nome: campos.nome, percentual: numeroDoCampo(campos.percentual), ativo: campos.ativo };
+    const dados = { nome: campos.nome };
+    for (const [campo] of PARTES_DA_CLASSE) dados[campo] = numeroDoCampo(campos[campo]);
+    dados.ativo = campos.ativo;
+    return dados;
 }
 
+// O inverso. Numa classe nova, as três partes começam em 0 (sem desconto naquela parte).
 export function formularioDaClasse(classe) {
-    if (!classe) return { nome: '', percentual: '', ativo: true };
-    return { nome: classe.nome, percentual: String(classe.percentual), ativo: classe.ativo };
+    const campos = { nome: classe ? classe.nome : '' };
+    for (const [campo] of PARTES_DA_CLASSE) campos[campo] = classe ? String(classe[campo]) : '0';
+    campos.ativo = classe ? classe.ativo : true;
+    return campos;
+}
+
+// Coluna "Desconto" da lista de classes: 'Pista 20% · Aluguel 10% · Munição 15%' (as partes em 0 ficam de fora).
+export function textoDoDescontoDaClasse(classe) {
+    return PARTES_DA_CLASSE.filter(([campo]) => classe[campo] > 0)
+        .map(([campo, nome]) => `${nome} ${classe[campo]}%`).join(' · ');
 }
 
 // Formulário do pacote → { dados, erros }. O preço vem em reais; "Nenhum" (vazio) vira null; sem

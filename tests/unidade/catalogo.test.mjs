@@ -88,7 +88,7 @@ test('dados que não são objeto contam como vazios', () => {
 
 // Preços: modelo (por hora de aluguel) e munição (por unidade), em centavos. null = sem preço.
 test('preço do modelo e da munição: inteiro > 0 ou null, editável', () => {
-    const casos = [['modelo', 'preco_hora_centavos'], ['tipo_municao', 'preco_unidade_centavos']];
+    const casos = [['modelo', 'preco_hora_centavos'], ['tipo_municao', 'preco_unidade_centavos'], ['tipo_municao', 'custo_compra_centavos']];
     for (const [tipo, campo] of casos) {
         assert.deepStrictEqual(validarCadastroCatalogo(tipo, { [campo]: 4000 }, EDITAR), { campos: {}, valores: { [campo]: 4000 } }, tipo);
         assert.deepStrictEqual(validarCadastroCatalogo(tipo, { [campo]: null }, EDITAR), { campos: {}, valores: { [campo]: null } }, tipo);

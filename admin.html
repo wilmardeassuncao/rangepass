@@ -348,7 +348,7 @@
 
                     <section id="secao-precos-tipo_municao" class="bloco">
                         <h2 class="bloco-titulo">Munições</h2>
-                        <p class="subtitulo">Preço de cada unidade de munição. Deixe vazio para tirar o preço.</p>
+                        <p class="subtitulo">Preço e custo de compra de cada unidade de munição. Deixe vazio para tirar.</p>
                         <ul id="lista-precos-tipo_municao" class="lista-precos"></ul>
                         <p id="vazio-precos-tipo_municao" class="subtitulo" hidden>Nenhuma munição cadastrada. Cadastre na aba Catálogo.</p>
                     </section>
@@ -470,11 +470,20 @@
                                     <input name="nome" autocomplete="off">
                                     <span class="erro" data-erro-para="nome"></span>
                                 </label>
-                                <label class="campo">Percentual de desconto <small>(de 1 a 90)</small>
-                                    <input name="percentual" type="number" min="1" max="90" step="1" inputmode="numeric">
-                                    <span class="erro" data-erro-para="percentual"></span>
+                                <label class="campo">Desconto na pista (%) <small>(de 0 a 90)</small>
+                                    <input name="percentual_pista" type="number" min="0" max="90" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="percentual_pista"></span>
+                                </label>
+                                <label class="campo">Desconto no aluguel de armas (%) <small>(de 0 a 90)</small>
+                                    <input name="percentual_aluguel" type="number" min="0" max="90" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="percentual_aluguel"></span>
+                                </label>
+                                <label class="campo">Desconto na munição (%) <small>(de 0 a 90)</small>
+                                    <input name="percentual_municao" type="number" min="0" max="90" step="1" inputmode="numeric">
+                                    <span class="erro" data-erro-para="percentual_municao"></span>
                                 </label>
                             </div>
+                            <p class="subtitulo">A munição nunca fica abaixo do custo de compra cadastrado em Preços.</p>
                             <label class="caixa"><input type="checkbox" name="ativo"> Ativa</label>
                             <p class="erro" data-erro-geral hidden></p>
                             <div class="botoes">
@@ -692,7 +701,8 @@
         </div>
     </template>
 
-    <!-- Uma arma ou munição na aba Preços. O admin.js põe o nome, o rótulo e o name do campo. -->
+    <!-- Uma arma ou munição na aba Preços. O admin.js põe o nome, o rótulo e o name do campo.
+         O "Custo de compra" só aparece na munição (o admin.js tira o hidden e põe o name). -->
     <template id="molde-preco">
         <li class="item-preco">
             <p class="item-preco-nome" data-nome></p>
@@ -700,6 +710,10 @@
                 <label class="campo"><span data-rotulo></span>
                     <input inputmode="decimal" autocomplete="off" placeholder="Sem preço" data-campo-preco>
                     <span class="erro" data-erro-preco></span>
+                </label>
+                <label class="campo" data-bloco-custo hidden><span data-rotulo-custo></span> <small>(opcional)</small>
+                    <input inputmode="decimal" autocomplete="off" placeholder="Sem custo" data-campo-custo>
+                    <span class="erro" data-erro-custo></span>
                 </label>
                 <button type="submit" class="botao secundario pequeno">Salvar</button>
                 <p class="nota-sem-preco" data-sem-preco hidden></p>

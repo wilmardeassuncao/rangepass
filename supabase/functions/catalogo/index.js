@@ -12,7 +12,7 @@ const LISTAS = [
     ['categorias', 'categorias', 'id, nome, ativo', ['nome']],
     ['calibres', 'calibres', 'id, nome, ativo', ['nome']],
     ['modelos', 'modelos', 'id, categoria_id, calibre_id, marca, nome, ativo, preco_hora_centavos', ['marca', 'nome']],
-    ['tipos_municao', 'tipos_municao', 'id, calibre_id, nome, ativo, preco_unidade_centavos', ['nome']],
+    ['tipos_municao', 'tipos_municao', 'id, calibre_id, nome, ativo, preco_unidade_centavos, custo_compra_centavos', ['nome']],
     ['unidades', 'unidades_arma', 'id, modelo_id, numero_registro, situacao', ['numero_registro']],
     ['pistas', 'pistas', 'id, numero, ativa', ['numero']],
 ];

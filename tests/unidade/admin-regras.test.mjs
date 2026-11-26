@@ -7,7 +7,7 @@ import {
     consultaDosFiltros, descreverEvento, dataHoraNoFuso,
     precoDoCampo, textoDoPreco, AVISO_SEM_PRECO, regraDoFormulario, formularioDaRegra, diasDaRegra, textoDoPercentual,
     situacaoDaCampanha, textoDoPeriodo, campanhaDoFormulario, formularioDaCampanha, classeDoFormulario, formularioDaClasse,
-    pacoteDoFormulario, formularioDoPacote, textoDoPacote,
+    textoDoDescontoDaClasse, pacoteDoFormulario, formularioDoPacote, textoDoPacote,
 } from '../../admin-regras.mjs';
 import { PAPEIS } from '../../supabase/functions/_shared/papeis.mjs';
 
@@ -298,12 +298,26 @@ test('campanhaDoFormulario e formularioDaCampanha: ida e volta', () => {
     assert.deepStrictEqual(formularioDaCampanha(null), { nome: '', percentual: '', inicio: '', fim: '', ativo: true });
 });
 
-test('classeDoFormulario e formularioDaClasse: ida e volta', () => {
-    assert.deepStrictEqual(classeDoFormulario({ nome: 'Policial', percentual: '10', ativo: true }),
-        { nome: 'Policial', percentual: 10, ativo: true });
-    assert.deepStrictEqual(formularioDaClasse({ id: 2, nome: 'Policial', percentual: 10, ativo: true }),
-        { nome: 'Policial', percentual: '10', ativo: true });
-    assert.deepStrictEqual(formularioDaClasse(null), { nome: '', percentual: '', ativo: true });
+test('classeDoFormulario e formularioDaClasse: ida e volta com os três percentuais', () => {
+    assert.deepStrictEqual(
+        classeDoFormulario({ nome: 'Policial', percentual_pista: '20', percentual_aluguel: '0', percentual_municao: ' 15 ', ativo: true }),
+        { nome: 'Policial', percentual_pista: 20, percentual_aluguel: 0, percentual_municao: 15, ativo: true });
+    assert.deepStrictEqual(
+        formularioDaClasse({ id: 2, nome: 'Policial', percentual_pista: 20, percentual_aluguel: 0, percentual_municao: 15, ativo: true }),
+        { nome: 'Policial', percentual_pista: '20', percentual_aluguel: '0', percentual_municao: '15', ativo: true });
+    // Classe nova: as três partes começam em 0 (sem desconto naquela parte).
+    assert.deepStrictEqual(formularioDaClasse(null),
+        { nome: '', percentual_pista: '0', percentual_aluguel: '0', percentual_municao: '0', ativo: true });
+    // Campo vazio vai null: o servidor recusa com "Informe um percentual entre 0 e 90.".
+    assert.strictEqual(classeDoFormulario({ nome: 'X', percentual_pista: '', percentual_aluguel: '0', percentual_municao: '0', ativo: true })
+        .percentual_pista, null);
+});
+
+test('textoDoDescontoDaClasse: as partes com desconto, na ordem pista, aluguel e munição', () => {
+    assert.strictEqual(textoDoDescontoDaClasse({ percentual_pista: 20, percentual_aluguel: 10, percentual_municao: 15 }),
+        'Pista 20% · Aluguel 10% · Munição 15%');
+    assert.strictEqual(textoDoDescontoDaClasse({ percentual_pista: 0, percentual_aluguel: 10, percentual_municao: 0 }), 'Aluguel 10%');
+    assert.strictEqual(textoDoDescontoDaClasse({ percentual_pista: 5, percentual_aluguel: 0, percentual_municao: 30 }), 'Pista 5% · Munição 30%');
 });
 
 const CAMPOS_PACOTE = {
