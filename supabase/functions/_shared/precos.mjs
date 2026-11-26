@@ -167,6 +167,7 @@ const CONFERE = {
         ? null : 'Informe um percentual entre -90 e 200, diferente de 0.'),
     prioridade: (v) => (Number.isInteger(v) && v >= 0 ? null : 'Informe um número inteiro igual ou maior que 0.'),
     percentualDesconto: (v) => (inteiroEntre(v, 1, 90) ? null : 'Informe um percentual entre 1 e 90.'),
+    percentualClasse: (v) => (inteiroEntre(v, 0, 90) ? null : 'Informe um percentual entre 0 e 90.'),
     data: (v) => (dataReal(v) ? null : 'Use uma data válida.'),
     centavos: (v) => (Number.isInteger(v) && v > 0 ? null : 'Informe um valor maior que zero.'),
     horas: (v) => (inteiroEntre(v, 1, 6) ? null : 'Informe de 1 a 6 horas.'),
@@ -244,12 +245,72 @@ export function validarCampanha(dados, { criando }) {
 
 const CAMPOS_CLASSE = {
     nome: ['texto', true],
-    percentual: ['percentualDesconto', true],
+    percentual_pista: ['percentualClasse', true],
+    percentual_aluguel: ['percentualClasse', true],
+    percentual_municao: ['percentualClasse', true],
     ativo: ['booleano', false],
 };
 
+const PERCENTUAIS_CLASSE = ['percentual_pista', 'percentual_aluguel', 'percentual_municao'];
+
+// A classe precisa dar desconto em alguma parte. Ao criar, confere sempre; numa edição, só quando
+// os três percentuais vieram (e estão certos).
+function conferirSomaDaClasse(valores, erros, enviados, criando) {
+    const vieramOsTres = PERCENTUAIS_CLASSE.every((c) => Object.hasOwn(enviados, c));
+    if (!criando && !vieramOsTres) return;
+    if (PERCENTUAIS_CLASSE.some((c) => erros[c])) return;
+    if (PERCENTUAIS_CLASSE.every((c) => valores[c] === 0)) {
+        erros.percentual_pista = 'Informe pelo menos um percentual maior que 0.';
+    }
+}
+
 export function validarClasse(dados, { criando }) {
-    return validar(CAMPOS_CLASSE, dados, criando);
+    return validar(CAMPOS_CLASSE, dados, criando, conferirSomaDaClasse);
+}
+
+// --- Desconto de classe por parte ---
+
+// A parte do preço vem do começo da descrição do item (ver calcularPreco).
+function parteDoItem(descricao) {
+    if (descricao.startsWith('Pista')) return 'pista';
+    if (descricao.startsWith('Aluguel de armas')) return 'aluguel';
+    if (descricao.startsWith('Munição')) return 'municao';
+    return null;
+}
+
+// Aplica o desconto da classe em cada parte do preço guardado. `preco` = { itens, total_centavos }
+// (já com pacote ou campanha); `custoMunicaoCentavos` (ou null) é o piso da munição. Vale o melhor
+// para o cliente: o menor entre o total guardado e o total com a classe.
+export function descontoDeClasse(preco, classe, custoMunicaoCentavos) {
+    let limitado = false;
+    const partes = [];
+    for (const item of preco.itens) {
+        const parte = parteDoItem(item.descricao);
+        if (!parte) continue;
+        const percentual = classe[`percentual_${parte}`];
+        const antes = item.total_centavos;
+        let depois = Math.round(antes * (100 - percentual) / 100);
+        if (parte === 'municao' && custoMunicaoCentavos != null) {
+            const comPiso = Math.min(antes, Math.max(depois, custoMunicaoCentavos));
+            if (comPiso !== depois) limitado = true;
+            depois = comPiso;
+        }
+        partes.push({ parte, descricao: item.descricao, antes_centavos: antes, percentual, depois_centavos: depois });
+    }
+    const totalAntes = partes.reduce((t, p) => t + p.antes_centavos, 0);
+    const totalComClasse = partes.reduce((t, p) => t + p.depois_centavos, 0);
+    const congelado = preco.total_centavos;
+    const cobrado = Math.min(congelado, totalComClasse);
+    return {
+        partes,
+        total_antes_centavos: totalAntes,
+        total_com_classe_centavos: totalComClasse,
+        total_congelado_centavos: congelado,
+        valor_cobrado_centavos: cobrado,
+        desconto_centavos: congelado - cobrado,
+        limitado_ao_custo: limitado,
+        melhorou: totalComClasse < congelado,
+    };
 }
 
 const CAMPOS_PACOTE = {

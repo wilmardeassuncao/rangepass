@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import {
     formatarReais, centavosDoTexto, calcularPreco,
     validarRegra, validarCampanha, validarClasse, validarPacote, conferirItensDoPacote,
+    descontoDeClasse,
 } from '../../supabase/functions/_shared/precos.mjs';
 
 const FUSO = 'America/Sao_Paulo'; // UTC-3, sem horário de verão
@@ -278,16 +279,44 @@ test('campanha: edição sem campos', () => {
     assert.strictEqual(validarCampanha({}, EDITAR).campos.geral, 'Nada para alterar.');
 });
 
+const CLASSE_OK = { nome: 'Sócio', percentual_pista: 15, percentual_aluguel: 10, percentual_municao: 0, ativo: true };
+
 test('validarClasse aceita e confere', () => {
-    assert.deepStrictEqual(validarClasse({ nome: 'Sócio', percentual: 15, ativo: true }, CRIAR),
-        { campos: {}, valores: { nome: 'Sócio', percentual: 15, ativo: true } });
+    assert.deepStrictEqual(validarClasse(CLASSE_OK, CRIAR), { campos: {}, valores: CLASSE_OK });
+});
+test('validarClasse aceita só um percentual maior que 0', () => {
+    const dados = { nome: 'Policial', percentual_pista: 20, percentual_aluguel: 0, percentual_municao: 0 };
+    assert.deepStrictEqual(validarClasse(dados, CRIAR), { campos: {}, valores: dados });
 });
 test('classe: nome vazio', () => {
-    assert.strictEqual(validarClasse({ percentual: 15 }, CRIAR).campos.nome, 'Preencha este campo.');
+    const { nome, ...resto } = CLASSE_OK;
+    assert.strictEqual(validarClasse(resto, CRIAR).campos.nome, 'Preencha este campo.');
 });
-test('classe: percentual fora de 1–90', () => {
-    assert.strictEqual(validarClasse({ nome: 'Sócio', percentual: 0 }, CRIAR).campos.percentual,
-        'Informe um percentual entre 1 e 90.');
+test('classe: os três percentuais em 0', () => {
+    const dados = { nome: 'Sócio', percentual_pista: 0, percentual_aluguel: 0, percentual_municao: 0 };
+    assert.strictEqual(validarClasse(dados, CRIAR).campos.percentual_pista,
+        'Informe pelo menos um percentual maior que 0.');
+});
+test('classe: edição que manda os três em 0', () => {
+    const dados = { percentual_pista: 0, percentual_aluguel: 0, percentual_municao: 0 };
+    assert.strictEqual(validarClasse(dados, EDITAR).campos.percentual_pista,
+        'Informe pelo menos um percentual maior que 0.');
+});
+test('classe: edição de um percentual só não confere a soma', () => {
+    assert.deepStrictEqual(validarClasse({ percentual_pista: 0 }, EDITAR).campos, {});
+});
+test('classe: percentual 91 é recusado', () => {
+    assert.strictEqual(validarClasse({ ...CLASSE_OK, percentual_aluguel: 91 }, CRIAR).campos.percentual_aluguel,
+        'Informe um percentual entre 0 e 90.');
+});
+test('classe: percentual faltando ao criar', () => {
+    const { percentual_municao, ...resto } = CLASSE_OK;
+    assert.strictEqual(validarClasse(resto, CRIAR).campos.percentual_municao,
+        'Informe um percentual entre 0 e 90.');
+});
+test('classe: o campo antigo percentual não existe mais', () => {
+    assert.strictEqual(validarClasse({ ...CLASSE_OK, percentual: 15 }, CRIAR).campos.percentual,
+        'Este campo não pode ser mudado aqui.');
 });
 test('classe: ativo não booleano', () => {
     assert.strictEqual(validarClasse({ ativo: null }, EDITAR).campos.ativo, 'Escolha sim ou não.');
@@ -387,4 +416,60 @@ test('conferirItensDoPacote', () => {
         { tipo_municao_id: CALIBRE });
     assert.deepStrictEqual(conferirItensDoPacote({}, { modelo: m, tipoMunicao: t }), {});
     assert.deepStrictEqual(conferirItensDoPacote({}, { modelo: null, tipoMunicao: null }), {});
+});
+
+// --- Desconto de classe por parte ---
+
+const PRECO_CLASSE = {
+    itens: [
+        { descricao: 'Pista (1 pista × 1 hora)', total_centavos: 10000 },
+        { descricao: 'Aluguel de armas', total_centavos: 3000 },
+        { descricao: 'Munição', total_centavos: 12500 },
+    ],
+    total_centavos: 25500,
+};
+const CLASSE_DESC = { percentual_pista: 20, percentual_aluguel: 10, percentual_municao: 15 };
+
+test('desconto de classe por parte, sem custo', () => {
+    const r = descontoDeClasse(PRECO_CLASSE, CLASSE_DESC, null);
+    assert.deepStrictEqual(r.partes.map((p) => p.parte), ['pista', 'aluguel', 'municao']);
+    assert.deepStrictEqual(r.partes.map((p) => p.antes_centavos), [10000, 3000, 12500]);
+    assert.deepStrictEqual(r.partes.map((p) => p.percentual), [20, 10, 15]);
+    assert.deepStrictEqual(r.partes.map((p) => p.depois_centavos), [8000, 2700, 10625]);
+    assert.strictEqual(r.partes[0].descricao, 'Pista (1 pista × 1 hora)');
+    assert.strictEqual(r.total_antes_centavos, 25500);
+    assert.strictEqual(r.total_com_classe_centavos, 21325);
+    assert.strictEqual(r.total_congelado_centavos, 25500);
+    assert.strictEqual(r.valor_cobrado_centavos, 21325);
+    assert.strictEqual(r.desconto_centavos, 4175);
+    assert.strictEqual(r.limitado_ao_custo, false);
+    assert.strictEqual(r.melhorou, true);
+});
+test('munição limitada ao custo de compra', () => {
+    const r = descontoDeClasse(PRECO_CLASSE, CLASSE_DESC, 11000);
+    assert.strictEqual(r.partes[2].depois_centavos, 11000);
+    assert.strictEqual(r.total_com_classe_centavos, 21700);
+    assert.strictEqual(r.limitado_ao_custo, true);
+});
+test('custo acima do preço da munição não aumenta o preço', () => {
+    const r = descontoDeClasse(PRECO_CLASSE, CLASSE_DESC, 13000);
+    assert.strictEqual(r.partes[2].depois_centavos, 12500);
+    assert.strictEqual(r.limitado_ao_custo, true);
+});
+test('custo abaixo do valor já descontado não limita nada', () => {
+    const r = descontoDeClasse(PRECO_CLASSE, CLASSE_DESC, 5000);
+    assert.strictEqual(r.partes[2].depois_centavos, 10625);
+    assert.strictEqual(r.limitado_ao_custo, false);
+});
+test('vale o melhor para o cliente quando há pacote ou campanha', () => {
+    const r = descontoDeClasse({ ...PRECO_CLASSE, total_centavos: 20000 }, CLASSE_DESC, null);
+    assert.strictEqual(r.total_com_classe_centavos, 21325);
+    assert.strictEqual(r.valor_cobrado_centavos, 20000);
+    assert.strictEqual(r.desconto_centavos, 0);
+    assert.strictEqual(r.melhorou, false);
+});
+test('preço sem aluguel nem munição', () => {
+    const r = descontoDeClasse({ itens: [PRECO_CLASSE.itens[0]], total_centavos: 10000 }, CLASSE_DESC, null);
+    assert.strictEqual(r.partes.length, 1);
+    assert.strictEqual(r.partes[0].parte, 'pista');
 });
