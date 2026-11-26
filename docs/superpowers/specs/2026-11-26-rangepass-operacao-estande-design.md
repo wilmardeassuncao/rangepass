@@ -101,9 +101,9 @@ As três áreas mostram **só o dia de hoje** (no fuso do estande), em ordem de 
 **Desconto de classe por parte do preço** (decisão do dono, 2026-11-26). O superadmin define, **em cada classe**, um percentual para cada parte do preço que o estande controla:
 - **Pista** (a hora de pista; o valor do instrutor está dentro dela, porque o preço não tem uma parte separada para o instrutor);
 - **Aluguel de armas**;
-- **Munição**, **nunca abaixo do custo de compra**: cada tipo de munição ganha no Catálogo o campo **"Custo de compra"** (centavos por unidade, opcional). O desconto da munição é limitado para que o valor cobrado da munição não fique abaixo de Σ (quantidade × custo de compra) dos tipos usados no agendamento; quando o limite age, a ficha avisa "Desconto da munição limitado ao custo de compra." Tipo de munição sem custo cadastrado não tem limite (*decisão minha*). O custo usado é o **atual**, no momento do check-in (*decisão minha*: o custo não é congelado no agendamento).
+- **Munição**, **nunca abaixo do custo de compra**: cada tipo de munição ganha na aba **Preços**, ao lado do "Preço por unidade", o campo **"Custo de compra"** (centavos por unidade, opcional; ajuste do dono em 2026-11-26: é onde o preço da munição já é editado). O desconto da munição é limitado para que o valor cobrado da munição não fique abaixo de Σ (quantidade × custo de compra) dos tipos usados no agendamento; quando o limite age, a ficha avisa "Desconto da munição limitado ao custo de compra." Tipo de munição sem custo cadastrado não tem limite (*decisão minha*). O custo usado é o **atual**, no momento do check-in (*decisão minha*: o custo não é congelado no agendamento).
 
-Cada percentual vai de 0 a 90, e pelo menos um é maior que 0. O percentual único de hoje (`classes_desconto.percentual`) dá lugar aos três; na migração, uma classe existente recebe o percentual antigo nas três partes. A tela de classes em **Promoções** passa a ter os três campos, e o Catálogo ganha o custo de compra no formulário de munição.
+Cada percentual vai de 0 a 90, e pelo menos um é maior que 0. O percentual único de hoje (`classes_desconto.percentual`) dá lugar aos três; na migração, uma classe existente recebe o percentual antigo nas três partes. A tela de classes em **Promoções** passa a ter os três campos, e a aba Preços ganha o custo de compra de cada munição.
 
 **Sobre qual valor:** os percentuais valem sobre os itens **"Pista", "Aluguel de armas" e "Munição" gravados em `preco_detalhe.itens`** — ou seja, já com a regra de preço por horário (um acréscimo de noite continua valendo) e **antes** de pacote ou campanha. O valor com o desconto de classe é a soma das três partes descontadas. **Vale o melhor para o cliente** (decisão do dono no plano 5: pacote/campanha e desconto não se somam): o valor cobrado é o **menor** entre o valor congelado (`preco_total_centavos`) e o valor com o desconto de classe. Se o desconto de classe não melhorar, a ficha diz "O preço do agendamento já é menor que com este desconto." e mantém o valor congelado (a classe e o documento ficam registrados mesmo assim).
 
@@ -226,7 +226,7 @@ A conta do dono (superadmin) já vê todas as áreas; não é preciso dar papéi
 ## 11. Divisão em planos
 
 Grande demais para um plano só. Proposta (o construtor do plano pode ajustar):
-1. **Plano 8A — Base e Recepção:** migração, função `operacao`, menu e `estande.html`, área Recepção com check-in, pagamento e desconto de classe por parte (com os três percentuais em Promoções e o custo de compra no Catálogo).
+1. **Plano 8A — Base e Recepção:** migração, função `operacao`, menu e `estande.html`, área Recepção com check-in, pagamento e desconto de classe por parte (com os três percentuais em Promoções e o custo de compra em Preços).
 2. **Plano 8B — Almoxarifado, Minha pista e incidente:** liberar e receber kit, encerrar sessão com munição e incidente, selo e detalhe no painel.
 3. **Plano 8C — Pesquisa e demonstração:** perguntas no painel, resposta do cliente, respostas no detalhe, comando de demonstração e um ensaio completo da apresentação no site publicado.
 
