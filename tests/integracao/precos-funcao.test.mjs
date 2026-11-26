@@ -231,3 +231,48 @@ test('PUT com id inexistente dá 404', async () => {
     const semId = await editar('classe', undefined, { ativo: false });
     assert.strictEqual(semId.status, 404, JSON.stringify(semId.dados));
 });
+
+test('renomear classe para o nome de uma desativada sugere reativar ou escolher outro nome', async () => {
+    const d = exemplos();
+    const desativada = await cadastrar('classe', d.classe);
+    assert.strictEqual(desativada.status, 201, JSON.stringify(desativada.dados));
+    const off = await editar('classe', desativada.dados.item.id, { ativo: false });
+    assert.strictEqual(off.status, 200, JSON.stringify(off.dados));
+    const outra = await cadastrar('classe', { nome: `Outra ${marcador()}`, percentual: 30 });
+    assert.strictEqual(outra.status, 201, JSON.stringify(outra.dados));
+
+    const r = await editar('classe', outra.dados.item.id, { nome: d.classe.nome });
+    assert.strictEqual(r.status, 409, JSON.stringify(r.dados));
+    assert.deepStrictEqual(r.dados.campos, {
+        nome: 'Já existe uma classe desativada com este nome. Reative-a na lista ou escolha outro nome.',
+    });
+});
+
+test('salvar pacote cujo modelo e munição perderam o preço, mudando só o nome ou o ativo, dá certo', async () => {
+    const m = marcador();
+    const modeloDoPacote = await criar('modelos', { categoria_id: modelo.categoria_id, calibre_id: calibre.id, marca: `Marca ${m}`, nome: 'Perde o preço', preco_hora_centavos: 3000 });
+    const municaoDoPacote = await criar('tipos_municao', { calibre_id: calibre.id, nome: `Perde o preço ${m}`, preco_unidade_centavos: 200 });
+    const pacote = (await cadastrar('pacote', { ...exemplos().pacote, modelo_id: modeloDoPacote.id, tipo_municao_id: municaoDoPacote.id })).dados.item;
+    assert.ok(pacote?.id, 'o pacote foi criado');
+
+    // Tira o preço do modelo e da munição e devolve os dois no fim, mesmo se o teste falhar no meio.
+    try {
+        const modeloSemPreco = await rest(`modelos?id=eq.${modeloDoPacote.id}`, { metodo: 'PATCH', corpo: { preco_hora_centavos: null } });
+        assert.strictEqual(modeloSemPreco.status, 200, JSON.stringify(modeloSemPreco.dados));
+        const municaoSemPreco = await rest(`tipos_municao?id=eq.${municaoDoPacote.id}`, { metodo: 'PATCH', corpo: { preco_unidade_centavos: null } });
+        assert.strictEqual(municaoSemPreco.status, 200, JSON.stringify(municaoSemPreco.dados));
+
+        const nome = await editar('pacote', pacote.id, { nome: `Renomeado ${m}` });
+        assert.strictEqual(nome.status, 200, JSON.stringify(nome.dados));
+        assert.strictEqual(nome.dados.item.nome, `Renomeado ${m}`);
+
+        const ativo = await editar('pacote', pacote.id, { ativo: false });
+        assert.strictEqual(ativo.status, 200, JSON.stringify(ativo.dados));
+        assert.strictEqual(ativo.dados.item.ativo, false);
+    } finally {
+        const voltaModelo = await rest(`modelos?id=eq.${modeloDoPacote.id}`, { metodo: 'PATCH', corpo: { preco_hora_centavos: 3000 } });
+        const voltaMunicao = await rest(`tipos_municao?id=eq.${municaoDoPacote.id}`, { metodo: 'PATCH', corpo: { preco_unidade_centavos: 200 } });
+        assert.strictEqual(voltaModelo.status, 200, `falha ao devolver o preço do modelo: ${JSON.stringify(voltaModelo.dados)}`);
+        assert.strictEqual(voltaMunicao.status, 200, `falha ao devolver o preço da munição: ${JSON.stringify(voltaMunicao.dados)}`);
+    }
+});

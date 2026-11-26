@@ -64,14 +64,16 @@ async function lerCorpo(req) {
 }
 
 // Traduz os erros do banco que a pessoa consegue resolver; o resto vira 500 em tratar().
-async function erroDoBanco(tipo, error, valores) {
+async function erroDoBanco(tipo, error, valores, criando) {
     if (error.code === 'P0002') throw new ErroHttp(404, NAO_ENCONTRADO);
     if (error.code === '23503') throw new ErroHttp(400, 'Um dos itens escolhidos não existe mais. Recarregue a página.');
     if (error.code === '23505' && tipo === 'classe') {
-        // O índice único é sobre o nome: se a classe de mesmo nome está desativada, sugere reativar.
+        // O índice único é sobre o nome: se a classe de mesmo nome está desativada, sugere reativá-la
+        // (e, ao renomear, também escolher outro nome).
         const { data } = await admin.from('classes_desconto').select('ativo').eq('nome', valores.nome).maybeSingle();
+        const sugestao = criando ? 'Reative-a na lista em vez de criar outra.' : 'Reative-a na lista ou escolha outro nome.';
         const nome = data && !data.ativo
-            ? 'Já existe uma classe desativada com este nome. Reative-a na lista em vez de criar outra.'
+            ? `Já existe uma classe desativada com este nome. ${sugestao}`
             : 'Já existe uma classe com este nome.';
         return respostaJson(409, { erro: REVISE, campos: { nome } });
     }
@@ -137,7 +139,7 @@ async function salvar(req, contexto, criando) {
     const { data, error } = await admin.rpc('salvar_promocao', {
         p_tipo: tipo, p_id: criando ? null : id, p_dados: valores, p_autor: contexto.usuarioId,
     });
-    if (error) return erroDoBanco(tipo, error, valores);
+    if (error) return erroDoBanco(tipo, error, valores, criando);
 
     return respostaJson(criando ? 201 : 200, { item: normalizar(tipo, data) });
 }
