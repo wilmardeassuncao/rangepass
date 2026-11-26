@@ -4,7 +4,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert';
 import {
-    funcao, marcador, criarUsuario, criar, apagarTudoCriado, anotarAgendamento, diaAbertoDeTeste, definirPrecosDeTeste,
+    rest, funcao, marcador, criarUsuario, criar, apagarTudoCriado, anotarAgendamento, diaAbertoDeTeste, definirPrecosDeTeste,
 } from './apoio.mjs';
 import { validarPedido } from '../../supabase/functions/_shared/agendamento.mjs';
 import { calcularPreco } from '../../supabase/functions/_shared/precos.mjs';
@@ -36,9 +36,9 @@ before(async () => {
         modelos: [{ id: modelo.id, preco: 3000 }],
         tiposMunicao: [{ id: tipoMunicao.id, preco: 250 }],
     });
-    dia = await diaAbertoDeTeste(3, 8);
-    // Cada reserva dos testes usa 2 horas do dia (4 reservas = 8 horas).
-    assert.ok(dia.horas.length >= 8, `o dia de teste precisa de pelo menos 8 horários: ${JSON.stringify(dia)}`);
+    dia = await diaAbertoDeTeste(3, 10);
+    // Cada reserva dos testes usa 2 horas do dia (5 reservas = 10 horas).
+    assert.ok(dia.horas.length >= 10, `o dia de teste precisa de pelo menos 10 horários: ${JSON.stringify(dia)}`);
     const r = await funcao('agendamentos?ver=opcoes', { token: cliente.token });
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     opcoes = r.dados;
@@ -99,7 +99,24 @@ test('com agendamento=<id> do próprio cliente, as reservas dele voltam a aparec
     const r = await ver(`&agendamento=${id}`);
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     assert.ok(r.dados.dias[dia.data][h].instrutores.includes(instrutor.id));
-    assert.deepStrictEqual(r.dados.agendamento, { instrutor_escolhido_id: instrutor.id, participantes: 1 });
+    assert.deepStrictEqual(r.dados.agendamento, { instrutor_escolhido_id: instrutor.id, participantes: 1, instrutores: 1 });
+});
+
+test('com agendamento=<id>, a resposta traz instrutores igual às reservas de instrutor ativas do agendamento', async () => {
+    // Com 1 participante as faixas dariam 1 instrutor: a reserva extra ativa mostra que o número vem das
+    // reservas gravadas, e a inativa, que só as ativas contam.
+    const { id } = await reservar();
+    const extra = await criarUsuario({ papeis: ['instrutor'] });
+    await criar('agendamento_instrutores', { agendamento_id: id, instrutor_id: extra.id, principal: false });
+    // O gatilho a_copiar_periodo grava a reserva como ativa (o agendamento está ativo); depois ela é desativada.
+    const inativo = await criarUsuario({ papeis: ['instrutor'] });
+    const desativada = await criar('agendamento_instrutores', { agendamento_id: id, instrutor_id: inativo.id, principal: false });
+    const d = await rest(`agendamento_instrutores?id=eq.${desativada.id}`, { metodo: 'PATCH', corpo: { ativo: false } });
+    assert.strictEqual(d.status, 200, JSON.stringify(d.dados));
+    assert.strictEqual(d.dados[0].ativo, false, JSON.stringify(d.dados));
+    const r = await ver(`&agendamento=${id}`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
+    assert.strictEqual(r.dados.agendamento.instrutores, 2);
 });
 
 test('agendamento de outro cliente, cancelado ou id inválido recebe 404', async () => {

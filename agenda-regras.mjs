@@ -39,11 +39,13 @@ function vagas(dia, hora, k, instrutorId, necessarios) {
     return Math.min(Math.floor(v.pistas / necessarios), Math.floor(v.instrutores / necessarios));
 }
 
+// `contexto.necessarios` (opcional) é quantos instrutores o grupo ocupa; sem ele, vem das faixas atuais.
+// O Alterar passa o número das reservas gravadas no agendamento, que o servidor mantém.
 export function montarAgenda(contexto, escolha) {
     const { disponibilidade, opcoes, agora, quantidade, instrutorId } = contexto;
     const { agenda, funcionamento, estande } = opcoes;
     const fuso = estande.fuso;
-    const necessarios = instrutoresNecessarios(quantidade, agenda.faixas_instrutores);
+    const necessarios = contexto.necessarios ?? instrutoresNecessarios(quantidade, agenda.faixas_instrutores);
     const maximo = quantidade > 1 ? agenda.duracao_maxima_grupo : agenda.duracao_maxima_individual;
     const antecedenciaMs = agenda.antecedencia_minima_horas * HORA_MS;
 

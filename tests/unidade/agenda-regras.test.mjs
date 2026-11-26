@@ -133,6 +133,34 @@ test('resumo', () => {
     assert.strictEqual(montarAgenda(contexto(dias), { data: D, hora: 10, horas: null }).resumo, null);
 });
 
+test('necessarios do contexto prevalece sobre as faixas', () => {
+    // Pelas faixas, 3 pessoas precisam de 1 instrutor; o agendamento gravado reserva 2. A hora 15 tem folga,
+    // para o dia continuar com horário livre.
+    const dias = { [D]: { 10: vaga([1], ['a']), 15: vaga([1, 2, 3], ['a', 'b', 'c']) } };
+    const gravado = montarAgenda(contexto(dias, { quantidade: 3, necessarios: 2 }), { ...nada, data: D });
+    assert.strictEqual(corDe(gravado, 10), 'lotado');
+    const faixas = montarAgenda(contexto(dias, { quantidade: 3 }), { ...nada, data: D });
+    assert.ok(['livre', 'poucas'].includes(corDe(faixas, 10)), corDe(faixas, 10));
+});
+
+test('contexto do Alterar: o horário atual vem marcado e livre', () => {
+    // Agendamento de 2 pessoas com o instrutor 'b', das 10:00 às 12:00. A rota não conta as reservas
+    // dele (p_ignorar), então a pista e o instrutor dele aparecem livres no horário atual.
+    const agendamento = { instrutor_escolhido_id: 'b', participantes: 2, instrutores: 1 };
+    const dias = { [D]: { 10: vaga([1, 2], ['a', 'b']), 11: vaga([1, 2], ['a', 'b']), 12: vaga([1], ['a']) } };
+    const atual = { data: D, hora: 10, horas: 2 };
+    const ag = montarAgenda({
+        disponibilidade: { hoje: '2026-11-20', dias, agendamento }, opcoes, agora,
+        quantidade: agendamento.participantes, instrutorId: agendamento.instrutor_escolhido_id,
+        necessarios: agendamento.instrutores,
+    }, atual);
+    assert.deepStrictEqual(ag.escolha, atual);
+    assert.strictEqual(ag.aviso, null);
+    assert.ok(['livre', 'poucas'].includes(corDe(ag, 10)), corDe(ag, 10));
+    assert.strictEqual(ag.duracoes.find((d) => d.horas === 2).habilitada, true);
+    assert.strictEqual(ag.resumo, 'Terça, 24/11 · das 10:00 às 12:00');
+});
+
 test('somarDias é reexportada do módulo compartilhado', () => {
     assert.strictEqual(somarDias('2026-11-30', 1), '2026-12-01');
 });

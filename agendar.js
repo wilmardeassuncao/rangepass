@@ -24,6 +24,7 @@ const ERRO_CARREGAR = 'Não foi possível carregar agora. Verifique a internet e
 // No erro do servidor, o campo do cartão que fica marcado não tem o mesmo nome da chave do erro.
 const CAMPO_DO_ERRO = { aceite_termo_versao: 'aceite', arma_propria: 'arma_modelo' };
 const PRECO_MUDOU = 'O preço mudou. Confira o novo valor e confirme de novo.';
+const INSTRUTOR_SAIU = 'O instrutor escolhido não atende mais. Cancele este agendamento e faça um novo.';
 const ERRO_DISPONIBILIDADE = 'Não foi possível ver os horários livres agora. Verifique a internet e tente de novo.';
 
 const form = document.getElementById('form-agendar');
@@ -256,9 +257,22 @@ async function carregarDisponibilidadeAlterar(escolha) {
     });
 }
 
-// O grupo e o instrutor são os do agendamento (o servidor manda); só o horário muda.
+// O instrutor escolhido do agendamento saiu da lista dos que atendem (a do campo de instrutor).
+function instrutorNaoAtende() {
+    const id = disponibilidadeAlterar?.agendamento.instrutor_escolhido_id ?? null;
+    return id !== null && !opcoes.instrutores.some((i) => i.id === id);
+}
+
+// O grupo, o instrutor e quantos instrutores ele ocupa são os do agendamento (o servidor manda);
+// só o horário muda. Se o instrutor escolhido não atende mais, o aviso fica no lugar da agenda.
 function redesenharAlterar(escolha = agendaAlterar.escolha()) {
-    if (!disponibilidadeAlterar) {
+    const naoAtende = instrutorNaoAtende();
+    const avisoInstrutor = formAlterar.querySelector('[data-instrutor-saiu]');
+    avisoInstrutor.textContent = naoAtende ? INSTRUTOR_SAIU : '';
+    avisoInstrutor.hidden = !naoAtende;
+    formAlterar.querySelector('.bloco-agenda').hidden = naoAtende;
+    formAlterar.querySelector('button[type="submit"]').disabled = naoAtende || Boolean(textoSemPrecos(opcoes.precos));
+    if (!disponibilidadeAlterar || naoAtende) {
         agendaAlterar.desenhar(AGENDA_VAZIA);
     } else {
         const { agendamento } = disponibilidadeAlterar;
@@ -268,6 +282,7 @@ function redesenharAlterar(escolha = agendaAlterar.escolha()) {
             agora: new Date(),
             quantidade: agendamento.participantes,
             instrutorId: agendamento.instrutor_escolhido_id,
+            necessarios: agendamento.instrutores,
         };
         agendaAlterar.desenhar(montarAgenda(contexto, escolha));
     }

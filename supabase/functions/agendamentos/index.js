@@ -4,7 +4,9 @@
 // cliente viu na revisão (preco_esperado_centavos) e congelado no agendamento.
 import { tratar, respostaJson, ErroHttp } from '../_shared/http.mjs';
 import { obterContexto, admin } from '../_shared/contexto.js';
-import { validarPedido, validarNovoHorario, podeAlterar, erroDeReserva, horariosDoDia, instanteNoFuso, somarDias } from '../_shared/agendamento.mjs';
+import {
+    validarPedido, validarNovoHorario, podeAlterar, erroDeReserva, horariosDoDia, instanteNoFuso, somarDias, instrutoresNecessarios,
+} from '../_shared/agendamento.mjs';
 import { dataNoFuso } from '../_shared/cadastro.mjs';
 import { calcularPreco } from '../_shared/precos.mjs';
 
@@ -353,7 +355,8 @@ async function alterar(req, contexto) {
 
 // Pistas e instrutores livres em cada hora, de hoje até a antecedência máxima (Disponibilidade).
 // Com ?agendamento=<id> de um agendamento ativo do próprio cliente, as reservas dele não contam
-// (para a troca de horário). Os "pistas" são ids internos, não os números das pistas.
+// (para a troca de horário), e `agendamento.instrutores` diz quantos instrutores ele reserva (as reservas
+// gravadas, que o servidor mantém ao alterar). Os "pistas" são ids internos, não os números das pistas.
 async function disponibilidade(req, contexto) {
     const pedido = new URL(req.url).searchParams.get('agendamento');
     let ignorar = null;
@@ -363,17 +366,29 @@ async function disponibilidade(req, contexto) {
         const ag = await consulta(admin.from('agendamentos').select('id, situacao, instrutor_escolhido_id')
             .eq('id', pedido).eq('responsavel_id', contexto.usuarioId).maybeSingle());
         if (!ag || !ATIVAS.includes(ag.situacao)) throw new ErroHttp(404, NAO_ENCONTRADO);
-        const { count, error } = await admin.from('participantes')
-            .select('id', { count: 'exact', head: true }).eq('agendamento_id', ag.id);
-        if (error) throw error;
+        const [participantes, reservas] = await Promise.all([
+            admin.from('participantes').select('id', { count: 'exact', head: true }).eq('agendamento_id', ag.id),
+            admin.from('agendamento_instrutores').select('id', { count: 'exact', head: true })
+                .eq('agendamento_id', ag.id).eq('ativo', true),
+        ]);
+        if (participantes.error) throw participantes.error;
+        if (reservas.error) throw reservas.error;
         ignorar = ag.id;
-        agendamento = { instrutor_escolhido_id: ag.instrutor_escolhido_id ?? null, participantes: count };
+        agendamento = {
+            instrutor_escolhido_id: ag.instrutor_escolhido_id ?? null,
+            participantes: participantes.count,
+            instrutores: reservas.count,
+        };
     }
 
     const linhas = await consulta(admin.from('configuracoes').select('chave, valor').in('chave', ['estande', 'agenda', 'funcionamento']));
     const c = Object.fromEntries(linhas.map((l) => [l.chave, l.valor]));
     const fuso = c.estande.fuso;
     const hoje = dataNoFuso(new Date(), fuso);
+    // Sem reserva de instrutor gravada (não deveria acontecer), vale o cálculo pelas faixas de hoje.
+    if (agendamento && agendamento.instrutores === 0) {
+        agendamento.instrutores = instrutoresNecessarios(agendamento.participantes, c.agenda.faixas_instrutores);
+    }
 
     const dias = {};
     const horas = [];
