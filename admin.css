@@ -1,27 +1,8 @@
-/* Visual da área da equipe: as mesmas cores do resto do site (escuro com laranja).
-   Funciona no celular e no computador (até 960px de largura). */
+/* Visual da área da equipe. O comum (cores, campos, botões, moldura com o menu lateral) vem do base.css;
+   aqui fica só o que é desta página ou o que nela é diferente. */
 :root {
-    color-scheme: dark;
-    --cor-fundo-externo: #09090a;
-    --cor-fundo: #101012;
-    --cor-superficie: #1a1a1d;
-    --cor-campo: #232327;
-    --cor-borda: #34343a;
-    --cor-texto: #f4f4f5;
-    --cor-texto-secundario: #a9a9b0;
-    --cor-marca: #e65100;
-    --cor-marca-clara: #ff9a5c;
-    --cor-sobre-marca: #ffffff;
-    --cor-erro: #ffb4ab;
-    --cor-erro-fundo: #3a1614;
-    --cor-sucesso: #6fcf97;
     --cor-sucesso-fundo: #12291c;
-    --raio-pequeno: 12px;
-    --raio-medio: 18px;
-    --espaco-tela: 16px;
 }
-
-* { box-sizing: border-box; }
 
 /* Texto só para leitores de tela (ex.: o título da coluna de botões). */
 .sr-only {
@@ -29,84 +10,20 @@
     padding: 0; position: absolute; white-space: nowrap; width: 1px;
 }
 
-[hidden] { display: none !important; }
-
-body {
-    background-color: var(--cor-fundo-externo);
-    color: var(--cor-texto);
-    font-family: 'Roboto', Arial, sans-serif;
-    margin: 0;
-}
-
-h1, h2, p, dl, dd { margin: 0; }
-
 fieldset { border: 0; margin: 0; min-width: 0; padding: 0; }
 legend { float: left; padding: 0; width: 100%; }
 
-.pagina {
-    background-color: var(--cor-fundo);
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    margin: 0 auto;
-    max-width: 960px;
-    min-height: 100vh;
-    min-height: 100dvh;
-    padding: 24px var(--espaco-tela);
-}
+/* ---------- Telas e partes ---------- */
 
-@media (min-width: 720px) {
-    .pagina { --espaco-tela: 32px; }
-}
+.tela { gap: 16px; }
 
-/* ---------- Cabeçalho ---------- */
+/* Cada parte mede a própria largura: tabelas e listas se arrumam pelo espaço do conteúdo (não da janela). */
+.painel { container: painel / inline-size; display: flex; flex-direction: column; gap: 16px; }
 
-.topo { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; }
-.marca { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
-.marca span { color: var(--cor-marca-clara); }
-.marca small { color: var(--cor-texto-secundario); font-size: 12px; font-weight: 500; letter-spacing: 0; margin-left: 4px; }
-.topo-conta { align-items: center; display: flex; flex-wrap: wrap; gap: 4px 16px; }
-.nome-equipe { color: var(--cor-texto-secundario); font-size: 14px; overflow-wrap: anywhere; }
+.subtitulo { margin-top: 0; }
 
-/* ---------- Telas e abas ---------- */
-
-.tela { display: none; flex-direction: column; gap: 16px; }
-.tela.ativa { display: flex; }
-
-.abas {
-    border-bottom: 1px solid var(--cor-borda);
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-    scrollbar-width: thin;
-}
-
-.abas button {
-    background: none;
-    border: 0;
-    border-bottom: 3px solid transparent;
-    color: var(--cor-texto-secundario);
-    cursor: pointer;
-    flex-shrink: 0;
-    font: inherit;
-    font-size: 15px;
-    font-weight: 500;
-    min-height: 48px;
-    padding: 10px 14px;
-}
-
-.abas button[aria-selected="true"] { border-bottom-color: var(--cor-marca); color: var(--cor-texto); }
-.abas button:focus-visible { outline: 2px solid var(--cor-marca-clara); outline-offset: -2px; }
-
-.painel { display: flex; flex-direction: column; gap: 16px; }
-
-.cabecalho h1 { font-size: 24px; font-weight: 700; line-height: 1.2; }
-
-.subtitulo {
-    color: var(--cor-texto-secundario);
-    font-size: 14px;
-    line-height: 1.4;
-}
+/* Com a moldura, o "Sair" da tela de erro some: o menu já tem o dele. */
+body.com-moldura #botao-erro-sair { display: none; }
 
 /* ---------- Blocos e campos ---------- */
 
@@ -131,76 +48,32 @@ legend { float: left; padding: 0; width: 100%; }
 .campo-titulo { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
 .campo-titulo small { color: var(--cor-texto-secundario); font-weight: 400; }
 
-.campo {
-    display: flex;
-    flex-direction: column;
-    font-size: 14px;
-    font-weight: 500;
-    gap: 6px;
-}
-
-.campo small { color: var(--cor-texto-secundario); font-weight: 400; }
-
-input:not([type="checkbox"]), textarea, select {
-    background-color: var(--cor-campo);
-    border: 1px solid var(--cor-borda);
-    border-radius: var(--raio-pequeno);
-    color: var(--cor-texto);
-    font: inherit;
-    font-weight: 400;
-    min-height: 48px;
-    padding: 12px 14px;
-    width: 100%;
-}
-
 textarea { line-height: 1.5; min-height: 220px; resize: vertical; }
 input[type="date"], input[type="time"] { color-scheme: dark; }
 input:disabled, select:disabled { opacity: 0.45; }
-
-input:focus, textarea:focus, select:focus { border-color: var(--cor-marca-clara); outline: none; }
-input[aria-invalid="true"], textarea[aria-invalid="true"], select[aria-invalid="true"] { border-color: var(--cor-erro); }
 select { color-scheme: dark; cursor: pointer; }
 
 .caixa { align-items: center; display: flex; font-size: 14px; gap: 10px; min-height: 48px; }
 .caixa input { accent-color: var(--cor-marca); height: 20px; width: 20px; }
 
-.erro { color: var(--cor-erro); font-size: 13px; font-weight: 400; }
-.erro:empty { display: none; }
-
 /* Fica no alto da tela mesmo com a página rolada, para o "Configuração salva." aparecer. */
 .aviso {
-    background-color: var(--cor-erro-fundo);
-    border-radius: var(--raio-pequeno);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    color: var(--cor-erro);
-    font-size: 14px;
-    line-height: 1.4;
-    padding: 12px 14px;
     position: sticky;
     top: 8px;
     z-index: 10;
+}
+
+/* No celular, logo abaixo da barra do topo (que também fica parada). */
+@media (max-width: 899.98px) {
+    body.com-moldura .aviso { top: calc(var(--altura-barra) + 8px); }
 }
 
 .aviso.sucesso { background-color: var(--cor-sucesso-fundo); color: var(--cor-sucesso); }
 
 /* ---------- Botões ---------- */
 
-.botao {
-    background-color: var(--cor-marca);
-    border: 0;
-    border-radius: var(--raio-pequeno);
-    color: var(--cor-sobre-marca);
-    cursor: pointer;
-    font: inherit;
-    font-weight: 700;
-    min-height: 48px;
-    padding: 12px 20px;
-    width: 100%;
-}
-
-a.botao { display: block; text-align: center; text-decoration: none; }
-.botao:disabled { cursor: wait; opacity: 0.6; }
-.botao.secundario { background-color: transparent; border: 1px solid var(--cor-borda); color: var(--cor-texto); }
+.botao { padding: 12px 20px; }
 .botao.perigo { border-color: var(--cor-erro); color: var(--cor-erro); }
 .botao.pequeno { width: auto; }
 
@@ -208,16 +81,7 @@ a.botao { display: block; text-align: center; text-decoration: none; }
     form > .botao, .grupo > .botao { align-self: flex-start; width: auto; }
 }
 
-.link {
-    background: none;
-    border: 0;
-    color: var(--cor-marca-clara);
-    cursor: pointer;
-    font: inherit;
-    font-size: 14px;
-    padding: 8px 0;
-    text-decoration: none;
-}
+.link { text-decoration: none; }
 
 /* ---------- Funcionamento: um dia por linha ---------- */
 
@@ -280,14 +144,14 @@ a.botao { display: block; text-align: center; text-decoration: none; }
 }
 
 /* ---------- Tabelas (Catálogo, Pistas e Agendamentos) ----------
-   No computador, tabela comum; em tela estreita, cada linha vira um cartão e cada célula mostra
+   Com espaço, tabela comum; em espaço estreito (a largura da parte, não da janela), cada linha vira um cartão e cada célula mostra
    o nome da coluna (atributo data-coluna da célula). */
 
 .tabela { border-collapse: collapse; font-size: 14px; width: 100%; }
 .tabela th, .tabela td { border-bottom: 1px solid var(--cor-borda); padding: 10px 8px; text-align: left; vertical-align: top; }
 .tabela th { color: var(--cor-texto-secundario); font-weight: 500; }
 
-@media (max-width: 719px) {
+@container painel (max-width: 719px) {
     .tabela thead { display: none; }
     .tabela, .tabela tbody, .tabela tr, .tabela td { display: block; width: 100%; }
     .tabela tr {
@@ -341,7 +205,7 @@ a.botao { display: block; text-align: center; text-decoration: none; }
 .rotulo.ativo { border-color: var(--cor-sucesso); color: var(--cor-sucesso); }
 .rotulo.inativo { color: var(--cor-texto-secundario); }
 
-@media (max-width: 719px) {
+@container painel (max-width: 719px) {
     .tabela td.celula-acoes { justify-content: flex-end; }
     .tabela td.celula-acoes::before { content: none; }
     .tabela select { min-width: 0; }
@@ -365,6 +229,11 @@ a.botao { display: block; text-align: center; text-decoration: none; }
 .form-preco .botao { min-height: 48px; }
 .form-preco .nota-sem-preco, .form-preco [data-erro-geral] { flex-basis: 100%; }
 .nota-sem-preco { color: var(--cor-marca-clara); font-size: 13px; line-height: 1.4; }
+
+/* Com espaço, as armas e munições ficam lado a lado (2 ou 3 por linha), usando a largura do conteúdo. */
+@container painel (min-width: 720px) {
+    .lista-precos { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+}
 
 .caixas-dias { display: grid; gap: 0 16px; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 
@@ -390,6 +259,10 @@ a.botao { display: block; text-align: center; text-decoration: none; }
     flex-direction: column;
     gap: 12px;
     padding: 14px;
+}
+/* Com espaço, duas pessoas por linha. */
+@container painel (min-width: 720px) {
+    .lista-pessoas { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
 }
 .pessoa.inativo .pessoa-nome { color: var(--cor-texto-secundario); }
 .pessoa-topo { align-items: flex-start; display: flex; flex-wrap: wrap; gap: 8px 12px; justify-content: space-between; }
@@ -419,7 +292,7 @@ a.botao { display: block; text-align: center; text-decoration: none; }
 /* No responsável, o telefone fica embaixo do nome, mais apagado. */
 .tabela td[data-coluna="Responsável"] .celula-texto span + span { color: var(--cor-texto-secundario); }
 
-@media (max-width: 719px) {
+@container painel (max-width: 719px) {
     .tabela tr.clicavel:hover td { background-color: transparent; }
     .tabela tr.clicavel:hover { border-color: var(--cor-marca-clara); }
     .tabela-agendamentos .celula-texto { align-items: flex-end; text-align: right; }

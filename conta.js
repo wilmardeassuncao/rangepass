@@ -1,6 +1,7 @@
 // Página da conta: liga as telas ao Supabase Auth (entrar, sair, senha) e às Edge Functions (cadastro e perfil).
 import { supabase, chamarFuncao } from './api.mjs';
 import { montarMoldura, tirarMoldura } from './moldura.mjs';
+import { saudacao } from './menu-regras.mjs';
 import { mensagemDoErroDeLogin, formatarCpf, formatarTelefone } from './conta-regras.mjs';
 import { validarCadastro, validarEdicaoPerfil, dataNoFuso } from './supabase/functions/_shared/cadastro.mjs';
 
@@ -18,6 +19,7 @@ const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do e
 
 let dadosDoCadastro = null; // resposta do GET cadastro: política, idade mínima, fuso
 let perfilAtual = null;
+let papeisAtuais = [];  // guardados para remontar o menu quando o nome muda
 
 // ---------- Ajudantes de tela ----------
 
@@ -111,7 +113,8 @@ async function abrirPerfil({ podeVoltar = false } = {}) {
     }
     mostrarPerfil(r.dados.email, perfilAtual);
     // O menu mostra só o que a pessoa pode usar (agendamentos, área da equipe), a partir dos papéis já lidos aqui.
-    montarMoldura({ papeis: r.dados.papeis ?? [], ativo: 'perfil' });
+    papeisAtuais = r.dados.papeis ?? [];
+    montarMoldura({ papeis: papeisAtuais, ativo: 'perfil', saudacao: saudacao(perfilAtual, r.dados.email) });
     mostrarTela('tela-perfil');
 }
 
@@ -140,6 +143,8 @@ document.getElementById('form-perfil').addEventListener('submit', (evento) => {
             perfilAtual = r.dados.perfil;
             const { data: { session } } = await supabase.auth.getSession();
             mostrarPerfil(session?.user?.email ?? '', perfilAtual);
+            // O nome pode ter mudado: o menu é remontado com o cumprimento novo.
+            montarMoldura({ papeis: papeisAtuais, ativo: 'perfil', saudacao: saudacao(perfilAtual, session?.user?.email) });
             avisar('Dados salvos.', 'sucesso');
         } else if (r.dados?.campos) {
             mostrarErros(form, r.dados.campos);

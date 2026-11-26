@@ -8,18 +8,12 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="base.css">
     <link rel="stylesheet" href="admin.css">
 </head>
-<body>
-    <main class="pagina">
-        <header class="topo">
-            <p class="marca">RANGE<span>PASS</span> <small>equipe</small></p>
-            <div id="topo-conta" class="topo-conta" hidden>
-                <span id="nome-equipe" class="nome-equipe"></span>
-                <a href="conta.html" class="link">Meu perfil</a>
-                <button type="button" id="botao-sair" class="link">Sair</button>
-            </div>
-        </header>
+<body class="sem-moldura">
+    <main class="moldura-conteudo moldura-cartao">
+        <p class="marca">RANGE<span>PASS</span></p>
         <p id="aviso" class="aviso" role="status" hidden></p>
 
         <section id="tela-carregando" class="tela ativa">
@@ -33,6 +27,8 @@
                 <p id="erro-carregar-mensagem" class="subtitulo" role="alert"></p>
             </div>
             <button type="button" id="botao-tentar-de-novo" class="botao">Tentar de novo</button>
+            <!-- Para ninguém ficar preso quando ainda não se sabe quem é a pessoa (sem menu). Com o menu, o Sair é o dele. -->
+            <button type="button" id="botao-erro-sair" class="botao secundario">Sair</button>
         </section>
 
         <section id="tela-sem-acesso" class="tela">
@@ -44,18 +40,9 @@
         </section>
 
         <section id="tela-admin" class="tela">
-            <nav id="abas" class="abas" role="tablist" aria-label="Partes da área da equipe">
-                <button type="button" role="tab" id="aba-configuracoes" data-aba="configuracoes" aria-controls="painel-configuracoes" hidden>Configurações</button>
-                <button type="button" role="tab" id="aba-catalogo" data-aba="catalogo" aria-controls="painel-catalogo" hidden>Catálogo</button>
-                <button type="button" role="tab" id="aba-pistas" data-aba="pistas" aria-controls="painel-pistas" hidden>Pistas</button>
-                <button type="button" role="tab" id="aba-precos" data-aba="precos" aria-controls="painel-precos" hidden>Preços</button>
-                <button type="button" role="tab" id="aba-promocoes" data-aba="promocoes" aria-controls="painel-promocoes" hidden>Promoções</button>
-                <button type="button" role="tab" id="aba-equipe" data-aba="equipe" aria-controls="painel-equipe" hidden>Equipe</button>
-                <button type="button" role="tab" id="aba-agendamentos" data-aba="agendamentos" aria-controls="painel-agendamentos" hidden>Agendamentos</button>
-            </nav>
 
             <!-- ---------- Configurações ---------- -->
-            <section id="painel-configuracoes" class="painel" role="tabpanel" aria-labelledby="aba-configuracoes" hidden>
+            <section id="painel-configuracoes" class="painel" hidden>
                 <header class="cabecalho">
                     <h1>Configurações</h1>
                     <p class="subtitulo">Cada parte é salva separadamente, no seu botão "Salvar".</p>
@@ -228,7 +215,7 @@
 
             <!-- ---------- Catálogo ----------
                  As listas e os formulários são montados pelo admin.js a partir do GET catalogo. -->
-            <section id="painel-catalogo" class="painel" role="tabpanel" aria-labelledby="aba-catalogo" hidden>
+            <section id="painel-catalogo" class="painel" hidden>
                 <header class="cabecalho">
                     <h1>Catálogo</h1>
                     <p class="subtitulo">Nada é apagado: o que não for mais usado fica desativado e some das opções novas.</p>
@@ -303,7 +290,7 @@
             </section>
 
             <!-- ---------- Pistas ---------- -->
-            <section id="painel-pistas" class="painel" role="tabpanel" aria-labelledby="aba-pistas" hidden>
+            <section id="painel-pistas" class="painel" hidden>
                 <header class="cabecalho">
                     <h1>Pistas</h1>
                     <p class="subtitulo">"Adicionar pista" cria a pista com o número seguinte ao maior. Pista inativa não recebe agendamentos novos.</p>
@@ -330,7 +317,7 @@
 
             <!-- ---------- Preços ----------
                  Os valores vêm do GET precos (hora de pista e regras) e do GET catalogo (armas e munições). -->
-            <section id="painel-precos" class="painel" role="tabpanel" aria-labelledby="aba-precos" hidden>
+            <section id="painel-precos" class="painel" hidden>
                 <header class="cabecalho">
                     <h1>Preços</h1>
                     <p class="subtitulo">Valores em reais, por exemplo 120,00. Cada parte é salva no seu botão "Salvar".</p>
@@ -419,7 +406,7 @@
 
             <!-- ---------- Promoções ----------
                  Campanhas, classes de desconto e pacotes, do GET precos (nomes das armas e munições: GET catalogo). -->
-            <section id="painel-promocoes" class="painel" role="tabpanel" aria-labelledby="aba-promocoes" hidden>
+            <section id="painel-promocoes" class="painel" hidden>
                 <header class="cabecalho">
                     <h1>Promoções</h1>
                     <p class="subtitulo">Nada é apagado: a promoção que não for mais usada fica desativada.</p>
@@ -561,7 +548,7 @@
             </section>
 
             <!-- ---------- Equipe ---------- -->
-            <section id="painel-equipe" class="painel" role="tabpanel" aria-labelledby="aba-equipe" hidden>
+            <section id="painel-equipe" class="painel" hidden>
                 <header class="cabecalho">
                     <h1>Equipe</h1>
                     <p class="subtitulo">Quem tem papel de equipe aparece aqui. Para dar um papel a outra pessoa, busque por nome ou e-mail (a partir de 2 caracteres) ou pelo começo do CPF (a partir de 3 dígitos).</p>
@@ -584,7 +571,7 @@
             <!-- ---------- Agendamentos ----------
                  Duas vistas dentro da aba: a lista (com os filtros) e o detalhe de um agendamento.
                  As linhas, as opções de instrutor e o detalhe são montados pelo admin.js. -->
-            <section id="painel-agendamentos" class="painel" role="tabpanel" aria-labelledby="aba-agendamentos" hidden>
+            <section id="painel-agendamentos" class="painel" hidden>
                 <div id="agendamentos-vista-lista" class="formularios">
                     <header class="cabecalho">
                         <h1>Agendamentos</h1>

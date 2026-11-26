@@ -1,6 +1,8 @@
-// Área da equipe (admin.html): a moldura (cabeçalho, abas e aviso) e uma seção por aba.
-// Cada aba tem a sua função "abrirAba..." chamada quando ela é escolhida.
+// Área da equipe (admin.html): a moldura comum (menu lateral, de moldura.mjs) e uma seção por aba.
+// A aba aberta vem do endereço (admin.html#precos); cada aba tem a sua função "abrirAba..." chamada quando ela é escolhida.
 import { supabase, chamarFuncao } from './api.mjs';
+import { montarMoldura } from './moldura.mjs';
+import { parteDoEndereco, abasNaOrdemDoMenu, saudacao } from './menu-regras.mjs';
 import {
     NOMES_DIAS, abasVisiveis, funcionamentoDoFormulario, formularioDoFuncionamento, proximaVersao, numeroDoCampo,
     proximoNumeroDePista, rotuloSituacaoArma, mensagemCadastroSalvo, nomeDoModelo, ROTULO_PAPEL,
@@ -26,6 +28,7 @@ const CONTA_DESATIVADA = 'Sua conta está desativada. Procure o atendimento do e
 let papeis = [];          // papéis de quem está logado (GET minha-conta)
 let meuId = null;         // id de quem está logado (só para mostrar "você"; o servidor é quem protege)
 let abaAtual = null;
+let moldura = null;       // a moldura montada (para marcar o item atual do menu)
 
 // ---------- Ajudantes de tela ----------
 
@@ -121,46 +124,41 @@ const ABRIR_ABA = {
     agendamentos: abrirAbaAgendamentos,
 };
 
-function botoesDasAbas() {
-    return [...document.querySelectorAll('#abas [data-aba]')].filter((botao) => !botao.hidden);
-}
-
-function montarAbas() {
-    const visiveis = abasVisiveis(papeis);
-    for (const botao of document.querySelectorAll('#abas [data-aba]')) botao.hidden = !visiveis.includes(botao.dataset.aba);
-    return visiveis;
-}
-
 function escolherAba(id) {
     abaAtual = id;
     avisar(null);
-    for (const botao of document.querySelectorAll('#abas [data-aba]')) {
-        const escolhida = botao.dataset.aba === id;
-        botao.setAttribute('aria-selected', String(escolhida));
-        botao.tabIndex = escolhida ? 0 : -1;
-        document.getElementById(`painel-${botao.dataset.aba}`).hidden = !escolhida;
+    for (const painel of document.querySelectorAll('#tela-admin > .painel')) {
+        painel.hidden = painel.id !== `painel-${id}`;
     }
+    moldura?.marcarAtivo(`equipe-${id}`);
     ABRIR_ABA[id]?.();
 }
 
-document.getElementById('abas').addEventListener('click', (evento) => {
-    const botao = evento.target.closest('[data-aba]');
-    if (botao && botao.dataset.aba !== abaAtual) escolherAba(botao.dataset.aba);
+// O endereço manda: abre a aba do "#" (clique no menu, "voltar" do navegador). Aba proibida ou
+// desconhecida abre a primeira permitida (na ordem do menu), sem mensagem, e o endereço passa a mostrar essa aba.
+function abrirAbaDoEndereco() {
+    const id = parteDoEndereco(location.hash, abasNaOrdemDoMenu(papeis));
+    if (!id) return;
+    if (location.hash !== `#${id}`) history.replaceState(null, '', `#${id}`);
+    if (id === abaAtual) return;
+    escolherAba(id);
+    window.scrollTo(0, 0);
+}
+
+window.addEventListener('hashchange', () => {
+    if (document.getElementById('tela-admin').classList.contains('ativa')) abrirAbaDoEndereco();
 });
 
-// Setas do teclado passam de uma aba para a outra.
-document.getElementById('abas').addEventListener('keydown', (evento) => {
-    if (evento.key !== 'ArrowRight' && evento.key !== 'ArrowLeft') return;
-    const botoes = botoesDasAbas();
-    const atual = botoes.findIndex((b) => b.dataset.aba === abaAtual);
-    const proximo = botoes[(atual + (evento.key === 'ArrowRight' ? 1 : -1) + botoes.length) % botoes.length];
-    escolherAba(proximo.dataset.aba);
-    proximo.focus();
-});
-
-document.getElementById('botao-sair').addEventListener('click', async () => {
-    await supabase.auth.signOut();
-    location.replace(ENTRAR);
+// "Sair" da tela de erro (quando o menu ainda não existe).
+document.getElementById('botao-erro-sair').addEventListener('click', async (evento) => {
+    evento.currentTarget.disabled = true;
+    try {
+        await supabase.auth.signOut();
+    } catch (erro) {
+        console.error(erro);
+    } finally {
+        location.replace('conta.html');
+    }
 });
 
 // ---------- Aba Configurações ----------
@@ -1924,13 +1922,12 @@ async function carregar() {
     if (r.status !== 200) return mostrarErroCarregar(r.dados?.erro);
     papeis = r.dados.papeis ?? [];
     meuId = r.dados.id ?? null;
-    document.getElementById('nome-equipe').textContent = r.dados.perfil?.nome_completo ?? r.dados.email ?? '';
-    document.getElementById('topo-conta').hidden = false;
+    moldura = montarMoldura({ papeis, ativo: null, saudacao: saudacao(r.dados.perfil, r.dados.email) });
 
-    const visiveis = montarAbas();
-    if (visiveis.length === 0) return mostrarTela('tela-sem-acesso');
+    if (abasVisiveis(papeis).length === 0) return mostrarTela('tela-sem-acesso');
     mostrarTela('tela-admin');
-    escolherAba(visiveis[0]);
+    abaAtual = null;
+    abrirAbaDoEndereco();
 }
 
 function carregarComErro() {

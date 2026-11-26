@@ -264,6 +264,17 @@ body.com-moldura .moldura-conteudo > .marca { display: none; }
     padding-top: 12px;
 }
 
+/* "Olá, Maria": quem está usando, acima do Sair. Nome comprido corta com reticências. */
+.moldura-saudacao {
+    color: var(--cor-texto-secundario);
+    font-size: 0.9rem;
+    margin: 0 0 8px;
+    overflow: hidden;
+    padding: 0 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* Espaço mínimo entre o último grupo e o Sair quando o menu é comprido. */
 .moldura-grupo:has(+ .moldura-rodape) { margin-bottom: 20px; }
 

@@ -46,3 +46,16 @@ export function parteDoEndereco(hash, permitidas) {
     const parte = String(hash ?? '').replace(/^#/, '');
     return permitidas.includes(parte) ? parte : (permitidas[0] ?? null);
 }
+
+// As abas que a pessoa pode abrir, na ordem do menu: sem "#" no endereço, abre a primeira (Agendamentos).
+export function abasNaOrdemDoMenu(papeis) {
+    const visiveis = abasVisiveis(papeis);
+    return GRUPOS_EQUIPE.flatMap((grupo) => grupo.abas).filter((aba) => visiveis.includes(aba));
+}
+
+// O cumprimento do menu: o primeiro nome; sem nome, o e-mail; sem nenhum dos dois, nada.
+export function saudacao(perfil, email) {
+    const primeiro = String(perfil?.nome_completo ?? '').trim().split(/\s+/)[0];
+    const quem = primeiro || email;
+    return quem ? `Olá, ${quem}` : '';
+}

@@ -14,6 +14,7 @@ import { calcularPreco, formatarReais } from './supabase/functions/_shared/preco
 import { montarAgenda } from './agenda-regras.mjs';
 import { criarAgenda } from './agenda-tela.mjs';
 import { montarMoldura } from './moldura.mjs';
+import { saudacao } from './menu-regras.mjs';
 
 const ERRO_PADRAO = 'Não foi possível concluir agora. Tente de novo em instantes.';
 const ENTRAR = 'conta.html?voltar=index.html';
@@ -927,7 +928,7 @@ async function carregar() {
     if (precisaEntrar(r) || precisaEntrar(lista) || precisaEntrar(conta)) return irParaEntrar();
     // Sabendo quem é, o menu já aparece (também na tela de erro); sem isso, a tela de erro fica no cartão, com o "Sair".
     if (conta.status !== 200) return mostrarErroCarregar(conta.dados?.erro);
-    moldura = montarMoldura({ papeis: conta.dados.papeis ?? [], ativo: null });
+    moldura = montarMoldura({ papeis: conta.dados.papeis ?? [], ativo: null, saudacao: saudacao(conta.dados.perfil, conta.dados.email) });
     if (r.status !== 200) return mostrarErroCarregar(r.dados?.erro);
     if (lista.status !== 200) return mostrarErroCarregar(lista.dados?.erro);
     opcoes = r.dados;

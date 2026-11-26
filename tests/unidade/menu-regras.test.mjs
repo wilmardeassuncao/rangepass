@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ABAS } from '../../admin-regras.mjs';
-import { GRUPOS_EQUIPE, ROTULO_ABA, menuDe, parteDoEndereco } from '../../menu-regras.mjs';
+import { GRUPOS_EQUIPE, ROTULO_ABA, menuDe, parteDoEndereco, abasNaOrdemDoMenu, saudacao } from '../../menu-regras.mjs';
 
 const PERFIL = { id: 'perfil', texto: 'Meu perfil', href: 'conta.html' };
 
@@ -52,4 +52,22 @@ test('parteDoEndereco devolve a parte permitida ou a primeira', () => {
     assert.equal(parteDoEndereco('#precos', ['agendamentos']), 'agendamentos');
     assert.equal(parteDoEndereco('', ['catalogo']), 'catalogo');
     assert.equal(parteDoEndereco('#xyz', []), null);
+});
+
+test('abasNaOrdemDoMenu: as abas permitidas na ordem do menu (Agendamentos primeiro)', () => {
+    assert.deepEqual(abasNaOrdemDoMenu(['superadmin']),
+        ['agendamentos', 'catalogo', 'pistas', 'equipe', 'precos', 'promocoes', 'configuracoes']);
+    assert.deepEqual(abasNaOrdemDoMenu(['administrativo']), ['agendamentos']);
+    assert.deepEqual(abasNaOrdemDoMenu(['cliente']), []);
+});
+
+test('sem # o superadmin abre Agendamentos', () => {
+    assert.equal(parteDoEndereco('', abasNaOrdemDoMenu(['superadmin'])), 'agendamentos');
+});
+
+test('saudacao usa o primeiro nome; sem nome, o e-mail; sem nada, vazio', () => {
+    assert.equal(saudacao({ nome_completo: '  Maria  da Silva ' }, 'm@x.com'), 'Olá, Maria');
+    assert.equal(saudacao({ nome_completo: '' }, 'm@x.com'), 'Olá, m@x.com');
+    assert.equal(saudacao(null, 'm@x.com'), 'Olá, m@x.com');
+    assert.equal(saudacao(null, null), '');
 });

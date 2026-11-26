@@ -37,7 +37,8 @@ function icone(classe, caminho) {
 let desmontarAnterior = null;
 
 // Monta o menu de quem tem `papeis`, com o item `ativo` (um id de menuDe) marcado como a tela atual.
-export function montarMoldura({ papeis = [], ativo = null } = {}) {
+// `saudacao` (de menu-regras.mjs, ex.: "Olá, Maria") aparece no rodapé do menu, acima do Sair.
+export function montarMoldura({ papeis = [], ativo = null, saudacao = '' } = {}) {
     desmontarAnterior?.();
     const corpo = document.body;
     const conteudo = document.querySelector('main.moldura-conteudo');
@@ -64,7 +65,9 @@ export function montarMoldura({ papeis = [], ativo = null } = {}) {
         menu.append(criar('div', { class: 'moldura-grupo' }, filhos));
     });
     const botaoSair = criar('button', { type: 'button', class: 'moldura-item moldura-sair' }, ['Sair']);
-    menu.append(criar('div', { class: 'moldura-rodape' }, [botaoSair]));
+    const rodape = criar('div', { class: 'moldura-rodape' }, [botaoSair]);
+    if (saudacao) rodape.prepend(criar('p', { class: 'moldura-saudacao' }, [saudacao]));
+    menu.append(rodape);
 
     const fundo = criar('div', { class: 'moldura-fundo', 'aria-hidden': 'true' });
 
