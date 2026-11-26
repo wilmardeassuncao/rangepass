@@ -1,0 +1,210 @@
+/* Visual da página do estande. O comum (cores, campos, botões, moldura com o menu lateral) vem do base.css;
+   aqui fica só o que é desta página. As tabelas seguem o mesmo jeito da área da equipe (admin.css). */
+
+fieldset { border: 0; margin: 0; min-width: 0; padding: 0; }
+legend { float: left; padding: 0; width: 100%; }
+legend + * { clear: both; }
+
+/* ---------- Telas e partes ---------- */
+
+.tela { gap: 16px; }
+
+/* Cada parte mede a própria largura: a lista se arruma pelo espaço do conteúdo (não da janela). */
+.painel { container: painel / inline-size; display: flex; flex-direction: column; gap: 16px; }
+.vista { display: flex; flex-direction: column; gap: 16px; }
+.vista[hidden] { display: none; }
+
+/* Com a moldura, o "Sair" da tela de erro some: o menu já tem o dele. */
+body.com-moldura #botao-erro-sair { display: none; }
+
+.bloco-topo { align-items: center; display: flex; flex-wrap: wrap; gap: 12px 16px; justify-content: space-between; }
+.bloco-titulo { font-size: 17px; font-weight: 700; margin: 0; }
+.vazio { color: var(--cor-texto-secundario); font-size: 15px; }
+
+.botao-atualizar { width: auto; padding: 12px 22px; }
+
+.botoes { display: flex; flex-wrap: wrap; gap: 10px; }
+.botoes .botao { flex: 1 1 160px; }
+
+@media (min-width: 720px) {
+    .botoes .botao { flex: 0 0 auto; padding: 12px 24px; width: auto; }
+}
+
+/* ---------- Telas de erro e sem acesso ---------- */
+
+.confirmacao {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 40px;
+    text-align: center;
+}
+
+.confirmacao h1 { font-size: 22px; line-height: 1.25; }
+
+.selo-erro {
+    align-items: center;
+    border: 2px solid var(--cor-erro);
+    border-radius: 50%;
+    color: var(--cor-erro);
+    display: flex;
+    font-size: 28px;
+    font-weight: 700;
+    height: 64px;
+    justify-content: center;
+    margin-bottom: 8px;
+    width: 64px;
+}
+
+/* ---------- Lista do dia ----------
+   Com espaço, tabela comum; em espaço estreito (a largura da parte, não da janela), cada linha vira um
+   cartão e cada célula mostra o nome da coluna (atributo data-coluna). */
+
+.tabela-rolagem { max-width: 100%; overflow-x: auto; }
+
+.tabela { border-collapse: collapse; font-size: 14px; width: 100%; }
+.tabela th, .tabela td { border-bottom: 1px solid var(--cor-borda); padding: 10px 8px; text-align: left; vertical-align: top; }
+.tabela th { color: var(--cor-texto-secundario); font-weight: 500; }
+.tabela td { overflow-wrap: break-word; }
+/* Nomes muito compridos (sem espaço) quebram em qualquer ponto; o resto só quebra entre palavras. */
+.tabela td[data-coluna="Responsável"], .tabela td[data-coluna="Instrutor"] { overflow-wrap: anywhere; }
+.tabela th { white-space: nowrap; }
+.tabela td.celula-acoes { text-align: right; vertical-align: middle; }
+.tabela .botao.pequeno { min-height: 44px; padding: 8px 14px; white-space: nowrap; width: auto; }
+
+.sem-quebra { white-space: nowrap; }
+.celula-texto { display: flex; flex-direction: column; gap: 2px; }
+.celula-texto span + span { color: var(--cor-texto-secundario); }
+
+.rotulo {
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 10px;
+    white-space: nowrap;
+}
+.rotulo.situacao-aguardando_pagamento { border-color: var(--cor-marca-clara); color: var(--cor-marca-clara); }
+.rotulo.situacao-pago,
+.rotulo.situacao-check_in { border-color: var(--cor-sucesso); color: var(--cor-sucesso); }
+.rotulo.situacao-concluido,
+.rotulo.situacao-nao_compareceu { color: var(--cor-texto-secundario); }
+
+@container painel (max-width: 759px) {
+    .tabela thead { display: none; }
+    .tabela, .tabela tbody, .tabela tr, .tabela td { display: block; width: 100%; }
+    .tabela tr {
+        background-color: var(--cor-superficie);
+        border: 1px solid var(--cor-borda);
+        border-radius: var(--raio-pequeno);
+        margin-bottom: 10px;
+        padding: 6px 12px 10px;
+    }
+    .tabela td { border: 0; display: flex; gap: 12px; justify-content: space-between; padding: 6px 0; }
+    .tabela td::before { color: var(--cor-texto-secundario); content: attr(data-coluna); flex-shrink: 0; }
+    .tabela td .celula-texto { align-items: flex-end; text-align: right; }
+    .tabela td.celula-acoes { padding-top: 8px; }
+    .tabela td.celula-acoes::before { content: none; }
+    .tabela td.celula-acoes:empty { display: none; }
+    .tabela .botao.pequeno { min-height: 48px; width: 100%; }
+}
+
+/* ---------- Ficha de check-in ---------- */
+
+.ficha { display: flex; flex-direction: column; gap: 16px; max-width: 760px; }
+
+.lista-participantes { display: flex; flex-direction: column; gap: 12px; list-style: none; margin: 0; padding: 0; }
+.participante {
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+}
+.participante-nome { font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
+
+/* Pares nome → valor. */
+.dados { display: grid; gap: 10px 16px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 0; }
+.dados dt { color: var(--cor-texto-secundario); font-size: 13px; }
+.dados dd { font-size: 15px; margin: 0; overflow-wrap: anywhere; }
+
+#ficha-com-preco, #ficha-sem-preco { display: flex; flex-direction: column; gap: 14px; }
+#ficha-com-preco[hidden], #ficha-sem-preco[hidden] { display: none; }
+
+/* O preço do agendamento (sem classe): cada item, o desconto e o total. */
+.valor-detalhe { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+.valor-detalhe div { display: flex; gap: 12px; justify-content: space-between; }
+.valor-detalhe dt { color: var(--cor-texto-secundario); font-size: 14px; overflow-wrap: anywhere; }
+.valor-detalhe dd { flex-shrink: 0; font-size: 14px; margin: 0; text-align: right; }
+.valor-detalhe .desconto dd { color: var(--cor-sucesso); }
+.valor-detalhe .total { border-top: 1px solid var(--cor-borda); padding-top: 10px; }
+.valor-detalhe .total dt, .valor-detalhe .total dd { color: var(--cor-texto); font-weight: 700; }
+
+/* A conta do desconto de classe, parte por parte. */
+.tabela-conta { border-collapse: collapse; font-size: 14px; width: 100%; }
+.tabela-conta th, .tabela-conta td { border-bottom: 1px solid var(--cor-borda); padding: 8px 6px; text-align: right; }
+.tabela-conta th:first-child { text-align: left; }
+.tabela-conta thead th { color: var(--cor-texto-secundario); font-weight: 500; }
+.tabela-conta tbody th { font-weight: 400; overflow-wrap: anywhere; }
+.tabela-conta td { white-space: nowrap; }
+.tabela-conta .conta-total th, .tabela-conta .conta-total td { font-weight: 700; }
+.tabela-conta .conta-congelado th, .tabela-conta .conta-congelado td { color: var(--cor-texto-secundario); }
+.tabela-conta .conta-cobrar th, .tabela-conta .conta-cobrar td {
+    border-bottom: 0;
+    color: var(--cor-marca-clara);
+    font-size: 17px;
+    font-weight: 700;
+    padding-top: 12px;
+}
+
+@media (max-width: 480px) {
+    .tabela-conta { font-size: 13px; }
+    .tabela-conta th, .tabela-conta td { padding: 8px 3px; }
+}
+
+.avisos-conta { display: flex; flex-direction: column; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.avisos-conta li {
+    background-color: var(--cor-ativo-fundo);
+    border-radius: var(--raio-pequeno);
+    color: var(--cor-marca-clara);
+    font-size: 14px;
+    line-height: 1.4;
+    padding: 10px 14px;
+}
+
+.valor-a-cobrar {
+    align-items: baseline;
+    border-top: 1px solid var(--cor-borda);
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    padding-top: 12px;
+}
+.valor-a-cobrar span { font-size: 15px; font-weight: 500; }
+.valor-a-cobrar strong { color: var(--cor-marca-clara); font-size: 20px; }
+
+/* As formas de pagamento: botões grandes, fáceis de tocar. */
+.formas { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
+.forma {
+    align-items: center;
+    background-color: var(--cor-campo);
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio-pequeno);
+    cursor: pointer;
+    display: flex;
+    font-size: 15px;
+    gap: 10px;
+    min-height: 52px;
+    padding: 10px 14px;
+}
+.forma input { accent-color: var(--cor-marca); flex-shrink: 0; height: 20px; margin: 0; width: 20px; }
+.forma:has(input:checked) { background-color: var(--cor-ativo-fundo); border-color: var(--cor-marca-clara); }
+.forma:has(input:focus-visible) { outline: 2px solid var(--cor-marca-clara); outline-offset: 2px; }
+.formas[aria-invalid="true"] .forma { border-color: var(--cor-erro); }
+
+@media (min-width: 720px) {
+    .formas { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

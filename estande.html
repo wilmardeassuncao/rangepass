@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estande · RangePass</title>
+    <meta name="theme-color" content="#101012">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="base.css">
+    <link rel="stylesheet" href="estande.css">
+</head>
+<body class="sem-moldura">
+    <main class="moldura-conteudo moldura-cartao">
+        <p class="marca">RANGE<span>PASS</span></p>
+        <p id="aviso" class="aviso" role="status" hidden></p>
+
+        <section id="tela-carregando" class="tela ativa">
+            <p class="subtitulo">Carregando…</p>
+        </section>
+
+        <section id="tela-erro" class="tela">
+            <div class="confirmacao">
+                <div class="selo-erro" aria-hidden="true">!</div>
+                <h1>Não deu para abrir</h1>
+                <p id="erro-carregar-mensagem" class="subtitulo" role="alert"></p>
+            </div>
+            <button type="button" id="botao-tentar-de-novo" class="botao">Tentar de novo</button>
+            <!-- Para ninguém ficar preso quando ainda não se sabe quem é a pessoa (sem menu). Com o menu, o Sair é o dele. -->
+            <button type="button" id="botao-erro-sair" class="botao secundario">Sair</button>
+        </section>
+
+        <section id="tela-sem-acesso" class="tela">
+            <div class="confirmacao">
+                <div class="selo-erro" aria-hidden="true">!</div>
+                <h1>Você não tem acesso a esta área.</h1>
+                <p class="subtitulo">Use o menu para ir a outra parte do RangePass.</p>
+            </div>
+            <a href="conta.html" class="botao secundario">Ir para o meu perfil</a>
+        </section>
+
+        <section id="tela-estande" class="tela">
+
+            <!-- ---------- Recepção ---------- -->
+            <div id="painel-recepcao" class="painel" hidden>
+
+                <!-- Lista do dia -->
+                <div id="recepcao-lista" class="vista">
+                    <div class="bloco-topo">
+                        <div class="cabecalho">
+                            <h1>Recepção</h1>
+                            <p id="recepcao-dia" class="subtitulo">Agendamentos de hoje.</p>
+                        </div>
+                        <button type="button" id="botao-atualizar" class="botao secundario botao-atualizar">Atualizar</button>
+                    </div>
+
+                    <p id="recepcao-carregando" class="subtitulo">Carregando…</p>
+                    <p id="recepcao-erro" class="aviso" role="alert" hidden></p>
+                    <p id="recepcao-vazio" class="bloco vazio" hidden>Nenhum agendamento para hoje.</p>
+
+                    <div class="tabela-rolagem">
+                        <table id="tabela-recepcao" class="tabela tabela-recepcao" hidden>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Horário</th>
+                                    <th scope="col">Responsável</th>
+                                    <th scope="col">Pessoas</th>
+                                    <th scope="col">Pista</th>
+                                    <th scope="col">Instrutor</th>
+                                    <th scope="col">Valor</th>
+                                    <th scope="col">Situação</th>
+                                    <th scope="col"><span class="so-leitor">Ações</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="linhas-recepcao"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Ficha de check-in -->
+                <div id="recepcao-ficha" class="vista" hidden>
+                    <div class="cabecalho">
+                        <h1>Check-in</h1>
+                        <p id="ficha-sessao" class="subtitulo"></p>
+                    </div>
+
+                    <p id="ficha-carregando" class="subtitulo">Carregando…</p>
+                    <p id="ficha-erro" class="aviso" role="alert" hidden></p>
+
+                    <form id="form-check-in" class="ficha" novalidate hidden>
+                        <p id="ficha-motivo" class="aviso" hidden></p>
+
+                        <section class="bloco" aria-labelledby="titulo-participantes">
+                            <h2 id="titulo-participantes" class="bloco-titulo">Participantes</h2>
+                            <p class="subtitulo">Confira o documento de cada um.</p>
+                            <ul id="ficha-participantes" class="lista-participantes"></ul>
+                        </section>
+
+                        <section id="ficha-bloco-valor" class="bloco" aria-labelledby="titulo-valor">
+                            <h2 id="titulo-valor" class="bloco-titulo">Valor</h2>
+
+                            <p id="ficha-pago" class="aviso sucesso" hidden>Pago pelo app.</p>
+
+                            <div id="ficha-sem-preco" hidden>
+                                <p class="aviso">Este agendamento não tem preço guardado. Informe o valor cobrado.</p>
+                                <label class="campo">Valor cobrado (R$)
+                                    <input type="text" name="valor_centavos" inputmode="decimal" autocomplete="off" placeholder="Ex.: 120,00">
+                                    <span class="erro" data-erro-para="valor_centavos"></span>
+                                </label>
+                            </div>
+
+                            <div id="ficha-com-preco" hidden>
+                                <dl id="ficha-preco" class="valor-detalhe"></dl>
+
+                                <label class="campo">Desconto de classe
+                                    <select name="classe_id" id="ficha-classe"></select>
+                                    <span class="erro" data-erro-para="classe_id"></span>
+                                </label>
+
+                                <label id="campo-documento" class="campo" hidden>Documento conferido
+                                    <input type="text" name="documento" maxlength="60" autocomplete="off">
+                                    <small>O número do documento que comprova a classe (funcional, CR etc.).</small>
+                                    <span class="erro" data-erro-para="documento"></span>
+                                </label>
+
+                                <div id="ficha-conta" class="conta" hidden>
+                                    <table class="tabela-conta">
+                                        <caption class="so-leitor">A conta do desconto de classe</caption>
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Parte</th>
+                                                <th scope="col">Antes</th>
+                                                <th scope="col">Desconto</th>
+                                                <th scope="col">Depois</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="linhas-conta"></tbody>
+                                    </table>
+                                </div>
+                                <ul id="ficha-avisos-conta" class="avisos-conta" hidden></ul>
+
+                                <p id="ficha-valor-a-cobrar" class="valor-a-cobrar">
+                                    <span>Valor a cobrar</span> <strong id="ficha-valor-a-cobrar-texto"></strong>
+                                </p>
+                                <span class="erro" data-erro-para="valor_esperado_centavos"></span>
+                            </div>
+                        </section>
+
+                        <fieldset id="ficha-formas" class="bloco" hidden>
+                            <legend class="bloco-titulo">Forma de pagamento</legend>
+                            <div id="lista-formas" class="formas" data-grupo-erro="forma_pagamento"></div>
+                            <span class="erro" data-erro-para="forma_pagamento"></span>
+                        </fieldset>
+
+                        <p class="erro" data-erro-geral role="alert" hidden></p>
+
+                        <div class="botoes">
+                            <button type="submit" id="botao-confirmar" class="botao">Confirmar check-in</button>
+                            <button type="button" class="botao secundario" data-acao="voltar">Voltar</button>
+                        </div>
+                    </form>
+
+                    <div id="ficha-so-voltar" class="botoes" hidden>
+                        <button type="button" class="botao secundario" data-acao="voltar">Voltar</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="estande.js"></script>
+</body>
+</html>

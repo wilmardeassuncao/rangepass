@@ -160,6 +160,7 @@ test('a lista da recepção traz só as sessões de hoje, sem canceladas, em ord
     const r = await operacao(atendente.token, { consulta: 'area=recepcao' });
     assert.strictEqual(r.status, 200, JSON.stringify(r.dados));
     assert.strictEqual(r.dados.hoje, hoje);
+    assert.strictEqual(r.dados.fuso, fuso);
     const lista = r.dados.agendamentos;
     const ids = lista.map(a => a.id);
     assert.ok(ids.includes(deHoje), 'a sessão de hoje deveria aparecer');
@@ -213,6 +214,7 @@ test('a ficha traz CPFs, classes ativas e registra o acesso', async () => {
     assert.strictEqual(r.dados.custo_municao_centavos, MUNICAO_QTD * CUSTO_UNIDADE);
     assert.strictEqual(r.dados.pode_fazer_check_in, true);
     assert.strictEqual(r.dados.motivo, null);
+    assert.strictEqual(r.dados.fuso, fuso);
 
     const acessos = await rest(`acessos_dados?usuario_id=eq.${atendente.id}&recurso=eq.operacao.ficha&registro=eq.${id}`);
     assert.strictEqual(acessos.status, 200, JSON.stringify(acessos.dados));

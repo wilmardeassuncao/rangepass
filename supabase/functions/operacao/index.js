@@ -1,7 +1,7 @@
 // Edge Function operacao: a operação do estande no dia (por enquanto, a área Recepção).
-// GET ?area=recepcao: a lista das sessões de hoje (no fuso do estande), sem as canceladas.
+// GET ?area=recepcao: a lista das sessões de hoje (no fuso do estande, que vai junto), sem as canceladas.
 // GET ?id=: a ficha de check-in, com os participantes (CPFs), as classes de desconto ativas e o custo
-// da munição; cada ficha aberta fica registrada em acessos_dados.
+// da munição e o fuso do estande; cada ficha aberta fica registrada em acessos_dados.
 // POST { acao: 'check_in', ... }: o check-in com o pagamento do balcão. O servidor refaz a conta do
 // desconto de classe e grava o pagamento e a situação numa transação só (RPC fazer_check_in).
 // Só atendente e superadmin chegam aos dados: o papel é conferido antes de qualquer consulta.
@@ -80,7 +80,7 @@ async function listarRecepcao() {
         valor_centavos: l.preco_total_centavos ?? null,
         pago_no_balcao_centavos: umOuNulo(l.pagamentos)?.valor_centavos ?? null,
     }));
-    return respostaJson(200, { hoje, agendamentos });
+    return respostaJson(200, { hoje, fuso, agendamentos });
 }
 
 // --- Ficha de check-in ---
@@ -163,6 +163,7 @@ async function detalhar(id, contexto) {
         custo_municao_centavos: custoDaMunicao(linha),
         pode_fazer_check_in: motivo === null,
         motivo,
+        fuso,
     });
 }
 

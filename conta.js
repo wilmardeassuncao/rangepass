@@ -9,8 +9,8 @@ import { validarCadastro, validarEdicaoPerfil, dataNoFuso } from './supabase/fun
 const parametrosDoLink = new URLSearchParams(location.hash.slice(1));
 const veioDaRecuperacao = parametrosDoLink.get('type') === 'recovery';
 const erroDoLink = parametrosDoLink.get('error_code');
-// Para onde voltar depois de entrar. Só aceita o agendamento e a área da equipe; qualquer outro valor é ignorado.
-const VOLTAR_ACEITOS = ['index.html', 'admin.html'];
+// Para onde voltar depois de entrar. Só aceita o agendamento, a área da equipe e o estande; qualquer outro valor é ignorado.
+const VOLTAR_ACEITOS = ['index.html', 'admin.html', 'estande.html'];
 const pedidoVoltar = new URLSearchParams(location.search).get('voltar');
 const voltarPara = VOLTAR_ACEITOS.includes(pedidoVoltar) ? pedidoVoltar : null;
 

@@ -1,6 +1,7 @@
 // Regras do menu lateral que não mexem na tela: dá para testar no Node.
 import { temAlgumPapel } from './supabase/functions/_shared/papeis.mjs';
 import { abasVisiveis } from './admin-regras.mjs';
+import { AREAS_ESTANDE, areasVisiveis } from './estande-areas.mjs';
 
 // Como as abas da equipe se agrupam no menu, na ordem em que aparecem.
 export const GRUPOS_EQUIPE = [
@@ -21,6 +22,7 @@ export const ROTULO_ABA = {
 };
 
 // O menu de quem tem esses papéis: primeiro a área pessoal (sem título), depois os grupos da equipe.
+// No grupo Operação, as áreas do estande (estande.html) vêm antes de "Agendamentos".
 // "Sair" não entra aqui: é um botão da moldura.
 export function menuDe(papeis) {
     const proprios = [];
@@ -32,10 +34,14 @@ export function menuDe(papeis) {
     const menu = [{ titulo: null, itens: proprios }];
 
     const visiveis = abasVisiveis(papeis);
+    const areas = areasVisiveis(papeis);
+    const itensDoEstande = AREAS_ESTANDE.filter((area) => areas.includes(area.id))
+        .map((area) => ({ id: `estande-${area.id}`, texto: area.texto, href: `estande.html#${area.id}` }));
     for (const grupo of GRUPOS_EQUIPE) {
         const itens = grupo.abas
             .filter((aba) => visiveis.includes(aba))
             .map((aba) => ({ id: `equipe-${aba}`, texto: ROTULO_ABA[aba], href: `admin.html#${aba}` }));
+        if (grupo.titulo === 'Operação') itens.unshift(...itensDoEstande);
         if (itens.length > 0) menu.push({ titulo: grupo.titulo, itens });
     }
     return menu;
