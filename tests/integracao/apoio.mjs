@@ -239,11 +239,11 @@ async function apagarLinhasComHistorico(tabela, filtro) {
     return ids;
 }
 
-// Apaga cada agendamento anotado com as reservas, os participantes, os itens e o histórico de cada linha.
+// Apaga cada agendamento anotado com o pagamento, as reservas, os participantes, os itens e o histórico de cada linha.
 export async function apagarAgendamentosAnotados() {
     const ids = agendamentosAnotados.splice(0).reverse();
     await executarTodos(ids.map(id => async () => {
-        for (const tabela of ['agendamento_unidades', 'agendamento_instrutores', 'agendamento_pistas']) {
+        for (const tabela of ['pagamentos', 'agendamento_unidades', 'agendamento_instrutores', 'agendamento_pistas']) {
             await apagarLinhasComHistorico(tabela, `agendamento_id=eq.${id}`);
         }
         const lidos = await rest(`participantes?agendamento_id=eq.${id}&select=id`);
