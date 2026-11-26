@@ -23,7 +23,7 @@ before(async () => {
     const calibre = await criar('calibres', { nome: `Calibre ${marcador()}` });
     modelo = await criar('modelos', { categoria_id: categoria.id, calibre_id: calibre.id, marca: `Marca ${marcador()}`, nome: 'Modelo Teste' });
     tipoMunicao = await criar('tipos_municao', { calibre_id: calibre.id, nome: `Munição ${marcador()}` });
-    // Uma unidade para cada agendamento de teste (todos são de hoje, mas em horas diferentes).
+    // Uma unidade só; os agendamentos ficam em horas diferentes.
     await criar('unidades_arma', { modelo_id: modelo.id, numero_registro: `REG-${marcador()}` });
     classe = await criar('classes_desconto', {
         nome: `Classe ${marcador()}`, percentual_pista: 20, percentual_aluguel: 10, percentual_municao: 15,

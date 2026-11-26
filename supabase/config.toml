@@ -341,3 +341,7 @@ verify_jwt = false
 [functions.precos]
 entrypoint = "./functions/precos/index.js"
 verify_jwt = false
+
+[functions.operacao]
+entrypoint = "./functions/operacao/index.js"
+verify_jwt = false
